@@ -39,6 +39,10 @@ MIN_VOTES = 2               # sampled points that must find a segment
 THROUGH = {"primary", "secondary", "tertiary"}
 SMALL = {"residential", "unclassified", "living_street"}
 SMALL_MIN_M = 5.0
+# Its 5 m values are often one carriageway of a split section read onto the two-way road beside it, and 3-4 m on a
+# through road is a default: a road with two directions drawn that narrow leaves no room to pass.
+THROUGH_TWO_WAY_MIN_M = 6.0
+THROUGH_ONE_WAY_MIN_M = 4.0
 
 
 def parse(features):
@@ -95,6 +99,11 @@ def _longest(feats, i):
     return out
 
 
+def _one_way(feats, i):
+    rule = feats.rules.get("oneway")
+    return rule is not None and len(rule.feature) > 0 and rule.major(i) >= 0
+
+
 def join(feats, rows):
     """Writes BD TOPO's widths to feats' osm_width where the map has none. Returns how many roads took one."""
     n = len(feats)
@@ -133,6 +142,8 @@ def join(feats, rows):
         width = float(np.median(got))
         if cls in SMALL and width < SMALL_MIN_M:
             continue
+        if cls in THROUGH:
+            width = max(width, THROUGH_ONE_WAY_MIN_M if _one_way(feats, i) else THROUGH_TWO_WAY_MIN_M)
         col[i] = f"{width:g}"
         joined += 1
     feats.attrs["osm_width"] = col.astype(str)
