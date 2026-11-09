@@ -177,6 +177,12 @@ class Rasters:
         data = c.read_window(col0, row0, w, w)
         return Raster(data, "EPSG:3857", mx0, my0, c.sx, c.sy, CHM_NODATA, [qk])
 
+    def canopy_raster(self, cell, data):
+        """A canopy Raster of the cell around data (a square uint8 grid), for a source other than the CHM files."""
+        size = 2 * MERC_HALF / (1 << cell.z)
+        px = size / data.shape[0]
+        return Raster(data, "EPSG:3857", cell.x * size - MERC_HALF, MERC_HALF - cell.y * size, px, px, CHM_NODATA, ["ign"])
+
     def bc_canopy(self, cell, base):
         """base (the Meta / WRI canopy Raster of the cell, or None) with LidarBC's measured canopy heights put in
         where lidar covers it; (raster, lidar files used). Network failures raise netfetch.FetchError."""

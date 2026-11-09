@@ -2353,6 +2353,11 @@ class Server:
                 props.extend(fences.rows(anchor.frame, infra_fn, box, elev))
             except Exception as ex:
                 log.warning("fences: tile %s_%s: %s: %s", tx, ty, type(ex).__name__, ex)
+            import ign_limites
+            try:
+                props.extend(ign_limites.rows(anchor.frame, getattr(self.mapdata, "ign_limites", None), box, elev))
+            except Exception as ex:
+                log.warning("ign_limites: tile %s_%s: %s: %s", tx, ty, type(ex).__name__, ex)
             import picnic
             land_fn = lambda key: self.mapdata.cell(key, layers=("land_use",), kind="demand").layers.get("land_use")
             bld_fn = lambda key: self.mapdata.cell(key, layers=("buildings",), kind="demand").layers.get("buildings")

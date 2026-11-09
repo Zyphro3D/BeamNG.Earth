@@ -272,6 +272,8 @@ class MapData:
         self.rail_tags = railtags.RailTags(cache_dir, self.fetcher) if railtags.ON else None
         import ign_bati                 # (France: IGN BD TOPO building attributes; BNE_IGN_BATI=off)
         self.ign_bati = ign_bati.Provider(cache_dir, self.fetcher) if ign_bati.ON else None
+        import ign_limites              # (France: real walls and hedges on the property lines; BNE_IGN_LIMITES=off)
+        self.ign_limites = ign_limites.Provider(cache_dir, self.fetcher, self.ign_bati) if ign_limites.ON else None
         import roadz                    # (real road / deck / tunnel heights where a source has them: BNE_ROADZ)
         roadz.install(cache_dir, self.fetcher, self)
         self.lane_tags = railtags.LaneTags(cache_dir, self.fetcher) if railtags.LANES_ON else None   # (markings.py)
@@ -458,6 +460,9 @@ class MapData:
         else:
             r = self.rasters.canopy(key, kind)
             r, bc_files = self.rasters.bc_canopy(key, r)
+            import ign_lidar                # (France: measured heights from IGN's LiDAR HD; BNE_IGN_MNH=off)
+            r, ign_files = ign_lidar.canopy(self.fetcher, key, r, lambda data: self.rasters.canopy_raster(key, data))
+            bc_files = bc_files or ign_files
             arrays = _layer_arrays(r)
             prov = dict(CANOPY, files=r.files) if r is not None else None
             if bc_files:
