@@ -11,6 +11,7 @@ The runs are kept on disk (<cache>/ign_limites/v<VERSION>/<z>/<x>/<y>.npz) and r
 walls (a mesh fence on a low wall under FENCE_MAX_M, a plain wall above it) and shrubs. All open data under Etalab
 Licence Ouverte 2.0. Off: BNE_IGN_LIMITES=off. A failure leaves the cell without barriers, as it was.
 """
+import concurrent.futures
 import io
 import json
 import logging
@@ -23,6 +24,7 @@ import numpy as np
 
 import ign_bati
 import mapcells
+import revisit
 
 log = logging.getLogger("earthd.ign_limites")
 
@@ -36,6 +38,7 @@ PARCELS = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
 MERC_HALF = 20037508.342789244
 MNH_PX, ORTHO_PX, BLOCK = 4096, 2048, 1024
 GET_TRIES = 3
+CLAIM_MAX_S = 600.0
 PAGE, PAGES = 5000, 40
 MIN_M, MAX_M = 0.6, 3.5
 RUN_M, STEP_M = 3.5, 0.5
@@ -106,6 +109,7 @@ class Provider:
         self.dir = os.path.join(cache_dir, "ign_limites", f"v{VERSION}") if cache_dir else None
         self.fetcher, self.bati = fetcher, bati
         self._locks, self._lock, self._mem = {}, threading.Lock(), {}
+        self._later, self._asked = None, set()      # (fetch_later: one background download at a time, per process)
 
     def _get(self, url):
         for attempt in range(GET_TRIES):
@@ -190,6 +194,66 @@ class Provider:
             out[i] = (x0 / scale + mx0, my0 - y0 / scale, x1 / scale + mx0, my0 - y1 / scale, kind, height)
         return out
 
+    def _file(self, cell):
+        return os.path.join(self.dir, str(cell.z), str(cell.x), f"{cell.y}.npz") if self.dir else None
+
+    def ready(self, cell):
+        """Are the cell's barriers at hand (a tile can read them without the network)?"""
+        with self._lock:
+            if str(cell) in self._mem:
+                return True
+        path = self._file(cell)
+        return bool(path) and os.path.exists(path)
+
+    def _claim(self, cell):
+        """This process builds the cell (the road processes each have a provider), unless another one is at it. A claim
+        left by a process that died stops counting after CLAIM_MAX_S."""
+        path = self._file(cell)
+        if not path:
+            return None
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        claim = path + ".claim"
+        try:
+            if time.time() - os.path.getmtime(claim) > CLAIM_MAX_S:
+                os.remove(claim)
+        except OSError:
+            pass
+        try:
+            os.close(os.open(claim, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+        except OSError:
+            return False
+        return claim
+
+    def fetch_later(self, cell):
+        """Downloads and works out the cell in the background, once: a road tile never waits for it (its first visit took
+        over 75 s a tile, the road missing all that while)."""
+        k = str(cell)
+        with self._lock:
+            if k in self._asked:
+                return
+            self._asked.add(k)
+            if self._later is None:
+                self._later = concurrent.futures.ThreadPoolExecutor(1, thread_name_prefix="ign_limites")
+            pool = self._later
+
+        def job():
+            claim = self._claim(cell)
+            if claim is False:
+                return
+            try:
+                self.segments(cell)
+            except Exception as e:      # (no network, a changed service: asked again by the next tile that wants it)
+                log.warning("ign_limites %s: %s: %s", cell, type(e).__name__, e)
+                with self._lock:
+                    self._asked.discard(k)
+            finally:
+                if claim:
+                    try:
+                        os.remove(claim)
+                    except OSError:
+                        pass
+        pool.submit(job)
+
     def segments(self, cell):
         """(N, 6): x0 y0 x1 y1 (EPSG:3857 metres), kind (0 wall or fence, 2 hedge), height."""
         k = str(cell)
@@ -249,6 +313,10 @@ def rows(frame, provider, box, elev):
         return []
     pending = []
     for key in keys:
+        if not provider.ready(key):     # (this tile goes without, and is not kept: its next build has them)
+            provider.fetch_later(key)
+            revisit.fault()
+            continue
         try:
             seg = provider.segments(key)
         except Exception as e:          # (no network, a changed service: no barriers here)

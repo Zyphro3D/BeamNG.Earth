@@ -1,15 +1,18 @@
 """Walls, fences and hedges on the property lines (ign_limites.py), the canopy from IGN's lidar (ign_lidar.py)."""
 import os
 import sys
+import tempfile
 import unittest
 from types import SimpleNamespace
 
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import geodesy  # noqa: E402
 import ign_lidar  # noqa: E402
 import ign_limites as L  # noqa: E402
 import mapcells  # noqa: E402
+import revisit  # noqa: E402
 
 N = 100
 
@@ -108,6 +111,68 @@ class CanopyTest(unittest.TestCase):
                 raise AssertionError("asked")
         far = mapcells.CellKey(14, 2000, 6000)
         self.assertEqual(ign_lidar.canopy(Never(), far, self.base(), None)[1], [])
+
+
+class BackgroundTest(unittest.TestCase):
+    cell = mapcells.CellKey(14, 8254, 5976)
+    frame = geodesy.EnuFrame(43.7, 1.37, 0.0)
+    box = (-50.0, -50.0, 50.0, 50.0)
+
+    def provider(self, tmp, seg=None):
+        p = L.Provider(tmp, None)
+        p.built = []
+
+        def build(cell):
+            p.built.append(cell)
+            return np.zeros((0, 6)) if seg is None else seg
+        p._build = build
+        return p
+
+    def drain(self, p):
+        if p._later is not None:
+            p._later.shutdown(wait=True)
+            p._later = None
+
+    def test_a_tile_does_not_wait_and_is_not_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self.provider(tmp)
+            before = revisit.faults()
+            self.assertEqual(L.rows(self.frame, p, self.box, lambda la, lo: np.zeros(np.size(la))), [])
+            self.assertGreater(revisit.faults(), before)
+            self.drain(p)
+            self.assertTrue(p.built)
+
+    def test_once_worked_out_a_cell_is_read_without_the_network(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self.provider(tmp)
+            p.fetch_later(self.cell)
+            p.fetch_later(self.cell)
+            self.drain(p)
+            self.assertEqual(len(p.built), 1)
+            self.assertTrue(p.ready(self.cell))
+            self.assertFalse(os.path.exists(p._file(self.cell) + ".claim"))
+            self.assertTrue(L.Provider(tmp, None).ready(self.cell))
+
+    def test_another_process_at_it_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self.provider(tmp)
+            os.makedirs(os.path.dirname(p._file(self.cell)))
+            open(p._file(self.cell) + ".claim", "w").close()
+            p.fetch_later(self.cell)
+            self.drain(p)
+            self.assertEqual(p.built, [])
+
+    def test_a_dead_process_claim_runs_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self.provider(tmp)
+            os.makedirs(os.path.dirname(p._file(self.cell)))
+            claim = p._file(self.cell) + ".claim"
+            open(claim, "w").close()
+            old = 1000.0
+            os.utime(claim, (old, old))
+            p.fetch_later(self.cell)
+            self.drain(p)
+            self.assertEqual(len(p.built), 1)
 
 
 if __name__ == "__main__":
