@@ -413,6 +413,11 @@ for group, asset in pairs(require('beamngEarth/frRadarAssets')) do
   M.ONE_SPELLING[group] = true
   M.NO_COLLIDE[group] = true
 end
+-- France: the walls and fences found on the property lines (server/ign_limites.py)
+M.CATALOG.frwall = { { IT .. 'buildings/italy_wall_concrete_plain', 1.0 } }
+M.CATALOG.frfence = { { IT .. 'buildings/italy_fence_mesh_6m_conc_base', 1.59 } }
+M.GROUP_MAX_M.frwall = 800
+M.GROUP_MAX_M.frfence = 800
 -- Picnic tables and grills in parks (server picnic.py): Utah's table (2 x 1.4 m, 0.85 m high) and East
 -- Coast's grill. The table's materials live with Utah's buildings.
 M.CATALOG.picnictable = { { UT .. 'buildings/ut_picnic_table_a', 0.85 } }
