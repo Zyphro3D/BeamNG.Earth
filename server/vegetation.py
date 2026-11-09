@@ -527,7 +527,9 @@ class Vegetation:
         edge = self._edge(cd, lc, blocked | orchard | vines, road, chm, hs)
         bounds = (lon0, lat0, lon1, lat1)
         planted = orchard_items(lu, chm, blocked, bounds)
-        hedges = farm_foliage(lu, chm, blocked, bounds)
+        import franceroads
+        hedges = _empty() if franceroads.in_france((lat0 + lat1) / 2.0, (lon0 + lon1) / 2.0) else \
+            farm_foliage(lu, chm, blocked, bounds)        # (France fork: no invented shrubs in lines across French fields)
         rows = vineyard_items(lu, chm, blocked, bounds)
         bales = bale_items(lu, chm, blocked, bounds)
         return _concat_all([tree, scatter, edge, planted, hedges, rows, bales])

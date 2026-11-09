@@ -928,14 +928,19 @@ def paint_square(rgb, frame, x0, y0, size, surface, widths=None, simple=False, p
     import paintlist
     roads = _square_roads(frame, x0, y0, size, surface, pending)
     lots = []
+    steps = paintlist.ALL
     if not simple:          # (simple, a stand-in's: the carriageways alone, photo_roads)
         lots = _square_lots(frame, x0, y0, size, surface)
         if pads is None:
             pads = _square_pads(frame, x0, y0, size, surface)
+        import franceroads
+        la, lo, _ = frame.enu_to_geodetic(x0 + size / 2.0, y0 + size / 2.0, 0.0)
+        if franceroads.in_france(float(la), float(lo)):     # (France fork: IGN's photo already shows the real crop rows)
+            steps = tuple(k for k in steps if k != "fields")
     if simple and not roads:
         return rgb
     return paintlist.paint(rgb, frame, x0, y0, size, roads, lots, getattr(surface, "urban", None), widths,
-                           pads or (), simple=simple)
+                           pads or (), simple=simple, steps=steps)
 
 
 def unghost_square(rgb, frame, x0, y0, size, surface, widths=None):
