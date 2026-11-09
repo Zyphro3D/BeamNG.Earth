@@ -5751,6 +5751,8 @@ def pier_sites(xy, z, width, ground_fn, road_lines=(), wet_fn=None, depth=None):
 OBS_BLEND_DG = 0.04     # a measured deck eased onto its joints' heights changes its grade by at most this (BridgeProfiles)
 OBS_BLEND_MIN_M = 10.0  # m, the shortest easing
 OBS_MAX_GRADE = 0.14    # a measured deck steeper than this after the easing (2 m steps) keeps the inference
+OBS_JOINT_SHORT_M = 30.0   # m: a part shorter than this, eased onto its joints too steeply, climbs evenly instead
+OBS_JOINT_GRADE = 0.08  # a joint's measured height stays within this grade of the far end of a part nothing measured there
 OBS_END_MAX_M = float(os.environ.get("BNE_OBS_END_MAX", "inf"))  # m a measured deck's end may lie off the graded road at
                         # its abutment, else the inference (inf: always eased onto it; 4 m made Springfield worse)
 
@@ -6140,6 +6142,18 @@ class BridgeProfiles:
             got = [(o[0] if a == node else o[-1]) for o, (a, b) in zip(obs, ends) if o is not None and node in (a, b)]
             if got:
                 target[node] = float(np.mean(got))
+        # a part takes the whole step between a joint and its far end: a short one between a measured deck and its road
+        # climbed 36 % (15 m of a French river bridge, 2.3 m): the joint comes down to what that part can
+        # climb, and the measured deck eases to it
+        for z, ln, (a, b) in zip(zs, lines, ends):
+            if not len(z):
+                continue
+            pts = np.asarray(ln, np.float64)[:, :2]
+            reach = OBS_JOINT_GRADE * float(np.sum(np.hypot(*np.diff(pts, axis=0).T)))
+            for node, far, zfar in ((a, b, float(z[-1])), (b, a, float(z[0]))):
+                if node in target:
+                    h = zfar if deg[far] == 1 else target.get(far, zfar)
+                    target[node] = min(max(target[node], h - reach), h + reach)
         import fast
         out = []
         for k, (ln, z, o, (a, b)) in enumerate(zip(lines, zs, obs, ends)):
@@ -6170,6 +6184,8 @@ class BridgeProfiles:
                     # (the ends as eased: the parts at a joint keep meeting at one height)
                     zz = np.r_[zz[0], np.maximum(zz, np.minimum(z, o))[1:-1], zz[-1]]
                     measured.add(comp[k])
+            if 0 < s[-1] < OBS_JOINT_SHORT_M and float(np.max(np.abs(np.diff(zz)) / np.maximum(np.diff(s), 0.5))) > OBS_JOINT_GRADE * 1.25:
+                zz = float(t0) + (float(t1) - float(t0)) * s / s[-1]    # (the easing's minimum length bunched a short part's climb)
             out.append(zz)
         return out
 

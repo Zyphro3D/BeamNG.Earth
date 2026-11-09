@@ -5,6 +5,7 @@ import os
 import struct
 import sys
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -335,6 +336,41 @@ class BridgeOverrideTest(unittest.TestCase):
 
     def tearDown(self):
         roadz.PROVIDER = self.old
+
+    def test_a_short_unmeasured_part_is_not_the_whole_step(self):
+        # a French river bridge: a 190 m deck measured at 125.17, then 15 m of the same bridge nothing
+        # measured, between it and the road at 122.84: the joint at the measured height made that stub climb 36 %
+        long_xy = np.c_[np.linspace(-190.0, 0.0, 49), np.zeros(49)]
+        stub_xy = np.c_[np.linspace(0.0, 15.0, 6), np.zeros(6)]
+        def measured(xy, s):
+            return None if s[-1] < 30.0 else np.full(len(xy), 125.17)
+        roadz.PROVIDER = StubProvider(measured)
+        bp = roads.BridgeProfiles(FRAME, lambda key: None, flat_elev)
+        spec = SimpleNamespace(width=7.1)
+        comp = [("long", 0), ("stub", 0)]
+        pool = {comp[0]: (spec,), comp[1]: (spec,)}
+        zs = [np.full(49, 123.6), np.linspace(123.6, 122.84, 6)]
+        out = bp._observed(comp, pool, [long_xy, stub_xy], zs)
+        stub = np.asarray(out[1])
+        self.assertAlmostEqual(float(out[0][-1]), float(stub[0]), places=6, msg="the parts meet at one height")
+        self.assertAlmostEqual(float(stub[-1]), 122.84, places=6, msg="the road's end stays")
+        self.assertLessEqual(float(np.max(np.abs(np.diff(stub)) / 3.0)), roads.OBS_JOINT_GRADE * 1.5)
+        self.assertGreater(float(out[0][24]), 125.0, "the measured deck keeps its height away from the joint")
+
+    def test_a_short_measured_part_is_not_the_whole_step_either(self):
+        # (a 7 m stub measured too: the solve kept after the grade check, its joint still 1 m away over 3 m)
+        long_xy = np.c_[np.linspace(-50.0, 0.0, 14), np.zeros(14)]
+        stub_xy = np.c_[np.linspace(0.0, 7.0, 3), np.zeros(3)]
+        roadz.PROVIDER = StubProvider(lambda xy, s: np.full(len(xy), 132.3))
+        bp = roads.BridgeProfiles(FRAME, lambda key: None, flat_elev)
+        spec = SimpleNamespace(width=7.1)
+        comp = [("long", 0), ("stub", 0)]
+        pool = {comp[0]: (spec,), comp[1]: (spec,)}
+        zs = [np.full(14, 133.3), np.linspace(133.3, 133.2, 3)]
+        out = bp._observed(comp, pool, [long_xy, stub_xy], zs)
+        stub = np.asarray(out[1])
+        self.assertAlmostEqual(float(out[0][-1]), float(stub[0]), places=6)
+        self.assertLessEqual(float(np.max(np.abs(np.diff(stub)) / 3.5)), roads.OBS_JOINT_GRADE * 1.5)
 
     def test_fallback_is_the_inference(self):
         roadz.PROVIDER = None
