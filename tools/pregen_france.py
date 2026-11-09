@@ -7,7 +7,7 @@ small (the LiDAR is read, worked out and thrown away), so a region can be shared
 puts one into the cache.
 
     python tools/pregen_france.py --centre 43.70 1.38 --km 10 --estimate
-    python tools/pregen_france.py --bbox 42.69,0.44,43.92,2.05 --workers 4 --pack haute-garonne.zip
+    python tools/pregen_france.py --bbox 42.69,0.44,43.92,2.05 --pack haute-garonne.zip
     python tools/pregen_france.py --unpack haute-garonne.zip
 """
 import argparse
@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "server"))
 
 MB_PER_CELL = 70.0          # at most, per cell (the LiDAR round its buildings and the photo)
 MAX_CELLS = 200000
+RETRY_PAUSE_S = 90.0
 FOLDERS = ("ign_bati", "ign_largeur", "ign_limites")
 
 
@@ -59,9 +60,9 @@ def build_one(md, key):
     md.ign_limites.segments(key)
 
 
-def run(cells, build, workers, sink=print):
-    """Calls build(key) for each cell, workers at a time; a cell that fails is tried once more at the end. Returns the
-    cells that still failed."""
+def run(cells, build, workers, sink=print, pause=RETRY_PAUSE_S):
+    """Calls build(key) for each cell, workers at a time; the cells that fail are tried once more at the end, one at a
+    time after a pause (a service that refuses is what makes them fail). Returns the cells that still failed."""
     def pass_over(todo, label):
         failed, t0, done = [], time.time(), 0
         with cf.ThreadPoolExecutor(workers) as pool:
@@ -78,7 +79,12 @@ def run(cells, build, workers, sink=print):
                          f"{(len(todo) - done) / max(rate, 1e-6) / 3600:.1f} h left")
         return failed
     failed = pass_over(cells, "cells") if cells else []
-    return pass_over(failed, "again") if failed else []
+    if failed:
+        sink(f"{len(failed)} failed: again in {pause:.0f} s, one at a time")
+        time.sleep(pause)
+        workers = 1
+        failed = pass_over(failed, "again")
+    return failed
 
 
 def pack(cache, out, cells=None):
@@ -124,7 +130,7 @@ def main():
     ap.add_argument("--bbox", help="south,west,north,east in degrees")
     ap.add_argument("--centre", nargs=2, type=float, metavar=("LAT", "LON"))
     ap.add_argument("--km", type=float, default=10.0, help="half side round --centre")
-    ap.add_argument("--workers", type=int, default=3)
+    ap.add_argument("--workers", type=int, default=1, help="cells at a time (each already reads 4 blocks at once)")
     ap.add_argument("--cache", default=default_cache())
     ap.add_argument("--estimate", action="store_true", help="say what it would do, nothing else")
     ap.add_argument("--limit", type=int, help="at most this many cells (a first trial)")
