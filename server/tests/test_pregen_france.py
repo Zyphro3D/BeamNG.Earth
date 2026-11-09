@@ -36,13 +36,13 @@ class RunTest(unittest.TestCase):
             calls.append(k)
             if calls.count(k) == 1:
                 raise OSError("x")
-        self.assertEqual(P.run([KEY], build, 1, sink=lambda s: None), [])
+        self.assertEqual(P.run([KEY], build, 1, sink=lambda s: None, pause=0), [])
         self.assertEqual(len(calls), 2)
 
     def test_what_keeps_failing_is_reported(self):
         def build(k):
             raise OSError("x")
-        self.assertEqual(P.run([KEY], build, 1, sink=lambda s: None), [KEY])
+        self.assertEqual(P.run([KEY], build, 1, sink=lambda s: None, pause=0), [KEY])
 
 
 class BoxTest(unittest.TestCase):
