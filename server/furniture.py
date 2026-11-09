@@ -1068,8 +1068,9 @@ def place(roads, walks, box, curb_h=0.15, wires=None, town=False, left_hand=Fals
                                  round(_h01(fid, side, k, "tr"), 3)])
         if development is not None or spec.urban:
             # fire hydrants at the curb (US practice ~90-150 m apart), alternating sides
-            put(G_HYDRANT, HYDRANT_SPACING, _h01(fid, "hyd") * HYDRANT_SPACING + (HYDRANT_SPACING / 2 if side < 0 else 0),
-                0.45, 0.9, lambda out: _h01(fid, "hy") * 360.0, optional=True)
+            if not getattr(spec, "france", False):      # (the only hydrant mesh is North American)
+                put(G_HYDRANT, HYDRANT_SPACING, _h01(fid, "hyd") * HYDRANT_SPACING + (HYDRANT_SPACING / 2 if side < 0 else 0),
+                    0.45, 0.9, lambda out: _h01(fid, "hy") * 360.0, optional=True)
         if (development is not None or spec.urban) and spec.cls in MAJOR:
             # benches at the back of the sidewalk facing the street, bins at the curb
             put(G_BENCH, BENCH_SPACING, _h01(fid, side, "bench") * BENCH_SPACING, w - 0.45, 0.9,
