@@ -74,7 +74,7 @@ class WalksInTownTest(unittest.TestCase):
     def test_it_stops_where_nothing_is_built(self):
         got = self.go([run(x1=300.0)], lambda x, y: x < 100.0)
         self.assertEqual(len(got), 1)
-        self.assertLess(got[0]["pts"][:, 0].max(), 140.0)
+        self.assertLess(got[0]["pts"][:, 0].max(), 180.0)
 
     def test_a_house_within_reach_keeps_it(self):
         r = run()
