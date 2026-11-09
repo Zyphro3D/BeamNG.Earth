@@ -10,7 +10,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))       # (server/: selfupdate)
 import launcher
 
-NEWER = {"current": "1.0.0", "latest": "1.1.0", "url": "https://github.com/TecnaGamer/BeamNG.Earth/releases/tag/v1.1.0"}
+NEWER = {"current": "1.0.0", "latest": "1.1.0", "url": "https://github.com/Zyphro3D/BeamNG.Earth/releases/tag/v1.1.0"}
+
+
+class ForkDefaultsTest(unittest.TestCase):
+    def test_france_on_and_no_usage_reports(self):
+        env = {}
+        launcher.apply_fork_defaults(env)
+        self.assertEqual(env["BNE_FR_ROADS"], "on")
+        self.assertEqual(env["BNE_REGIONAL_POLES"], "fr-varied")
+        self.assertEqual(env["BNE_TELEMETRY"], "off")
+
+    def test_a_value_already_set_wins(self):
+        env = {"BNE_FR_ROADS": "off"}
+        launcher.apply_fork_defaults(env)
+        self.assertEqual(env["BNE_FR_ROADS"], "off")
 
 
 class UpdateAtStart(unittest.TestCase):

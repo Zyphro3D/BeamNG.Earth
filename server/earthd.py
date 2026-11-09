@@ -9126,7 +9126,7 @@ def main():
     ap.add_argument("--buildings", choices=("on", "off"), default="off",
                     help="3D buildings from the Overture footprints with the road tiles (buildings.py; needs --roads "
                          "on): heights and roofs predicted where the data has none")
-    ap.add_argument("--regional-poles", choices=("off", "fr-demo", "fr-all", "fr-varied", "europe"), default="off",
+    ap.add_argument("--regional-poles", choices=("off", "fr-demo", "fr-all", "fr-varied", "europe"), default=os.environ.get("BNE_REGIONAL_POLES", "off"),
                     help="regional furniture: off=stock, fr-demo=50/50 poles, fr-all=concrete poles, "
                          "fr-varied=French kit; europe=country-specific European scenery and Quebec/Turkish STOP lettering; "
                          "worldwide country polygons at each object, French assets in FR only (default off)")
