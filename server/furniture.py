@@ -653,6 +653,11 @@ COLLISION_BOXES = {
     # the game's wooden power pole (powerlines.G_POLE): its Colmesh, the trunk and the cross-arm's head
     "hvpole": (9.96, ((-0.162, -0.162, -0.083, 0.162, 0.162, 5.803),
                       (-0.731, -0.189, 5.803, 0.769, 0.162, 9.948))),
+    # the French kit's (tools/build_french_furniture.py, build_regional_poles.py): a group without a shape here counts
+    # as clear of every road, and these stood on carriageways
+    "fr_wood_pole": (8.5, ((-0.135, -0.135, -0.5, 0.135, 0.135, 8.5),)),
+    "pole_concrete_recessed": (8.5, ((-0.2, -0.2, -0.5, 0.2, 0.2, 8.5),)),
+    "fr_lantern": (5.4, ((-0.1, -0.1, -0.3, 0.1, 0.1, 5.4),)),
 }
 ROAD_PROP_GAP_M = 0.15
 
