@@ -387,6 +387,8 @@ class MapData:
         germanroads.configure(cache_dir, self.fetcher)
         import ign_bati                 # (France: IGN BD TOPO building attributes; BNE_IGN_BATI=off)
         self.ign_bati = ign_bati.Provider(cache_dir, self.fetcher) if ign_bati.ON else None
+        import ign_largeur              # (France: IGN BD TOPO carriageway widths; BNE_IGN_LARGEUR=off)
+        self.ign_largeur = ign_largeur.Provider(cache_dir, self.fetcher) if ign_largeur.ON else None
         import ign_limites              # (France: real walls and hedges on the property lines; BNE_IGN_LIMITES=off)
         self.ign_limites = ign_limites.Provider(cache_dir, self.fetcher, self.ign_bati) if ign_limites.ON else None
         import roadz                    # (real road / deck / tunnel heights where a source has them: BNE_ROADZ)
@@ -1238,6 +1240,8 @@ class MapData:
                         # (France: real heights, roofs and walls; ign_bati.py, only without upstream's bdtopo.py)
                         self.ign_bati.enrich(key, f)
                 if layer == "roads":
+                    if self.ign_largeur is not None:
+                        self.ign_largeur.enrich(key, f)     # (France: real carriageway widths; ign_largeur.py)
                     f.__dict__["_bnge_gradesep"] = gradesep.hook(self, key)
                     f.__dict__["_bnge_neighbours"] = gradesep.neighbours_hook(self, key)
                 f.__dict__["_bnge_cell"] = (str(key), layer, json.dumps(self.versions(), sort_keys=True))
