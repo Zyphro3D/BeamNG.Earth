@@ -42,6 +42,7 @@ local outHead, outTail, outPos, outBytes = 1, 0, 1, 0
 local outRetained = 0          -- the partial head frame still retains its already-sent prefix
 local sendBytes, sendCalls = 0, 0
 local leaseSession, leaseId = nil, nil -- server-issued game ownership; survives transport/level resets
+local unanswered = 0         -- s connected without a hello answered (M.HELLO_TIMEOUT_S)
 local ready = false          -- hello must complete on this transport before world requests/pose acknowledgements
 local generation = 0
 local receivedOn = setmetatable({}, { __mode = 'k' }) -- metadata follows queued messages without extending their lifetime
@@ -52,6 +53,7 @@ local attempts = 0           -- connection attempts since the last successful co
 local everConnected = false
 
 M.lastError = nil
+M.HELLO_TIMEOUT_S = 20
 
 local function closeSocket(err)
   if profiling and err and err ~= 'closed' then profile.errors = profile.errors + 1 end
@@ -193,6 +195,17 @@ function M.update(dt)
   if state == 'connected' then
     flush()
     if sock then receive(out) end
+  end
+  -- connected, and no hello answered: whatever lost it (the mod reloaded as BeamMP starts) would wait for ever, every
+  -- world request dropped (send), so the connection starts over
+  if state == 'connected' and not ready then
+    unanswered = unanswered + dt
+    if unanswered >= M.HELLO_TIMEOUT_S then
+      unanswered = 0
+      closeSocket('no answer to hello')
+    end
+  else
+    unanswered = 0
   end
   for _, e in ipairs(events) do out[#out + 1] = e end
   events = {}
