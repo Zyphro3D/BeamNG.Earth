@@ -270,6 +270,8 @@ class MapData:
         self.rasters = maprasters.Rasters(self.raw_dir, self.fetcher, os.path.join(cache_dir, "dem", "lidarbc"))
         import railtags                 # (OSM's railway tags joined to the roads layer's rail segments)
         self.rail_tags = railtags.RailTags(cache_dir, self.fetcher) if railtags.ON else None
+        import ign_bati                 # (France: IGN BD TOPO building attributes; BNE_IGN_BATI=off)
+        self.ign_bati = ign_bati.Provider(cache_dir, self.fetcher) if ign_bati.ON else None
         import roadz                    # (real road / deck / tunnel heights where a source has them: BNE_ROADZ)
         roadz.install(cache_dir, self.fetcher, self)
         self.lane_tags = railtags.LaneTags(cache_dir, self.fetcher) if railtags.LANES_ON else None   # (markings.py)
@@ -725,6 +727,8 @@ class MapData:
                 self._lanes(key, layer, f)
                 if layer == "buildings":
                     f = mapgeom.drop_huge(f, BUILDING_MAX_M2)
+                    if self.ign_bati is not None:
+                        self.ign_bati.enrich(key, f)    # (France: real heights, roofs and walls; ign_bati.py)
                 if layer == "roads":
                     f.__dict__["_bnge_gradesep"] = gradesep.hook(self, key)
                     f.__dict__["_bnge_neighbours"] = gradesep.neighbours_hook(self, key)
