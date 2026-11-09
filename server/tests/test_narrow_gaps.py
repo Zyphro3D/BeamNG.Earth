@@ -27,6 +27,10 @@ class NarrowGapsTest(unittest.TestCase):
         got = surface.narrow_gaps(self.two(4), 3)
         self.assertFalse(got[:, :10].any() or got[:, 34:].any())
 
+    def test_a_big_radius_is_quick_and_right(self):
+        got = surface.narrow_gaps(self.two(20), 12)
+        self.assertTrue(got[30, 30])
+
     def test_nothing_on_an_empty_mask(self):
         self.assertFalse(surface.narrow_gaps(np.zeros((8, 8), bool), 2).any())
 

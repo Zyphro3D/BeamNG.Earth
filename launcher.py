@@ -1582,7 +1582,7 @@ def beammp_wait_seconds(value):
 # This fork's released app: France's scenery on, no usage reports. Set before the server starts (it inherits them, and
 # reads them at import); a value already in the environment wins.
 FORK_DEFAULTS = {"BNE_FR_ROADS": "on", "BNE_FR_HOUSES": "on", "BNE_TOWNSIGNS": "on", "BNE_DIRSIGNS": "on",
-                 "BNE_REGIONAL_POLES": "fr-varied", "BNE_TELEMETRY": "off"}
+                 "BNE_REGIONAL_POLES": "fr-varied", "BNE_EU_ROAD_DETAILS": "on", "BNE_TELEMETRY": "off"}
 
 
 def apply_fork_defaults(environ=None):

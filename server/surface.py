@@ -27,7 +27,7 @@ import time
 from runtimeprofiler import ThreadPoolExecutor
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 
 import beaches
 import fast
@@ -414,7 +414,7 @@ PHOTO_ROAD_EDGE_M = 0.2         # m the photo's asphalt reaches past the drawn e
                                 # antialiased rim left a pale hair between the edge line and the decal)
 
 
-def _road_segments(frame, x0, y0, size, w, h, feats_list, urban_fn=None, widths=None, roads_of=None):
+def _road_segments(frame, x0, y0, size, w, h, feats_list, urban_fn=None, widths=None, roads_of=None, only=None):
     """(segs (m, 4), half widths (m,), kind index into PHOTO_ROAD_RGBA (m,)) of the carriageways of feats_list in pixel
     coordinates of a w x h photo over [x0, x0 + size] x [y0, y0 + size] (row 0 north), or None when none is in it.
     roads_of: a list that gets, per segment, (its road's number, its road has no curb: roads.has_sidewalks)."""
@@ -436,7 +436,7 @@ def _road_segments(frame, x0, y0, size, w, h, feats_list, urban_fn=None, widths=
         for i in range(len(feats)):
             fid = str(ids[i])
             sp = specs[i]
-            if sp is None or fid in seen or sp.kind not in PHOTO_ROAD_RGBA:
+            if sp is None or fid in seen or sp.kind not in PHOTO_ROAD_RGBA or (only is not None and not only(sp)):
                 continue
             seen.add(fid)
             m = sp.width / 2        # (all of the feature off the photo: none of its rings is in it)
@@ -736,6 +736,11 @@ def photo_roads(rgb, frame, x0, y0, size, feats_list, urban_fn=None, widths=None
     only = np.array([(255, 255, 255, 1.0) if k == "paved" else (0, 0, 0, 0.0) for k in PHOTO_ROAD_RGBA], np.float32)
     mask = fast._ef.paint_lines(np.zeros((h, w, 3), np.uint8), *got, only)[..., 0] > 127
     gaps = narrow_gaps(mask, int(round(ROAD_GAP_M * w / float(size))))
+    lanes = _road_segments(frame, x0, y0, size, w, h, feats_list, urban_fn, widths,
+                           only=lambda sp: sp.cls == "service" and sp.kind == "paved")
+    if lanes is not None:
+        yard = fast._ef.paint_lines(np.zeros((h, w, 3), np.uint8), *lanes, only)[..., 0] > 127
+        gaps |= narrow_gaps(yard, int(round(YARD_GAP_M * w / float(size)))) & ~mask
     if gaps.any():
         out = np.array(out, np.uint8)
         out[gaps] = PHOTO_ROAD_RGBA["paved"][:3]
@@ -743,7 +748,8 @@ def photo_roads(rgb, frame, x0, y0, size, feats_list, urban_fn=None, widths=None
 
 
 ROAD_GAP_M = 2.5                # m: half the width of a strip of bare ground between two carriageways that is asphalted
-ROAD_GAP_MAX_PX = 16
+ROAD_GAP_MAX_PX = 32
+YARD_GAP_M = 5.0                # m: the same between a yard's or car park's service lanes (their lots are mostly unmapped)
 
 
 def narrow_gaps(mask, radius):
@@ -752,10 +758,17 @@ def narrow_gaps(mask, radius):
     radius = min(radius, ROAD_GAP_MAX_PX)
     if radius < 1 or not mask.any():
         return np.zeros(mask.shape, bool)
-    im = Image.fromarray(np.uint8(mask) * 255, "L")
-    for f in (ImageFilter.MaxFilter, ImageFilter.MinFilter):
-        im = im.filter(f(2 * radius + 1))
-    return (np.asarray(im) > 127) & ~mask
+    return ~_any_within(~_any_within(mask, radius), radius) & ~mask
+
+
+def _any_within(mask, radius):
+    """Bool mask dilated by a square of radius px, in time independent of radius."""
+    a = np.asarray(mask, np.int32)
+    for axis in (0, 1):
+        n = a.shape[axis]
+        c = np.concatenate([np.zeros_like(np.take(a, [0], axis)), np.cumsum(a, axis)], axis)
+        a = np.take(c, np.minimum(np.arange(n) + radius + 1, n), axis) - np.take(c, np.maximum(np.arange(n) - radius, 0), axis)
+    return a > 0
 
 
 def corner_pads(frame, x0, y0, size, feats_list, urban_fn=None, widths=None):
