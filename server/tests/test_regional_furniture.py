@@ -24,6 +24,14 @@ from test_regional_poles import road,wire_rows
 
 
 class FurnitureTest(unittest.TestCase):
+    def test_the_french_posts_keep_off_the_carriageway(self):
+        line=np.array([[-50.,0.,10.],[50.,0.,10.]])
+        clearance=furniture.RoadClearance([(3.0,line)])
+        for group in ('fr_wood_pole','pole_concrete_recessed','fr_lantern'):
+            height=furniture.COLLISION_BOXES[group][0]
+            self.assertFalse(clearance.clear([group,0.,1.,10.,0.,1.,height,0.]),group)
+            self.assertTrue(clearance.clear([group,0.,6.,10.,0.,1.,height,0.]),group)
+
     def test_stable_french_mix_and_country_gate(self):
         styles=[pp.choose(pp.FR_KIT,str(i)) for i in range(500)]
         self.assertEqual(set(styles),{pp.WOOD,pp.RECESSED})
