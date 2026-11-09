@@ -472,7 +472,7 @@ def _facts_load(feats, kind, extra):
 # (bakepack.py), in place of the code hash; the plans' key holds it too (plancache.plans_format). Bump it whenever a
 # change makes other facts (level ranges, specs, lane flow, grade separations or their inputs' rules), or players keep
 # the old ones; tests/test_bake_formats.py fails until it is bumped.
-FACTS_FORMAT = 8      # 8: France: BD TOPO carriageway widths (ign_largeur.py); 7: PR #843 (restored highway shoulders, regional merge marking profiles: Spec.state); 6: busways (PR #836) and walkway spans (PR #842) in the cells; 5: PR #505's Spec.france (French road scenery flag); 4: pass roads with a mapped or default two-lane count stay mountain roads (the Stelvio); 3: PR #471 lane counts (validated highway counts, two-lane highway default) and #686 (Swedish dual carriageways, 2.75 m lanes); 2: OSM's own surface first, "unpaved" on car roads gravel, regional gravel for untagged minor roads
+FACTS_FORMAT = 9      # 9: France: BD TOPO widths floored on through roads (ign_largeur.py); 8: France: BD TOPO carriageway widths (ign_largeur.py); 7: PR #843 (restored highway shoulders, regional merge marking profiles: Spec.state); 6: busways (PR #836) and walkway spans (PR #842) in the cells; 5: PR #505's Spec.france (French road scenery flag); 4: pass roads with a mapped or default two-lane count stay mountain roads (the Stelvio); 3: PR #471 lane counts (validated highway counts, two-lane highway default) and #686 (Swedish dual carriageways, 2.75 m lanes); 2: OSM's own surface first, "unpaved" on car roads gravel, regional gravel for untagged minor roads
 
 
 def _facts_baked(feats, kind, extra):
@@ -5195,6 +5195,60 @@ WALK_GROUND_M = 0.5     # ... on the drawn ground (ground): its squares' kinks t
 WALK_DRAPE_TOL_M = 0.02     # m a sidewalk point dropped again may lie off the line through its kept neighbours
 
 
+WALK_ON_ROAD_M = 0.3    # m inside a carriageway's edge a sidewalk's slab may reach before it is cut (walks_off_roads)
+WALK_TRIM_STEP_M = 1.0  # m between the points a run's slab is tested at
+WALK_TRIM_KEEP_M = 3.0  # m: a shorter piece left between two roads is dropped
+
+
+def walks_off_roads(runs, carriageways):
+    """runs with every stretch whose slab lies on a carriageway ([(line (k, 2), half width)]) removed. Their centre lines
+    were cut at the roads, but a slab is 2.5 m wide and its points ~9 m apart: at a split section's short one-way pieces
+    slabs stood across the road. A median's band lies between carriageways: left alone. Runs off every road are returned
+    unchanged. Pure."""
+    import sidewalks
+    a, b, h = [], [], []
+    for line, half in carriageways:
+        p = np.asarray(line, np.float64)[:, :2]
+        if len(p) >= 2 and np.ndim(half) == 0:
+            a.append(p[:-1])
+            b.append(p[1:])
+            h.append(np.full(len(p) - 1, float(half)))
+    if not a:
+        return runs
+    a, b, h = np.concatenate(a), np.concatenate(b), np.concatenate(h)
+    out = []
+    for rn in runs:
+        if rn.get("median") or len(rn["pts"]) < 2:
+            out.append(rn)
+            continue
+        w = rn["w"]
+        pts = densify(np.asarray(rn["pts"], np.float64), WALK_TRIM_STEP_M)
+        low, high = pts[:, :2].min(0) - w - h.max(), pts[:, :2].max(0) + w + h.max()
+        near = (np.minimum(a, b) <= high).all(1) & (np.maximum(a, b) >= low).all(1)
+        if not near.any():
+            out.append(rn)
+            continue
+        na, d = a[near], b[near] - a[near]
+        curb, outv = sidewalks.run_geometry(pts, rn["side"], w)
+        on = np.zeros(len(pts), bool)
+        for t in (0.3, w / 2, w - 0.3):
+            v = (curb[:, :2] + outv * t)[:, None] - na
+            u = np.clip((v * d).sum(2) / np.maximum((d * d).sum(1), 1e-12), 0.0, 1.0)
+            on |= (np.hypot(*np.moveaxis(v - u[..., None] * d, 2, 0)) < h[near] - WALK_ON_ROAD_M).any(1)
+        if not on.any():
+            out.append(rn)
+            continue
+        edges = np.flatnonzero(np.diff(np.r_[0, (~on).astype(np.int8), 0]))
+        for i0, i1 in zip(edges[::2], edges[1::2]):
+            piece = pts[i0:i1]
+            if len(piece) < 2 or _length(piece) < WALK_TRIM_KEEP_M:
+                continue
+            out.append({**rn, "pts": densify(simplify(piece)),
+                        "j": (rn["j"][0] and i0 == 0, rn["j"][1] and i1 == len(pts)),
+                        "open": (rn["open"][0] and i0 == 0, rn["open"][1] and i1 == len(pts))})
+    return out
+
+
 def drape_walks(frame, elev, walks, ground=None):
     """The sidewalk runs and corner pieces of build_tile's walks put on the ground, in place: z = elev at the curb line,
     as the road mesh's draped edges there. The runs carried the road's centreline z, sampled at its vertices only and
@@ -9356,6 +9410,7 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
     if walks is not None:
         runs_near = join_walk_ends(runs_near, [(p2[:, :2], s2.width / 2) for _, s2, p2, _ in roads]
                                    + list(walk_cuts) + rail_cuts)   # (a cut's gap stays open: a driveway, a railway)
+        runs_near = walks_off_roads(runs_near, [(p2[:, :2], s2.width / 2) for _, s2, p2, _ in roads])
         drain_runs = []                         # (walks entry, side, real ends, width): drains once on the ground
         for rn in runs_near:
             fid, side, w, run0 = rn["fid"], rn["side"], rn["w"], rn["pts"]

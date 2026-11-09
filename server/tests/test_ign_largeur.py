@@ -19,6 +19,7 @@ def road_feats(lines, osm_width=None):
         ids = np.array([f"r{i}" for i in range(len(lines))])
         kind = np.full(len(lines), mapgeom.LINE)
         attrs = {} if osm_width is None else {"osm_width": np.array(osm_width)}
+        rules = {}
 
         def __len__(self):
             return len(lines)
@@ -35,8 +36,8 @@ NORTH = [[1.405, 43.595], [1.405, 43.605]]
 class JoinTest(unittest.TestCase):
     def test_a_road_takes_the_width_of_the_segment_along_it(self):
         f = road_feats([EAST])
-        self.assertEqual(IL.join(f, [[[[1.40, 43.60002], [1.41, 43.60002]], 5.5]]), 1)
-        self.assertEqual(float(f.attrs["osm_width"][0]), 5.5)
+        self.assertEqual(IL.join(f, [[[[1.40, 43.60002], [1.41, 43.60002]], 7.5]]), 1)
+        self.assertEqual(float(f.attrs["osm_width"][0]), 7.5)
 
     def test_a_crossing_segment_gives_nothing(self):
         f = road_feats([EAST])
@@ -82,9 +83,21 @@ class TrustTest(unittest.TestCase):
         f = self.with_class("motorway")
         self.assertEqual(IL.join(f, [[EAST, 8.0]]), 0)
 
-    def test_a_through_road_takes_even_a_narrow_width(self):
-        f = self.with_class("tertiary")
-        self.assertEqual(IL.join(f, [[EAST, 4.0]]), 1)
+    def test_a_two_way_through_road_is_never_narrower_than_two_lanes(self):
+        f = self.with_class("secondary")
+        self.assertEqual(IL.join(f, [[EAST, 5.0]]), 1)
+        self.assertEqual(float(f.attrs["osm_width"][0]), IL.THROUGH_TWO_WAY_MIN_M)
+
+    def test_a_one_way_through_road_keeps_a_lane_and_room(self):
+        f = self.with_class("secondary")
+        f.rules = {"oneway": SimpleNamespace(feature=np.array([0]), major=lambda i: 0)}
+        IL.join(f, [[EAST, 3.0]])
+        self.assertEqual(float(f.attrs["osm_width"][0]), IL.THROUGH_ONE_WAY_MIN_M)
+
+    def test_a_wide_through_road_keeps_its_width(self):
+        f = self.with_class("primary")
+        IL.join(f, [[EAST, 10.5]])
+        self.assertEqual(float(f.attrs["osm_width"][0]), 10.5)
 
 
 class ParseTest(unittest.TestCase):

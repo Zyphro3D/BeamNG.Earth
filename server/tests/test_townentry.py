@@ -56,6 +56,43 @@ def signs(rs, communes, box=BOX, **kw):
     return ts.town_signs(rs, communes, FRAME, box, **kw)
 
 
+class SignSpotTest(unittest.TestCase):
+    def town(self):
+        return commune("Bourg", -1000.0, -1000.0, 1000.0, 1000.0, east_of(100.0))
+
+    def on_a_road(self, rows, rs):
+        if not rows:
+            return 0
+        a, b, half, _ = ts._road_segments(rs)
+        p = np.array([r[1:3] for r in rows], np.float64)
+        d = b - a
+        v = p[:, None] - a
+        u = np.clip((v * d).sum(2) / np.maximum((d * d).sum(1), 1e-12), 0.0, 1.0)
+        return int((np.hypot(*np.moveaxis(v - u[..., None] * d, 2, 0)) < half).any(1).sum())
+
+    def test_the_sign_of_a_road_never_stands_on_the_road_beside_it(self):
+        rs = [road("a", y=0.0), road("b", cls="service", y=-8.0, width=8.0)]
+        self.assertGreater(self.on_a_road(signs(rs[:1], [self.town()]), rs), 0)     # (the other road not looked at)
+        self.assertEqual(self.on_a_road(signs(rs, [self.town()]), rs), 0)
+
+    def test_a_split_section_has_no_sign_on_its_island(self):
+        rs = [road("a", y=0.0, width=5.0, oneway=True, d=1), road("b", y=9.0, width=5.0, oneway=True, d=-1)]
+        got = signs(rs, [self.town()])
+        self.assertGreater(len(got), 0)
+        for r in got:
+            self.assertFalse(2.5 < r[2] < 6.5, r)
+
+    def row(self, x=0.0, yaw=90.0, name="Bourg", group=ts.G_ENTRY):
+        return [group, x, 0.0, 0.0, yaw, 1.0, 2.1, 0.0, name]
+
+    def test_one_face_per_traffic_where_a_road_is_in_short_pieces(self):
+        self.assertEqual(len(ts._one_per_spot([self.row(), self.row(x=20.0)])), 1)
+
+    def test_the_other_traffic_another_town_or_a_far_spot_keep_theirs(self):
+        for other in (self.row(yaw=270.0), self.row(name="Autre"), self.row(x=50.0), self.row(group=ts.G_EXIT)):
+            self.assertEqual(len(ts._one_per_spot([self.row(), other])), 2, other)
+
+
 class AgglomerationTest(unittest.TestCase):
     def test_entry_and_exit_where_the_buildings_begin(self):
         """A village whose houses begin 200 m inside the commune (the boundary at x = 0): its sign stands EDGE_M before

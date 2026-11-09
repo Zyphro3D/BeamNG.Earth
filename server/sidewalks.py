@@ -19,11 +19,14 @@ line (offset 0) outwards, heights above the road:
 with flat end caps (curbs). Heights follow the road's (graded) centreline z, carried by the runs.
 The mod shows it as a TSStatic that collides with its visible mesh. Pure functions; deterministic.
 """
+import os
+
 import numpy as np
 
 import cdae
 
-CURB_H = 0.15           # m above the road (US curbs: 0.15)
+# m above the road (US curbs: 0.15; France, BNE_FR_ROADS: 0.10, a 15 cm near-vertical face broke suspensions at any angle)
+CURB_H = 0.10 if os.environ.get("BNE_FR_ROADS", "off").lower() in {"on", "1", "true"} else 0.15
 SINK = 0.10             # m the faces reach below the road / ground
 BACK_RUN = 2.0          # the slab's back falls to the ground at 1:2, not straight down: the ground behind a sidewalk is
                         # graded at road level (grading.SIDEWALK_MARGIN_M), so a vertical back was a ~20 cm ledge that

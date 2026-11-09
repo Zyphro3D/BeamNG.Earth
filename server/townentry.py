@@ -106,6 +106,10 @@ MIN_RUN_M = 100.0
 # or a river bank between a village's parts: Val-Cenis' road along the Arc left and entered Lanslebourg every 100-150 m)
 MAX_GAP_M = 300.0
 SIGN_OFF_M = 1.5                # m beyond the carriageway's edge (furniture.py's speed-limit signs' until 1.7.1)
+SIGN_ROAD_M = 0.6               # m a sign keeps from any other road's edge (its plate's half width: it stood on them)
+FAR_KERB_ROAD_M = 6.0           # m a one-way piece's far-kerb sign keeps from other roads (a split section's island)
+SIGN_SAME_M = 40.0              # m within which one face of one commune to one traffic is enough (a road in short pieces)
+SIGN_SAME_DEG = 45.0
 # The sign (metres, its local frame: x across the road toward the kerb side, -y toward the traffic it faces, z up):
 # a plate PLATE_W x PLATE_H (a French EB10 of the normal range is 1.3 m to 1.6 m long, IISR 5e partie) on two posts,
 # its foot PLATE_Z0 above the road. SIGN_H, the model's height (the posts' tops), is the height of the rows and of the
@@ -1221,6 +1225,41 @@ def _sign(commune, line, s, travel, width, left_hand, main=False):
             [G_EXIT] + at + [round((yaw + 180.0) % 360.0, 1), 1.0, SIGN_H, 0.0] + tail]
 
 
+def _road_segments(roads):
+    """(starts, ends, half widths, index in roads) of every segment of roads."""
+    a, b, half, owner = [], [], [], []
+    for k, (_, spec, line, _lon) in enumerate(roads):
+        p = np.asarray(line, np.float64)[:, :2]
+        if len(p) >= 2:
+            a.append(p[:-1]); b.append(p[1:])
+            half.append(np.full(len(p) - 1, spec.width / 2.0)); owner.append(np.full(len(p) - 1, k))
+    if not a:
+        return np.zeros((0, 2)), np.zeros((0, 2)), np.zeros(0), np.zeros(0, np.int64)
+    return np.concatenate(a), np.concatenate(b), np.concatenate(half), np.concatenate(owner)
+
+
+def _clear_of_roads(row, segs, own, margin):
+    """Whether the sign row stands at least margin outside every road but the one at index own."""
+    a, b, half, owner = segs
+    keep = owner != own
+    if not keep.any():
+        return True
+    a, b, half = a[keep], b[keep], half[keep]
+    p, d = np.array(row[1:3], np.float64), b - a
+    t = np.clip(((p - a) * d).sum(1) / np.maximum((d * d).sum(1), 1e-12), 0.0, 1.0)
+    return bool((np.hypot(*(p - (a + d * t[:, None])).T) >= half + margin).all())
+
+
+def _one_per_spot(rows):
+    """rows without a sign repeating, within SIGN_SAME_M, the same face of the same commune to the same traffic."""
+    out = []
+    for r in rows:
+        if not any(k[0] == r[0] and k[8] == r[8] and abs((k[4] - r[4] + 180.0) % 360.0 - 180.0) < SIGN_SAME_DEG
+                   and math.hypot(k[1] - r[1], k[2] - r[2]) < SIGN_SAME_M for k in out):
+            out.append(r)
+    return out
+
+
 def town_signs(roads, communes, frame, box, left_hand=False, rings=()):
     """Sign rows [group, x, y, z, yaw, scale, height, rank, name, local, country, ...] (furniture's prop rows, the
     commune's name, its regional name and its country, then _sign's) of a tile box (x0, y0, x1, y1): on the roads of
@@ -1235,7 +1274,8 @@ def town_signs(roads, communes, frame, box, left_hand=False, rings=()):
     rows = []
     if not communes:
         return rows
-    for fid, spec, line, _ in roads:
+    segs = _road_segments(roads)
+    for own, (fid, spec, line, _) in enumerate(roads):
         if spec.cls not in SIGN_CLASSES or spec.link or spec.kind != "paved" or len(line) < 2 or fid in rings:
             continue
         line = np.asarray(line, np.float64)
@@ -1248,10 +1288,12 @@ def town_signs(roads, communes, frame, box, left_hand=False, rings=()):
                 # the traffic going along the line leaves a and enters b; the other way, the reverse
                 leave, enter = (a, b) if travel > 0 else (b, a)
                 if enter >= 0:
-                    rows += _sign(communes[enter], line, s, travel, spec.width, left_hand, main)
+                    rows += [r for r in _sign(communes[enter], line, s, travel, spec.width, left_hand, main)
+                             if _clear_of_roads(r, segs, own, SIGN_ROAD_M)]
                 if spec.oneway and leave >= 0:      # (no way in on this kerb's far side to carry the exit sign)
-                    rows += _sign(communes[leave], line, s, -travel, spec.width, left_hand, main)
-    return [r for r in rows if x0 <= r[1] < x1 and y0 <= r[2] < y1]
+                    rows += [r for r in _sign(communes[leave], line, s, -travel, spec.width, left_hand, main)
+                             if _clear_of_roads(r, segs, own, FAR_KERB_ROAD_M)]
+    return [r for r in _one_per_spot(rows) if x0 <= r[1] < x1 and y0 <= r[2] < y1]
 
 
 def face_group(name, group, local="", country="FR", nxt="", km=0, sub="", main=False):
