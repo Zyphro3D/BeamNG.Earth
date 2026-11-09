@@ -28,7 +28,7 @@ import weakref
 from runtimeprofiler import ThreadPoolExecutor
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 
 import beaches
 import fast
@@ -512,7 +512,7 @@ PHOTO_ROAD_EDGE_M = 0.2         # m the photo's asphalt reaches past the drawn e
                                 # antialiased rim left a pale hair between the edge line and the decal)
 
 
-def _road_segments(frame, x0, y0, size, w, h, feats_list, urban_fn=None, widths=None, roads_of=None):
+def _road_segments(frame, x0, y0, size, w, h, feats_list, urban_fn=None, widths=None, roads_of=None, only=None):
     """(segs (m, 4), half widths (m,), kind index into PHOTO_ROAD_RGBA (m,)) of the carriageways of feats_list in pixel
     coordinates of a w x h photo over [x0, x0 + size] x [y0, y0 + size] (row 0 north), or None when none is in it:
     each feature once (its first copy in the cells' order), its ground parts where the road tiles draw them

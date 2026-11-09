@@ -59,6 +59,7 @@ FENCE_LEN, FENCE_TOP = 6.25, 1.59   # italy_fence_mesh_6m_conc_base
 HEDGE_STEP = 1.9
 HEDGE_MAX_M = 2.4           # m: a garden hedge; a taller reading is the tree or the wall behind it
 WALL_H_MAX = 2.4
+WALL_MIN_RUN_M = 12.0       # m: a shorter "wall" on its own is a parked van or a skip seen by the LiDAR
 PAD_M = 8.0
 
 
@@ -374,6 +375,8 @@ def _panels(ex, ey, fx, fy, kind, h):
     elif h < FENCE_MAX_M:
         group, step, top, natural = FENCE, FENCE_LEN, FENCE_TOP, FENCE_TOP
     else:
+        if length < WALL_MIN_RUN_M:
+            return
         group, step, top, natural = WALL, WALL_LEN, min(WALL_H_MAX, h), WALL_TOP
     n = max(1, int(round(length / step)))
     for i in range(n):
