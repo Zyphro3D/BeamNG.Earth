@@ -54,6 +54,63 @@ class KerbTest(unittest.TestCase):
         self.assertFalse(any(look["m"] == roads.GUTTER["m"] for look, _, _ in got))
 
 
+class Frame:
+    def enu_to_geodetic(self, e, n, u=0.0):
+        return np.asarray(n, float), np.asarray(e, float), np.zeros(np.shape(e))
+
+
+def run(x0=0.0, x1=200.0, y=6.0, fid="a", j=(False, False)):
+    return {"pts": np.array([(x0, y, 0.0), (x1, y, 0.0)]), "side": 1, "w": 1.6, "fid": fid, "j": j, "open": (False, False)}
+
+
+class WalksInTownTest(unittest.TestCase):
+    def go(self, runs, urban, french=("a",)):
+        return fr.walks_in_town(runs, Frame(), lambda lat, lon: urban(np.asarray(lon), np.asarray(lat)), set(french))
+
+    def test_a_sidewalk_in_town_is_the_same_object(self):
+        r = run()
+        self.assertIs(self.go([r], lambda x, y: np.ones(x.shape, bool))[0], r)
+
+    def test_it_stops_where_nothing_is_built(self):
+        got = self.go([run(x1=300.0)], lambda x, y: x < 100.0)
+        self.assertEqual(len(got), 1)
+        self.assertLess(got[0]["pts"][:, 0].max(), 140.0)
+
+    def test_a_house_within_reach_keeps_it(self):
+        r = run()
+        self.assertIs(self.go([r], lambda x, y: y > 20.0)[0], r)
+
+    def test_a_scrap_joined_to_nothing_goes(self):
+        self.assertEqual(self.go([run(x1=8.0)], lambda x, y: np.ones(x.shape, bool)), [])
+
+    def test_a_short_run_at_a_junction_stays(self):
+        r = run(x1=8.0, j=(True, False))
+        self.assertIs(self.go([r], lambda x, y: np.ones(x.shape, bool))[0], r)
+
+    def test_another_country_is_left_alone(self):
+        r = run()
+        self.assertIs(self.go([r], lambda x, y: np.zeros(x.shape, bool), french=())[0], r)
+
+
+class SplitPieceTest(unittest.TestCase):
+    def go(self, name, length):
+        sp = roads.Spec(5.0, "paved", True, "secondary", True, walk=2.5)
+        feats = SimpleNamespace(rules={}, attrs={"name": [name], "osm_width": ["5"]})
+        with mock.patch.object(fr, "ON", True), mock.patch.object(fr, "french_feature", lambda f, i: True), \
+                mock.patch.object(roads, "is_ring", lambda f, i: False), \
+                mock.patch.object(roads, "_lengths", lambda f: np.array([length])):
+            return fr.adjust_specs(feats, [sp])[0]
+
+    def test_a_short_unnamed_piece_has_no_sidewalk(self):
+        self.assertEqual(self.go("", 40.0).sides, ())
+
+    def test_a_named_street_keeps_them(self):
+        self.assertIsNone(self.go("Rue A", 40.0).sides)
+
+    def test_a_long_unnamed_road_keeps_them(self):
+        self.assertIsNone(self.go("", 400.0).sides)
+
+
 class ThroughRoadTest(unittest.TestCase):
     def test_two_lanes_one_way_get_six_metres(self):
         got = adjust(roads.Spec(4.0, "paved", True, "primary", True, lanes=2, walk=1.6), {"osm_width": ["4"]})

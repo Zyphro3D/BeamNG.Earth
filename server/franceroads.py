@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 ON = os.environ.get("BNE_FR_ROADS", "off").lower() in {"on", "1", "true"}
-VERSION = "fr-roads-signs-v7"
+VERSION = "fr-roads-signs-v8"
 PAINT_MATERIAL = "line_bne_fr_white"
 RURAL_WIDTH = {"primary": 7.0, "secondary": 6.0, "tertiary": 5.0,
                "unclassified": 4.5, "residential": 5.0, "service": 3.5}
@@ -24,6 +24,11 @@ URBAN_WALK_M = 1.6
 THROUGH = {"primary", "secondary", "tertiary"}
 LANE_MIN_M = 3.0
 LANES_MAX_M = 12.0
+SPLIT_PIECE_M = 150.0           # m: an unnamed one-way piece this short is part of a junction: no sidewalks on it
+WALK_STEP_M = 5.0               # m between the points a sidewalk's surroundings are read at (walks_in_town)
+WALK_TOWN_REACH_M = 20.0        # m each side of it the land cover is read
+WALK_TOWN_WINDOW_M = 25.0       # m along it a built-up reading counts
+WALK_ISOLATED_M = 12.0          # m: a shorter run joined to nothing is a scrap in a junction
 SAME_STREET_SPREAD_M = 3.5      # m: wider apart than this, the pieces really are different roads
 T1, TP1, T3, T2, T4 = (3., 10.), (1.5, 5.), (3., 1.33), (3., 3.5), (39., 13.)
 
@@ -91,6 +96,7 @@ def adjust_specs(feats, specs):
     if not ON:
         return specs
     out = list(specs)
+    names, lengths = feats.attrs.get("name"), None
     for i, sp in enumerate(out):
         if sp is None or sp.kind != "paved" or not french_feature(feats, i):
             continue
@@ -114,10 +120,51 @@ def adjust_specs(feats, specs):
                     and sp.cls in URBAN_WIDTH and not sp.lanes):
                 sp = sp._replace(width=URBAN_ONE_WAY_M if sp.oneway else URBAN_WIDTH[sp.cls], parking=False)
             sp = sp._replace(walk=min(sp.walk, URBAN_WALK_M))
+            if names is not None and sp.oneway and sp.cls != "service" and sp.sides is None \
+                    and str(names[i]).strip() in ("", "nan", "None"):
+                lengths = roads._lengths(feats) if lengths is None else lengths
+                if lengths[i] < SPLIT_PIECE_M:
+                    sp = sp._replace(sides=())
         if sp.cls in THROUGH and not sp.link and sp.lanes and int(sp.lanes) >= 2:
             sp = sp._replace(width=_clear_of_median(sp, max(sp.width, min(int(sp.lanes) * LANE_MIN_M, LANES_MAX_M))))
         out[i] = sp
     return _one_width_per_street(feats, out)
+
+
+def walks_in_town(runs, frame, urban_fn, french):
+    """runs without the stretches of a French road's sidewalk (fids in french) that have nothing built within
+    WALK_TOWN_REACH_M: the road was urban as a whole, its sidewalks ran on between the fields; and without the scraps
+    left in junctions (WALK_ISOLATED_M, joined to nothing). One land-cover call."""
+    import roads
+    import sidewalks
+    todo, pts_of, xy = [], [], []
+    for k, rn in enumerate(runs):
+        if rn.get("median") or rn.get("fid") not in french or len(rn["pts"]) < 2:
+            continue
+        pts = roads.densify(np.asarray(rn["pts"], np.float64), WALK_STEP_M)
+        _, way = sidewalks.run_geometry(pts, rn["side"], rn["w"])
+        todo.append(k)
+        pts_of.append(pts)
+        xy.append(np.concatenate([pts[:, :2], pts[:, :2] + way * WALK_TOWN_REACH_M, pts[:, :2] - way * WALK_TOWN_REACH_M]))
+    if not todo:
+        return runs
+    all_xy = np.concatenate(xy)
+    lat, lon, _ = frame.enu_to_geodetic(all_xy[:, 0], all_xy[:, 1], 0.0)
+    urban = np.asarray(urban_fn(np.asarray(lat), np.asarray(lon)), bool)
+    done, at = {}, 0
+    reach = int(round(WALK_TOWN_WINDOW_M / WALK_STEP_M))
+    for k, pts in zip(todo, pts_of):
+        n = len(pts)
+        near = urban[at:at + n] | urban[at + n:at + 2 * n] | urban[at + 2 * n:at + 3 * n]
+        at += 3 * n
+        rn = runs[k]
+        if roads._length(pts) < WALK_ISOLATED_M and not any(rn["j"]):
+            done[k] = []
+        elif not near.all():
+            built = np.convolve(near.astype(np.int32), np.ones(2 * reach + 1, np.int32), "same") > 0
+            if not built.all():
+                done[k] = roads.walk_pieces(rn, pts, ~built)
+    return [p for k, rn in enumerate(runs) for p in done.get(k, [rn])]
 
 
 def _clear_of_median(sp, width):

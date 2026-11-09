@@ -27,7 +27,7 @@ import time
 from runtimeprofiler import ThreadPoolExecutor
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 import beaches
 import fast
@@ -728,7 +728,34 @@ def photo_roads(rgb, frame, x0, y0, size, feats_list, urban_fn=None, widths=None
     if got is None:
         return filled
     colors = np.array([PHOTO_ROAD_RGBA[k] for k in PHOTO_ROAD_RGBA], np.float32)
-    return fast._ef.paint_lines(np.ascontiguousarray(filled, np.uint8), *got, colors)
+    out = fast._ef.paint_lines(np.ascontiguousarray(filled, np.uint8), *got, colors)
+    import franceroads
+    la, lo, _ = frame.enu_to_geodetic(x0 + size / 2.0, y0 + size / 2.0, 0.0)
+    if simple or not franceroads.in_france(float(la), float(lo)):
+        return out
+    only = np.array([(255, 255, 255, 1.0) if k == "paved" else (0, 0, 0, 0.0) for k in PHOTO_ROAD_RGBA], np.float32)
+    mask = fast._ef.paint_lines(np.zeros((h, w, 3), np.uint8), *got, only)[..., 0] > 127
+    gaps = narrow_gaps(mask, int(round(ROAD_GAP_M * w / float(size))))
+    if gaps.any():
+        out = np.array(out, np.uint8)
+        out[gaps] = PHOTO_ROAD_RGBA["paved"][:3]
+    return out
+
+
+ROAD_GAP_M = 2.5                # m: half the width of a strip of bare ground between two carriageways that is asphalted
+ROAD_GAP_MAX_PX = 16
+
+
+def narrow_gaps(mask, radius):
+    """The pixels outside bool mask that a morphological closing of radius px fills: the slivers of ground between two
+    carriageways that split or meet, which showed the photo's pale ground across the road. The outer edges stay."""
+    radius = min(radius, ROAD_GAP_MAX_PX)
+    if radius < 1 or not mask.any():
+        return np.zeros(mask.shape, bool)
+    im = Image.fromarray(np.uint8(mask) * 255, "L")
+    for f in (ImageFilter.MaxFilter, ImageFilter.MinFilter):
+        im = im.filter(f(2 * radius + 1))
+    return (np.asarray(im) > 127) & ~mask
 
 
 def corner_pads(frame, x0, y0, size, feats_list, urban_fn=None, widths=None):

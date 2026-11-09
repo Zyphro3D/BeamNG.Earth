@@ -90,6 +90,7 @@ POLE_OFF_M = 2.4            # m beyond the carriageway's edge
 END_CLEAR_M = 4.0           # m kept clear of a run's ends (corners, crosswalk ramps)
 CLEAR_OTHER_M = 1.5         # m kept off another road's carriageway
 G_LAMP, G_POLE = "streetlight", "pole"
+FR_LANTERN_SHARE = 1.0      # of the French kit's streets with a lantern in place of the American cobra-head arm
 
 
 def _h01(*vals):
@@ -1004,7 +1005,7 @@ def place(roads, walks, box, curb_h=0.15, wires=None, town=False, left_hand=Fals
                         if not decorated(group, p, out, k):
                             continue
                     chosen, height_ = group, height
-                    if group == G_LAMP and town and spec.cls in {"residential", "tertiary", "unclassified", "living_street"} and _h01(fid, "lantern") < .7 and kit_at(*q, p[2]):
+                    if group == G_LAMP and town and spec.cls in {"residential", "tertiary", "unclassified", "living_street"} and _h01(fid, "lantern") < FR_LANTERN_SHARE and kit_at(*q, p[2]):
                         chosen, height_ = "fr_lantern", 5.4
                     rows.append([chosen, round(float(q[0]), 2), round(float(q[1]), 2), round(float(p[2] + curb_h), 2),
                                  round(yaw_fn(out), 1), 1.0, height_, 0.0])
@@ -1116,7 +1117,7 @@ def place(roads, walks, box, curb_h=0.15, wires=None, town=False, left_hand=Fals
                     h = (HIGHWAY_LAMP_H["na" if _na(region) else None] if highway and not spec.link
                          else LAMP_H[G_LAMP])
                     group = G_LAMP
-                    if town and spec.cls in {"residential", "tertiary", "unclassified", "living_street"} and _h01(fid, "lantern") < .7 and kit_at(*q, p[2]):
+                    if town and spec.cls in {"residential", "tertiary", "unclassified", "living_street"} and _h01(fid, "lantern") < FR_LANTERN_SHARE and kit_at(*q, p[2]):
                         group, h = "fr_lantern", 5.4
                     rows.append([group, round(float(q[0]), 2), round(float(q[1]), 2), round(float(p[2]), 2),
                                  round(_yaw(-n[0], -n[1]), 1), 1.0, h, 0.0])

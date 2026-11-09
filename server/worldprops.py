@@ -275,6 +275,9 @@ def _towers(frame, feats, rows, box, placed):
 
 
 def _billboards(frame, feats, rows, box, roads_xy, placed):
+    import franceroads
+    if franceroads.in_france(frame.lat0, frame.lon0):       # (the only board mesh is an American drag strip's)
+        return
     ids = getattr(feats, "ids", None)
     if feats.attrs.get("tags") is None:
         return

@@ -472,7 +472,7 @@ def _facts_load(feats, kind, extra):
 # (bakepack.py), in place of the code hash; the plans' key holds it too (plancache.plans_format). Bump it whenever a
 # change makes other facts (level ranges, specs, lane flow, grade separations or their inputs' rules), or players keep
 # the old ones; tests/test_bake_formats.py fails until it is bumped.
-FACTS_FORMAT = 11     # 11: France: lanes given their room, one width per street (franceroads.py); 10: France: town street defaults and narrower sidewalks (franceroads.py); 9: France: BD TOPO widths floored on through roads (ign_largeur.py); 8: France: BD TOPO carriageway widths (ign_largeur.py); 7: PR #843 (restored highway shoulders, regional merge marking profiles: Spec.state); 6: busways (PR #836) and walkway spans (PR #842) in the cells; 5: PR #505's Spec.france (French road scenery flag); 4: pass roads with a mapped or default two-lane count stay mountain roads (the Stelvio); 3: PR #471 lane counts (validated highway counts, two-lane highway default) and #686 (Swedish dual carriageways, 2.75 m lanes); 2: OSM's own surface first, "unpaved" on car roads gravel, regional gravel for untagged minor roads
+FACTS_FORMAT = 12     # 12: France: no sidewalks on the short unnamed pieces of a junction (franceroads.py); 11: France: lanes given their room, one width per street (franceroads.py); 10: France: town street defaults and narrower sidewalks (franceroads.py); 9: France: BD TOPO widths floored on through roads (ign_largeur.py); 8: France: BD TOPO carriageway widths (ign_largeur.py); 7: PR #843 (restored highway shoulders, regional merge marking profiles: Spec.state); 6: busways (PR #836) and walkway spans (PR #842) in the cells; 5: PR #505's Spec.france (French road scenery flag); 4: pass roads with a mapped or default two-lane count stay mountain roads (the Stelvio); 3: PR #471 lane counts (validated highway counts, two-lane highway default) and #686 (Swedish dual carriageways, 2.75 m lanes); 2: OSM's own surface first, "unpaved" on car roads gravel, regional gravel for untagged minor roads
 
 
 def _facts_baked(feats, kind, extra):
@@ -5239,14 +5239,22 @@ def walks_off_roads(runs, carriageways):
         if not on.any():
             out.append(rn)
             continue
-        edges = np.flatnonzero(np.diff(np.r_[0, (~on).astype(np.int8), 0]))
-        for i0, i1 in zip(edges[::2], edges[1::2]):
-            piece = pts[i0:i1]
-            if len(piece) < 2 or _length(piece) < WALK_TRIM_KEEP_M:
-                continue
-            out.append({**rn, "pts": densify(simplify(piece)),
-                        "j": (rn["j"][0] and i0 == 0, rn["j"][1] and i1 == len(pts)),
-                        "open": (rn["open"][0] and i0 == 0, rn["open"][1] and i1 == len(pts))})
+        out.extend(walk_pieces(rn, pts, on))
+    return out
+
+
+def walk_pieces(rn, pts, off):
+    """The parts of sidewalk run rn (densified to pts) where bool off is False, each a run like it (the short ones
+    dropped): only the run's own ends keep their junctions and open ends."""
+    out = []
+    edges = np.flatnonzero(np.diff(np.r_[0, (~off).astype(np.int8), 0]))
+    for i0, i1 in zip(edges[::2], edges[1::2]):
+        piece = pts[i0:i1]
+        if len(piece) < 2 or _length(piece) < WALK_TRIM_KEEP_M:
+            continue
+        out.append({**rn, "pts": densify(simplify(piece)),
+                    "j": (rn["j"][0] and i0 == 0, rn["j"][1] and i1 == len(pts)),
+                    "open": (rn["open"][0] and i0 == 0, rn["open"][1] and i1 == len(pts))})
     return out
 
 
@@ -9412,6 +9420,9 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
         runs_near = join_walk_ends(runs_near, [(p2[:, :2], s2.width / 2) for _, s2, p2, _ in roads]
                                    + list(walk_cuts) + rail_cuts)   # (a cut's gap stays open: a driveway, a railway)
         runs_near = walks_off_roads(runs_near, [(p2[:, :2], s2.width / 2) for _, s2, p2, _ in roads])
+        if franceroads.ON and urban_fn is not None:
+            runs_near = franceroads.walks_in_town(runs_near, frame, urban_fn,
+                                                  {fid for fid, sp, _, _ in roads if getattr(sp, "france", False)})
         drain_runs = []                         # (walks entry, side, real ends, width): drains once on the ground
         for rn in runs_near:
             fid, side, w, run0 = rn["fid"], rn["side"], rn["w"], rn["pts"]

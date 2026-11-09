@@ -174,7 +174,20 @@ def _conifer_share(lat, lon):
     other = np.where(alat < 23.5, 0.02, np.where(alat < 35.0, 0.08, np.where(alat <= 45.0, 0.2, share)))
     mediterranean = (lat > 30.0) & (lat < 46.0) & (lon > -10.0) & (lon < 40.0)
     other = np.where(mediterranean, 0.3, other)
+    import franceroads
+    if franceroads.ON:                  # (French lowlands are broadleaf; firs belong to the mountains)
+        other = np.where(_french_lowland(lat, lon), FRENCH_LOWLAND_CONIFER, other)
     return np.where(_north_america(lat, lon), share, other)
+
+
+FRENCH_LOWLAND_CONIFER = 0.07
+
+
+def _french_lowland(lat, lon):
+    """France's box without the Pyrenees, the Alps, the Jura and the Vosges."""
+    box = (lat > 41.3) & (lat < 51.2) & (lon > -5.3) & (lon < 9.8)
+    high = (lat < 43.05) | ((lon > 5.6) & (lat < 48.6))
+    return box & ~high
 
 
 class Vegetation:
