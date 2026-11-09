@@ -385,6 +385,8 @@ class MapData:
         regionaldata.configure(cache_dir, self.fetcher)     # (PR #505's regional scenery data, fetched on demand)
         import germanroads              # (Germany's surveyed road widths, lanes and surfaces, fetched on demand)
         germanroads.configure(cache_dir, self.fetcher)
+        import ign_bati                 # (France: IGN BD TOPO building attributes; BNE_IGN_BATI=off)
+        self.ign_bati = ign_bati.Provider(cache_dir, self.fetcher) if ign_bati.ON else None
         import roadz                    # (real road / deck / tunnel heights where a source has them: BNE_ROADZ)
         roadz.install(cache_dir, self.fetcher, self)
         self.lane_tags = railtags.LaneTags(cache_dir, self.fetcher) if railtags.LANES_ON else None   # (markings.py)
@@ -1227,6 +1229,9 @@ class MapData:
                         self._dec_store(key, layer, dec, f, ctx, vers)
                 if layer == "buildings":
                     f = mapgeom.drop_huge(f, BUILDING_MAX_M2)
+                    if self.ign_bati is not None and getattr(self, "bdtopo", None) is None:
+                        # (France: real heights, roofs and walls; ign_bati.py, only without upstream's bdtopo.py)
+                        self.ign_bati.enrich(key, f)
                 if layer == "roads":
                     f.__dict__["_bnge_gradesep"] = gradesep.hook(self, key)
                     f.__dict__["_bnge_neighbours"] = gradesep.neighbours_hook(self, key)
