@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 ON = os.environ.get("BNE_FR_ROADS", "off").lower() in {"on", "1", "true"}
-VERSION = "fr-roads-signs-v6"
+VERSION = "fr-roads-signs-v7"
 PAINT_MATERIAL = "line_bne_fr_white"
 RURAL_WIDTH = {"primary": 7.0, "secondary": 6.0, "tertiary": 5.0,
                "unclassified": 4.5, "residential": 5.0, "service": 3.5}
@@ -19,6 +19,12 @@ RURAL_WIDTH = {"primary": 7.0, "secondary": 6.0, "tertiary": 5.0,
 URBAN_WIDTH = {"secondary": 7.0, "tertiary": 6.5, "unclassified": 6.0, "residential": 5.5, "living_street": 4.5}
 URBAN_ONE_WAY_M = 4.0
 URBAN_WALK_M = 1.6
+# A through road's lanes need their room whatever width was read for it (two lanes one way drawn 4 or 5 m wide), and the
+# pieces of one street take one width: BD TOPO's differ piece by piece, and the kerbs pinched in at every change.
+THROUGH = {"primary", "secondary", "tertiary"}
+LANE_MIN_M = 3.0
+LANES_MAX_M = 12.0
+SAME_STREET_SPREAD_M = 3.5      # m: wider apart than this, the pieces really are different roads
 T1, TP1, T3, T2, T4 = (3., 10.), (1.5, 5.), (3., 1.33), (3., 3.5), (39., 13.)
 
 # Appearance reference supplied by Alexandre for the forest road north of
@@ -103,7 +109,46 @@ def adjust_specs(feats, specs):
                     and sp.cls in URBAN_WIDTH and not sp.lanes):
                 sp = sp._replace(width=URBAN_ONE_WAY_M if sp.oneway else URBAN_WIDTH[sp.cls], parking=False)
             sp = sp._replace(walk=min(sp.walk, URBAN_WALK_M))
+        if sp.cls in THROUGH and not sp.link and sp.lanes and int(sp.lanes) >= 2:
+            sp = sp._replace(width=_clear_of_median(sp, max(sp.width, min(int(sp.lanes) * LANE_MIN_M, LANES_MAX_M))))
         out[i] = sp
+    return _one_width_per_street(feats, out)
+
+
+def _clear_of_median(sp, width):
+    """width, but no wider than a divided road's carriageways leave room for (never below what it had)."""
+    return max(sp.width, min(width, sp.median - .6)) if sp.median else width
+
+
+def _one_width_per_street(feats, specs):
+    """specs with the French pieces of one named street (same class and direction rule) at their length-weighted median
+    width, where their widths are close enough to be one road (SAME_STREET_SPREAD_M). Ramps and roundabouts keep theirs."""
+    import roads
+    names = feats.attrs.get("name")
+    if names is None:
+        return specs
+    groups = {}
+    for i, sp in enumerate(specs):
+        name = str(names[i]).strip()
+        if sp is None or not sp.france or sp.link or name in ("", "nan", "None") or roads.is_ring(feats, i):
+            continue
+        groups.setdefault((name, sp.cls, bool(sp.oneway)), []).append(i)
+    if not any(len(g) > 1 for g in groups.values()):
+        return specs
+    lengths = roads._lengths(feats)
+    out = list(specs)
+    for group in groups.values():
+        widths = np.array([specs[i].width for i in group], np.float64)
+        if len(group) < 2 or widths.max() - widths.min() > SAME_STREET_SPREAD_M:
+            continue
+        order = np.argsort(widths)
+        weight = np.nan_to_num(lengths[np.array(group)][order], nan=0.0)
+        if weight.sum() <= 0:
+            continue
+        width = float(widths[order][np.searchsorted(np.cumsum(weight), weight.sum() / 2.0)])
+        for i in group:
+            out[i] = specs[i]._replace(width=_clear_of_median(specs[i], width) if specs[i].median and width > specs[i].width
+                                       else width)
     return out
 
 
