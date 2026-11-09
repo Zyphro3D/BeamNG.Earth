@@ -422,7 +422,9 @@ class Vegetation:
         scatter = self._scatter(cd, lc, blocked | paved | orchard, chm, hs)
         edge = self._edge(cd, lc, blocked | orchard, road, chm, hs)
         planted = orchard_items(lu, chm, blocked, (lon0, lat0, lon1, lat1))
-        hedges = farm_foliage(lu, chm, blocked, (lon0, lat0, lon1, lat1))
+        import franceroads
+        hedges = _empty() if franceroads.in_france((lat0 + lat1) / 2.0, (lon0 + lon1) / 2.0) else \
+            farm_foliage(lu, chm, blocked, (lon0, lat0, lon1, lat1))        # (no invented shrubs in lines across French fields)
         return _concat(_concat(_concat(_concat(tree, scatter), edge), planted), hedges)
 
     def _edge(self, cd, lc, blocked, road, chm, hs):

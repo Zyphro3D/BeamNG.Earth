@@ -172,6 +172,7 @@ SOURCES["md6in"] = Source(
 BASE_CHAIN = ("md6in", "naipusda", "naip", "usgs", "eox2023", "eox2016")     # the chain before the regional sources
 # Regional aerial imagery (imagery_regional.py: state and national orthophoto services, each within its box)
 import bcortho as bcorthomod  # noqa: E402
+import ignlook
 import imagery_regional
 import tilepack as tilepackmod  # noqa: E402
 # The project's own tile host (cdn.py: its switch puts this in the chain): Sentinel-2 photos of the whole land, ESA
@@ -437,7 +438,7 @@ def _overzoom(a, key, d):
 # colour-matched and tone-mapped (Imagery.finished), kept on disk under <cache>/imagery/fin<FIN_VERSION>-<settings>/
 # <source>/z/x/y.bnf, so a far tile's texture or a block's photo for any anchor is a warp of these (earthfast.tile_warp)
 # and a rebase or a teleport back renders none of it again.
-FIN_VERSION = 1             # bump: every finished tile is made again (its directory holds it)
+FIN_VERSION = 2             # bump: every finished tile is made again (its directory holds it)
 FIN_MAGIC = b"BNF1"
 FIN_QUALITY = 95            # its JPEG (4:4:4): ~44 KB a tile, PSNR ~50 dB to the finished pixels, 0.6 ms to decode
 MEM_FINISHED_MB = 160       # finished tiles kept in memory as their JPEGs (~44 KB; a rebase's far field ~2000 of them)
@@ -889,6 +890,8 @@ class Imagery:
             raise ImageryError(f"undecodable {src.name} tile {z}/{x}/{y}: {e}") from None
         if im.size != (TILE, TILE):
             im = im.resize((TILE, TILE), Image.BILINEAR)
+        if src.name == ignlook.SOURCE and ignlook.ON:
+            return as_tile(ignlook.adjust(np.asarray(im)))
         return as_tile(np.asarray(im))
 
     @staticmethod

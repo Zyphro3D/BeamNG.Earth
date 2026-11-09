@@ -61,6 +61,11 @@ def observed_lane_tags(feats, i, tags):
     return tags
 
 
+def in_france(lat, lon):
+    """Is the point in metropolitan France's box, with the French scenery on?"""
+    return ON and 41.3 < lat < 51.2 and -5.3 < lon < 9.8
+
+
 def french_feature(feats, i):
     """Conservative whole-feature gate, using its geography, never an airport.
 

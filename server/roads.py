@@ -4868,9 +4868,10 @@ def extras(spec, pts, lon, left_hand=False, country=None, osm=None, ws=None, shi
     import franceroads
     if franceroads.enabled(spec):
         out = [({**look, "m": franceroads.PAINT_MATERIAL}, width, line)
-               if look["m"] == "line_white" else (look, width, line) for look, width, line in out]
+               if look["m"] == "line_white" else (look, width, line) for look, width, line in out
+               if look["m"] != GUTTER["m"]]         # (no rust-stained American gutter along French kerbs)
         out.extend(franceroads.paint(spec, pts, osm))
-        if kind == "paved" and not has_sidewalks(spec):
+        if kind == "paved" and not has_sidewalks(spec) and spec.cls != "service":     # (a yard's lane has no gravel edge)
             dw = EDGE_DECAL["w"]
             for side in (1, -1):
                 line = offset_polyline(pts, side * (w / 2 + (EDGE_DECAL_AT - .5) * dw))

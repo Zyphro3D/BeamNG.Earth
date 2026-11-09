@@ -44,6 +44,16 @@ class TownStreetTest(unittest.TestCase):
         self.assertEqual(adjust(street(urban=False, width=5.5, cls="unclassified")).walk, 2.5)
 
 
+class KerbTest(unittest.TestCase):
+    def test_no_gutter_along_a_french_kerb(self):
+        sp = roads.Spec(6.0, "paved", True, "residential", False, walk=1.6, france=True)
+        pts = np.array([(0.0, 0.0, 0.0), (100.0, 0.0, 0.0)])
+        with mock.patch.object(fr, "ON", True):
+            got = roads.extras(sp, pts, 1.4, country="FR")
+        self.assertTrue(any(look["m"] == roads.SIDEWALK["m"] for look, _, _ in got))
+        self.assertFalse(any(look["m"] == roads.GUTTER["m"] for look, _, _ in got))
+
+
 class ThroughRoadTest(unittest.TestCase):
     def test_two_lanes_one_way_get_six_metres(self):
         got = adjust(roads.Spec(4.0, "paved", True, "primary", True, lanes=2, walk=1.6), {"osm_width": ["4"]})

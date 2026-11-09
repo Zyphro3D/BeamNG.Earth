@@ -909,7 +909,10 @@ def paint_square(rgb, frame, x0, y0, size, surface, widths=None, simple=False):
     roads = _square_roads(frame, x0, y0, size, surface)
     if not simple:          # (simple, a stand-in's: the carriageways alone, photo_roads)
         feats = _square_lots(frame, x0, y0, size, surface)
-        rgb = photo_fields(rgb, frame, x0, y0, size, feats, roads, getattr(surface, "urban", None), widths)
+        import franceroads
+        la, lo, _ = frame.enu_to_geodetic(x0 + size / 2.0, y0 + size / 2.0, 0.0)
+        if not franceroads.in_france(float(la), float(lo)):     # (IGN's photo already shows the real crop rows)
+            rgb = photo_fields(rgb, frame, x0, y0, size, feats, roads, getattr(surface, "urban", None), widths)
         rgb = photo_golf(rgb, frame, x0, y0, size, feats)
         rgb = photo_lots(rgb, frame, x0, y0, size, feats)
         rgb = photo_pads(rgb, frame, x0, y0, size, _square_pads(frame, x0, y0, size, surface))     # (under the roads)
