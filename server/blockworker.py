@@ -1068,6 +1068,11 @@ def _tile_parts(mark, frame, tile, zoom, g, buildings, left_hand, mph, gas_stati
                                                                         for _f, spec, xy, z, _l in deck_parts] + rail_decks))
         except Exception as ex:
             log.warning("fences: tile %s_%s: %s: %s", tx, ty, type(ex).__name__, ex)
+        import ign_limites
+        try:
+            props.extend(ign_limites.rows(frame, getattr(_s.md, "ign_limites", None), box, elev))   # (France: walls, hedges)
+        except Exception as ex:
+            log.warning("ign_limites: tile %s_%s: %s: %s", tx, ty, type(ex).__name__, ex)
         import picnic
         land_fn = lambda key: _s.md.cell(key, layers=("land_use",), kind="demand").layers.get("land_use")
         bld_fn = lambda key: _s.md.cell(key, layers=("buildings",), kind="demand").layers.get("buildings")
