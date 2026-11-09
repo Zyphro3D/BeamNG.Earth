@@ -10,9 +10,15 @@ use pyo3::prelude::*;
 const CURB_H: f64 = 0.15;
 const SINK: f64 = 0.10;
 const BACK_RUN: f64 = 2.0;
-const BATTER: f64 = 0.02;
-const NOSE: f64 = 0.025;
-const NOSE_W: f64 = 0.045;
+
+/// France's chamfered kerbs (sidewalks.py reads the same switch).
+fn france() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| matches!(std::env::var("BNE_FR_ROADS").unwrap_or_default().to_lowercase().as_str(), "on" | "1" | "true"))
+}
+fn batter() -> f64 { if france() { 0.07 } else { 0.02 } }
+fn nose() -> f64 { if france() { 0.03 } else { 0.025 } }
+fn nose_w() -> f64 { if france() { 0.11 } else { 0.045 } }
 const CURB_W: f64 = 0.15;
 const CROSS_SLOPE: f64 = 0.015;
 const CURB_REPEAT_M: f64 = 9.0;
@@ -53,7 +59,7 @@ fn profile(h: f64, w: f64, hr: f64) -> [[f64; 2]; 8] {
     let xp = CURB_W + PAD_W.min((rr - CURB_W) / 2.0);
     let zp = hr + (zr - hr) * (xp - CURB_W) / (rr - CURB_W);
     let top = h + w * CROSS_SLOPE;
-    [[0.0, -SINK], [BATTER * f, hr - NOSE * f], [NOSE_W * f, hr], [CURB_W, hr], [xp, zp], [rr, zr], [w, top],
+    [[0.0, -SINK], [batter() * f, hr - nose() * f], [nose_w() * f, hr], [CURB_W, hr], [xp, zp], [rr, zr], [w, top],
      [w + BACK_RUN * (top + SINK), -SINK]]
 }
 

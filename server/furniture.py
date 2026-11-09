@@ -355,13 +355,15 @@ def junction_controls(arms, k, link_ok=None, ring=None, signals=None, country=No
             if what is not None and not _outbound(a):
                 put.append((a, what))
         return put
+    # (France: a side road gives way far more often than it stops; a mapped stop comes through _mapped_priority)
+    side_road = G_YIELD if str(country or "").upper() == "FR" else G_STOP
     if major:
-        return [(a, G_STOP) for a in minor]
+        return [(a, side_road) for a in minor]
     if len(arms) == 3:
         # the stem: the arm least in line with another
         def straightest(a):
             return max(-float(a[2] @ b[2]) for b in arms if b is not a)
-        return [(min(arms, key=straightest), G_STOP)] if all(a[1].cls in MINOR for a in arms) else []
+        return [(min(arms, key=straightest), side_road)] if all(a[1].cls in MINOR for a in arms) else []
     # the all-way coin flip: keyed on the roads that meet there (their map ids, sorted: the arms' order differs between
     # the road tiles and the road graph), the same from both and from every anchor (an 8 m cell of the junction in
     # the anchor's frame flipped junctions at a rebase: geotiles, 2026-10-29)

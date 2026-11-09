@@ -31,9 +31,12 @@ SINK = 0.10             # m the faces reach below the road / ground
 BACK_RUN = 2.0          # the slab's back falls to the ground at 1:2, not straight down: the ground behind a sidewalk is
                         # graded at road level (grading.SIDEWALK_MARGIN_M), so a vertical back was a ~20 cm ledge that
                         # caught a wheel leaving the sidewalk for the verge ("pulling the car down", user 2026-10-14)
-BATTER = 0.02           # m the face leans back over its height
-NOSE = 0.025            # m: the bevelled nose, down from the top ...
-NOSE_W = 0.045          # ... and in from the face
+# France's kerbs are chamfered (a wheel climbs them instead of hitting a wall): native/earthfast/src/sidewalks.rs reads
+# the same switch
+_FR = os.environ.get("BNE_FR_ROADS", "off").lower() in {"on", "1", "true"}
+BATTER = 0.07 if _FR else 0.02          # m the face leans back over its height
+NOSE = 0.03 if _FR else 0.025           # m: the bevelled nose, down from the top ...
+NOSE_W = 0.11 if _FR else 0.045         # ... and in from the face
 CURB_W = 0.15           # m of curb top band
 CROSS_SLOPE = 0.015     # sidewalk cross slope, rising away from the road
 CURB_REPEAT_M = 9.0     # m of curb per texture width (3 joints of 3 m)

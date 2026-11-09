@@ -111,6 +111,20 @@ class SplitPieceTest(unittest.TestCase):
         self.assertIsNone(self.go("", 400.0).sides)
 
 
+class KerbProfileTest(unittest.TestCase):
+    def test_a_french_kerb_is_chamfered_and_low(self):
+        import importlib
+        import sidewalks
+        try:
+            with mock.patch.dict(os.environ, {"BNE_FR_ROADS": "on"}):
+                importlib.reload(sidewalks)
+                p = sidewalks.profile()
+            self.assertEqual(sidewalks.CURB_H, 0.10)
+            self.assertGreaterEqual(p[2][0], 0.10)            # the nose ends a good way in from the face
+        finally:
+            importlib.reload(sidewalks)
+
+
 class ThroughRoadTest(unittest.TestCase):
     def test_two_lanes_one_way_get_six_metres(self):
         got = adjust(roads.Spec(4.0, "paved", True, "primary", True, lanes=2, walk=1.6), {"osm_width": ["4"]})
