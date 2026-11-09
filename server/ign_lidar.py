@@ -6,6 +6,7 @@ vegetation.py is unchanged. A pixel with no lidar keeps the base raster's value.
 """
 import logging
 import os
+import time
 
 import numpy as np
 
@@ -19,6 +20,7 @@ FRANCE = (-5.5, 41.0, 9.8, 51.3)
 MERC_HALF = 20037508.342789244
 NODATA = 255
 BLOCK = 512                 # pixels a request: the cell is read in blocks
+BLOCK_TRIES = 3
 
 
 def in_france(cell):
@@ -39,6 +41,18 @@ def _url(x0, y0, x1, y1, w, h):
             f"&BBOX={x0:.3f},{y0:.3f},{x1:.3f},{y1:.3f}&WIDTH={w}&HEIGHT={h}&FORMAT=image/x-bil;bits=32")
 
 
+def _block(fetcher, url):
+    """The block's body, or None when the service keeps refusing it (a 400 that a retry answers, seen 2026-11-09)."""
+    for attempt in range(BLOCK_TRIES):
+        try:
+            return fetcher.get(url, kind="demand", lane=LANE).body
+        except Exception as e:      # (the block keeps the base raster: one refusal must not lose the whole cell)
+            if attempt == BLOCK_TRIES - 1:
+                log.warning("ign_lidar block: %s: %s", type(e).__name__, e)
+                return None
+            time.sleep(0.5 * (attempt + 1))
+
+
 def measured(fetcher, cell, npx):
     """The cell's MNH as canopy uint8 on an npx² grid, or None where the service has nothing."""
     size = 2 * MERC_HALF / (1 << cell.z)
@@ -49,8 +63,8 @@ def measured(fetcher, cell, npx):
         for c0 in range(0, npx, BLOCK):
             r1, c1 = min(npx, r0 + BLOCK), min(npx, c0 + BLOCK)
             url = _url(mx0 + c0 * px, my0 - r1 * px, mx0 + c1 * px, my0 - r0 * px, c1 - c0, r1 - r0)
-            body = fetcher.get(url, kind="demand", lane=LANE).body
-            if len(body) != (r1 - r0) * (c1 - c0) * 4:      # (an XML error instead of the grid: this block has none)
+            body = _block(fetcher, url)
+            if body is None or len(body) != (r1 - r0) * (c1 - c0) * 4:   # (an XML error instead of the grid: this block has none)
                 continue
             out[r0:r1, c0:c1] = to_canopy(np.frombuffer(body, "<f4").reshape(r1 - r0, c1 - c0))
     return None if (out == NODATA).all() else out

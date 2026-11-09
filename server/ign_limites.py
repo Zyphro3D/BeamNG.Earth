@@ -17,6 +17,7 @@ import logging
 import math
 import os
 import threading
+import time
 
 import numpy as np
 
@@ -34,6 +35,7 @@ ORTHO_LAYER = "HR.ORTHOIMAGERY.ORTHOPHOTOS"
 PARCELS = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
 MERC_HALF = 20037508.342789244
 MNH_PX, ORTHO_PX, BLOCK = 4096, 2048, 1024
+GET_TRIES = 3
 PAGE, PAGES = 5000, 40
 MIN_M, MAX_M = 0.6, 3.5
 RUN_M, STEP_M = 3.5, 0.5
@@ -106,7 +108,13 @@ class Provider:
         self._locks, self._lock, self._mem = {}, threading.Lock(), {}
 
     def _get(self, url):
-        return self.fetcher.get(url, kind="demand", lane=WFS_LANE).body
+        for attempt in range(GET_TRIES):
+            try:
+                return self.fetcher.get(url, kind="demand", lane=WFS_LANE).body
+            except Exception:       # (a 400 that the same request answers a moment later: a whole cell's barriers lost)
+                if attempt == GET_TRIES - 1:
+                    raise
+                time.sleep(0.5 * (attempt + 1))
 
     def _parcels(self, cell):
         lon0, lat0, lon1, lat1 = cell.bounds()
