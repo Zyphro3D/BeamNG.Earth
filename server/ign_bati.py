@@ -39,6 +39,7 @@ ROOFS = {"1": "tile", "2": "slate", "3": "zinc", "4": "concrete"}
 BRICK_MIN_FLOORS, BRICK_MIN_M = 3, 9.0  # below this a brick building is taken as rendered
 PROPS = ("geometrie,hauteur,nombre_d_etages,altitude_maximale_toit,altitude_minimale_toit,"
          "materiaux_des_murs,materiaux_de_la_toiture")
+ROOF_SHAPES = ("flat", "gabled", "hipped")
 TEXT_COLUMNS = ("roof_shape", "roof_material", "facade_material", "height_src")
 
 
@@ -99,8 +100,13 @@ def _inside(ring, x, y):
     return hit
 
 
-def join(feats, rows):
-    """Writes the attributes of `rows` over feats (a buildings Features). Returns how many buildings took one."""
+def ring_key(lon, lat):
+    return f"{lon:.6f},{lat:.6f}"
+
+
+def join(feats, rows, roofs=None):
+    """Writes the attributes of `rows` over feats (a buildings Features). Returns how many buildings took one. roofs:
+    {ring_key of a BD TOPO ring's mean: shape}, the shape measured by the LiDAR (ign_limites.roof_shape)."""
     items, grid = [], {}
     for ring, props in rows:
         xs, ys = [c[0] for c in ring], [c[1] for c in ring]
@@ -117,15 +123,21 @@ def join(feats, rows):
     joined = 0
     for i in range(len(feats)):
         x, y = float(cx[i]), float(cy[i])
-        found = None
+        found, found_ring = None, None
         for k in grid.get((int(x * GRID), int(y * GRID)), ()):
             ring, b, props = items[k]
             if b[0] <= x <= b[2] and b[1] <= y <= b[3] and _inside(ring, x, y):
-                found = props
+                found, found_ring = props, ring
                 break
         if found is None:
             continue
         got = attributes(found, str(feats.ids[i]))
+        if roofs:
+            measured = roofs.get(ring_key(*np.asarray(found_ring, np.float64).mean(axis=0)))
+            if measured is not None:
+                got["roof_shape"] = ROOF_SHAPES[int(measured)]
+                if not measured:
+                    got.pop("roof_height", None)
         if got:
             joined += 1
         for k in numbers:
@@ -147,6 +159,7 @@ class Provider:
 
     def __init__(self, cache_dir, fetcher):
         self.dir = os.path.join(cache_dir, "ign_bati", f"v{VERSION}") if cache_dir else None
+        self.cache_dir = cache_dir
         self.fetcher = fetcher
         self._locks = {}
         self._lock = threading.Lock()
@@ -186,6 +199,19 @@ class Provider:
                 os.replace(tmp, path)
             return rows
 
+    def roofs(self, key):
+        """{ring_key: shape} of the cell's roofs measured by the LiDAR (ign_limites' file), {} until it is worked out."""
+        if not self.cache_dir:
+            return {}
+        path = os.path.join(self.cache_dir, "ign_limites", "v1", str(key.z), str(key.x), f"{key.y}.npz")
+        try:
+            with np.load(path, allow_pickle=False) as z:
+                if "roofs" not in z.files:
+                    return {}
+                return {ring_key(lon, lat): shape for lon, lat, shape in z["roofs"].tolist()}
+        except (OSError, ValueError):
+            return {}
+
     def enrich(self, key, feats):
         """Joins BD TOPO to a buildings Features in France. A failure leaves it as it was."""
         if not ON or feats is None or not len(feats) or feats.__dict__.get("_ign_bati"):
@@ -193,7 +219,7 @@ class Provider:
         if not in_france(*key.bounds()):
             return 0
         try:
-            joined = join(feats, self.rows(key))
+            joined = join(feats, self.rows(key), self.roofs(key))
         except Exception as e:      # (no network, a changed answer: Overture's buildings stand)
             log.warning("ign_bati %s: %s: %s", key, type(e).__name__, e)
             return 0

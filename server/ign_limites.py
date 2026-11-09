@@ -37,7 +37,16 @@ ORTHO_LAYER = "HR.ORTHOIMAGERY.ORTHOPHOTOS"
 PARCELS = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
 MERC_HALF = 20037508.342789244
 MNH_PX, ORTHO_PX, BLOCK = 4096, 2048, 1024
+MNH_BLOCK = 512             # pixels (220 m) a LiDAR request: the unit read only round the buildings
+WMS_THREADS = 4
 GET_TRIES = 3
+EMPTY_SEG, EMPTY_ROOFS = np.zeros((0, 6)), np.zeros((0, 3))
+ROOF_MIN_PX = 40            # pixels of height (0.43 m): under this a house is too small to tell
+ROOF_ERODE_PX = 3           # pixels (1.3 m) in from the footprint: only the roof itself is read
+ROOF_FLAT_M = 0.7           # m of relief (10th to 90th percentile) under which a roof is flat
+ROOF_STRIP = 0.25           # share of the half width round the ridge
+ROOF_MID, ROOF_END = 0.3, 0.75   # share of the half length: the ridge's middle, and its ends
+ROOF_HIP_DROP = 0.4         # share of the relief the ridge falls by at its ends for a hipped roof
 CLAIM_MAX_S = 600.0
 PAGE, PAGES = 5000, 40
 MIN_M, MAX_M = 0.6, 3.5
@@ -50,6 +59,63 @@ FENCE_LEN, FENCE_TOP = 6.25, 1.59   # italy_fence_mesh_6m_conc_base
 HEDGE_STEP = 1.5
 WALL_H_MAX = 2.4
 PAD_M = 8.0
+
+
+def blocks_near(points, npx, block=None):
+    """The (row, column) blocks of an npx grid that hold a point (x, y in pixels), and the blocks round them."""
+    block = block or BLOCK
+    n = int(math.ceil(npx / block))
+    out = set()
+    for x, y in points:
+        r, c = int(y // block), int(x // block)
+        for a in range(max(0, r - 1), min(n, r + 2)):
+            for b in range(max(0, c - 1), min(n, c + 2)):
+                out.add((a, b))
+    return out
+
+
+def roof_shape(h, mask):
+    """0 flat, 1 gabled, 2 hipped from the measured heights of one roof (h, mask: arrays of a building's pixels), or None
+    with too little to tell. A pitched roof's ridge runs along its long axis: a gable keeps the ridge's height to the end
+    of the house, a hipped roof falls to the eaves there."""
+    inner = np.array(mask, bool)
+    for _ in range(ROOF_ERODE_PX):      # (at its edge the footprint's pixels fall to the ground: every flat roof looked pitched)
+        inner[[0, -1], :] = False       # (first: np.roll wraps round, and a footprint can touch its crop)
+        inner[:, [0, -1]] = False
+        inner = inner & np.roll(inner, 1, 0) & np.roll(inner, -1, 0) & np.roll(inner, 1, 1) & np.roll(inner, -1, 1)
+    ys, xs = np.nonzero(inner & np.isfinite(h))
+    if len(xs) < ROOF_MIN_PX:
+        return None
+    z = h[ys, xs]
+    low, high = np.percentile(z, 10), np.percentile(z, 90)
+    if high - low < ROOF_FLAT_M:
+        return 0
+    x, y = xs - xs.mean(), ys - ys.mean()
+    w, v = np.linalg.eigh(np.cov(np.vstack((x, y))))
+    long_axis = v[:, int(np.argmax(w))]
+    s = x * long_axis[0] + y * long_axis[1]
+    t = -x * long_axis[1] + y * long_axis[0]
+    half_s, half_t = max(np.abs(s).max(), 1e-6), max(np.abs(t).max(), 1e-6)
+    strip = np.abs(t) < ROOF_STRIP * half_t
+    u = s / half_s
+    mid, ends = strip & (np.abs(u) < ROOF_MID), strip & (np.abs(u) > ROOF_END)
+    if mid.sum() < 3 or ends.sum() < 3:
+        return None
+    return 2 if (np.median(z[mid]) - np.median(z[ends])) / (high - low) > ROOF_HIP_DROP else 1
+
+
+def roof_of_ring(h, pixels):
+    """roof_shape of a footprint given in pixels of the height grid."""
+    from PIL import Image, ImageDraw
+    x0, y0 = np.floor(pixels.min(axis=0)).astype(int) - 1
+    x1, y1 = np.ceil(pixels.max(axis=0)).astype(int) + 2
+    x0, y0 = max(int(x0), 0), max(int(y0), 0)
+    x1, y1 = min(int(x1), h.shape[1]), min(int(y1), h.shape[0])
+    if x1 - x0 < 3 or y1 - y0 < 3:
+        return None
+    im = Image.new("1", (x1 - x0, y1 - y0), 0)
+    ImageDraw.Draw(im).polygon([(float(a) - x0, float(b) - y0) for a, b in pixels], fill=1)
+    return roof_shape(h[y0:y1, x0:x1], np.asarray(im, bool))
 
 
 def merc(lon, lat):
@@ -136,37 +202,29 @@ class Provider:
                 break
         return rings
 
-    def _wms(self, cell, layer, fmt, npx):
+    def _wms(self, cell, layer, fmt, npx, only=None, block=None):
+        """{(r0, c0, r1, c1): body} of the grid's blocks (only: those (row, column) of them), a few at a time."""
+        block = block or BLOCK
         mx0, my0, size = cell_box(cell)
         px = size / npx
-        out = {}
-        for r0 in range(0, npx, BLOCK):
-            for c0 in range(0, npx, BLOCK):
-                r1, c1 = min(npx, r0 + BLOCK), min(npx, c0 + BLOCK)
-                url = (f"{WMS_URL}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS={layer}&STYLES=&CRS=EPSG:3857"
-                       f"&BBOX={mx0 + c0 * px:.3f},{my0 - r1 * px:.3f},{mx0 + c1 * px:.3f},{my0 - r0 * px:.3f}"
-                       f"&WIDTH={c1 - c0}&HEIGHT={r1 - r0}&FORMAT={fmt}")
-                out[(r0, c0, r1, c1)] = self._get(url)
-        return out
+        boxes = [(r0, c0, min(npx, r0 + block), min(npx, c0 + block)) for r0 in range(0, npx, block)
+                 for c0 in range(0, npx, block) if only is None or (r0 // block, c0 // block) in only]
+
+        def one(box):
+            r0, c0, r1, c1 = box
+            return box, self._get(f"{WMS_URL}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS={layer}&STYLES=&CRS=EPSG:3857"
+                                  f"&BBOX={mx0 + c0 * px:.3f},{my0 - r1 * px:.3f},{mx0 + c1 * px:.3f},{my0 - r0 * px:.3f}"
+                                  f"&WIDTH={c1 - c0}&HEIGHT={r1 - r0}&FORMAT={fmt}")
+        with concurrent.futures.ThreadPoolExecutor(WMS_THREADS) as pool:
+            return dict(pool.map(one, boxes))
 
     def _build(self, cell):
+        """(segments, roofs) of the cell. The LiDAR is read only round the buildings: walls and hedges are wanted beside
+        them, and it is nearly all of what a cell downloads (64 MB)."""
         from PIL import Image, ImageDraw
         rings = self._parcels(cell)
         if not rings:
-            return np.zeros((0, 6))
-        h = np.full((MNH_PX, MNH_PX), np.nan, np.float32)
-        for (r0, c0, r1, c1), body in self._wms(cell, MNH_LAYER, "image/x-bil;bits=32", MNH_PX).items():
-            if len(body) == (r1 - r0) * (c1 - c0) * 4:
-                b = np.frombuffer(body, "<f4").reshape(r1 - r0, c1 - c0)
-                h[r0:r1, c0:c1] = np.where((b > -100) & (b < 200), b, np.nan)
-        if not np.isfinite(h).any():
-            return np.zeros((0, 6))         # (no lidar here yet)
-        photo = np.zeros((ORTHO_PX, ORTHO_PX, 3), np.float32)
-        for (r0, c0, r1, c1), body in self._wms(cell, ORTHO_LAYER, "image/jpeg", ORTHO_PX).items():
-            try:
-                photo[r0:r1, c0:c1] = np.asarray(Image.open(io.BytesIO(body)).convert("RGB"), np.float32)
-            except Exception:           # (an XML error instead of a picture: no colour, so not a hedge)
-                pass
+            return EMPTY_SEG, EMPTY_ROOFS
         mx0, my0, size = cell_box(cell)
         scale = MNH_PX / size
 
@@ -174,10 +232,33 @@ class Provider:
             a = np.asarray(ring, np.float64)[:, :2]
             x, y = merc(a[:, 0], a[:, 1])
             return np.column_stack(((x - mx0) * scale, (my0 - y) * scale))
+        houses = [ring for ring, _ in self.bati.rows(cell)] if self.bati is not None else None
+        if houses is not None and not houses:
+            return EMPTY_SEG, EMPTY_ROOFS
+        only = None if houses is None else blocks_near([pixels(r).mean(axis=0) for r in houses], MNH_PX, MNH_BLOCK)
+        h = np.full((MNH_PX, MNH_PX), np.nan, np.float32)
+        for (r0, c0, r1, c1), body in self._wms(cell, MNH_LAYER, "image/x-bil;bits=32", MNH_PX, only, MNH_BLOCK).items():
+            if len(body) == (r1 - r0) * (c1 - c0) * 4:
+                b = np.frombuffer(body, "<f4").reshape(r1 - r0, c1 - c0)
+                h[r0:r1, c0:c1] = np.where((b > -100) & (b < 200), b, np.nan)
+        if not np.isfinite(h).any():
+            return EMPTY_SEG, EMPTY_ROOFS   # (no lidar here yet)
+        photo = np.zeros((ORTHO_PX, ORTHO_PX, 3), np.float32)
+        for (r0, c0, r1, c1), body in self._wms(cell, ORTHO_LAYER, "image/jpeg", ORTHO_PX).items():
+            try:
+                photo[r0:r1, c0:c1] = np.asarray(Image.open(io.BytesIO(body)).convert("RGB"), np.float32)
+            except Exception:           # (an XML error instead of a picture: no colour, so not a hedge)
+                pass
         im = Image.new("1", (MNH_PX, MNH_PX), 0)
         draw = ImageDraw.Draw(im)
-        for ring, _ in (self.bati.rows(cell) if self.bati is not None else ()):
-            draw.polygon([tuple(p) for p in pixels(ring)], fill=1)
+        roofs = []
+        for ring in houses or ():
+            p = pixels(ring)
+            draw.polygon([tuple(q) for q in p], fill=1)
+            shape = roof_of_ring(h, p)
+            if shape is not None:
+                lon, lat = np.asarray(ring, np.float64)[:, :2].mean(axis=0)
+                roofs.append((lon, lat, shape))
         mask = np.asarray(im, bool)
         seen, edges = set(), []
         for ring in rings:
@@ -192,7 +273,7 @@ class Provider:
         out = np.zeros((len(found), 6))
         for i, (x0, y0, x1, y1, kind, height) in enumerate(found):
             out[i] = (x0 / scale + mx0, my0 - y0 / scale, x1 / scale + mx0, my0 - y1 / scale, kind, height)
-        return out
+        return out, np.array(roofs, np.float64).reshape(-1, 3)
 
     def _file(self, cell):
         return os.path.join(self.dir, str(cell.z), str(cell.x), f"{cell.y}.npz") if self.dir else None
@@ -267,11 +348,11 @@ class Provider:
                 with np.load(path, allow_pickle=False) as z:
                     seg = z["seg"]
             else:
-                seg = self._build(cell)
+                seg, roofs = self._build(cell)
                 if path:
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                     tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp.npz"
-                    np.savez_compressed(tmp, seg=seg)
+                    np.savez_compressed(tmp, seg=seg, roofs=roofs)
                     os.replace(tmp, path)
             with self._lock:
                 if len(self._mem) > 32:

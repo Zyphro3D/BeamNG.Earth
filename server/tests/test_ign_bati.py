@@ -88,6 +88,21 @@ class JoinTest(unittest.TestCase):
         self.assertEqual(f.attrs["height_src"][0], "IGN BD TOPO")
         self.assertEqual(f.attrs["height_src"][1], "")
 
+    def test_a_measured_roof_wins_over_the_guess(self):
+        rows = ign_bati.parse([feature(1.4, 43.6, hauteur=7.0, altitude_minimale_toit=1.0, altitude_maximale_toit=4.0)])
+        key = ign_bati.ring_key(*np.asarray(rows[0][0], float).mean(axis=0))
+        for shape, name in enumerate(("flat", "gabled", "hipped")):
+            f = Feats([(1.40025, 43.60025)])
+            ign_bati.join(f, rows, {key: shape})
+            self.assertEqual(f.attrs["roof_shape"][0], name)
+
+    def test_a_flat_measured_roof_has_no_rise(self):
+        rows = ign_bati.parse([feature(1.4, 43.6, hauteur=7.0, altitude_minimale_toit=1.0, altitude_maximale_toit=4.0)])
+        key = ign_bati.ring_key(*np.asarray(rows[0][0], float).mean(axis=0))
+        f = Feats([(1.40025, 43.60025)])
+        ign_bati.join(f, rows, {key: 0})
+        self.assertTrue(np.isnan(f.attrs["roof_height"][0]))
+
     def test_text_columns_grow_for_the_new_values(self):
         rows = ign_bati.parse([feature(1.4, 43.6, altitude_minimale_toit=1.0, altitude_maximale_toit=1.1,
                                        materiaux_de_la_toiture="20")])
