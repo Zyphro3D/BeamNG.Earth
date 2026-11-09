@@ -113,6 +113,53 @@ class CanopyTest(unittest.TestCase):
         self.assertEqual(ign_lidar.canopy(Never(), far, self.base(), None)[1], [])
 
 
+def house(profile):
+    """Heights over a 60 x 30 px house (1.0 = the eaves), profile(u along, v across, both -1..1)."""
+    mask = np.ones((30, 60), bool)
+    yy, xx = np.mgrid[0:30, 0:60]
+    u, v = (xx - 29.5) / 29.5, (yy - 14.5) / 14.5
+    return profile(u, v), mask
+
+
+class RoofTest(unittest.TestCase):
+    def test_flat(self):
+        h, m = house(lambda u, v: 6.0 + 0.05 * u)
+        self.assertEqual(L.roof_shape(h, m), 0)
+
+    def test_gabled(self):
+        h, m = house(lambda u, v: 6.0 + 3.0 * (1 - np.abs(v)))
+        self.assertEqual(L.roof_shape(h, m), 1)
+
+    def test_hipped(self):
+        h, m = house(lambda u, v: 6.0 + 3.0 * np.minimum(1 - np.abs(v), (1 - np.abs(u)) * 2))
+        self.assertEqual(L.roof_shape(h, m), 2)
+
+    def test_a_flat_roof_stays_flat_with_its_edges_on_the_ground(self):
+        h, m = house(lambda u, v: 6.0 + 0.05 * u)
+        h[:2, :] = h[-2:, :] = 0.0
+        h[:, :2] = h[:, -2:] = 0.0
+        self.assertEqual(L.roof_shape(h, m), 0)
+
+    def test_too_small_to_tell(self):
+        self.assertIsNone(L.roof_shape(np.full((4, 4), 6.0), np.ones((4, 4), bool)))
+
+    def test_a_house_without_lidar_is_nothing(self):
+        h = np.full((30, 60), np.nan)
+        self.assertIsNone(L.roof_shape(h, np.ones((30, 60), bool)))
+
+
+class BlocksTest(unittest.TestCase):
+    def test_a_point_takes_its_block_and_the_ones_round_it(self):
+        got = L.blocks_near([(L.BLOCK * 1.5, L.BLOCK * 1.5)], L.BLOCK * 4)
+        self.assertEqual(len(got), 9)
+        self.assertIn((0, 0), got)
+        self.assertNotIn((3, 3), got)
+
+    def test_the_edge_of_the_grid_stays_inside(self):
+        got = L.blocks_near([(1.0, 1.0)], L.BLOCK * 2)
+        self.assertEqual(got, {(0, 0), (0, 1), (1, 0), (1, 1)})
+
+
 class BackgroundTest(unittest.TestCase):
     cell = mapcells.CellKey(14, 8254, 5976)
     frame = geodesy.EnuFrame(43.7, 1.37, 0.0)
@@ -124,7 +171,7 @@ class BackgroundTest(unittest.TestCase):
 
         def build(cell):
             p.built.append(cell)
-            return np.zeros((0, 6)) if seg is None else seg
+            return (np.zeros((0, 6)) if seg is None else seg), np.zeros((0, 3))
         p._build = build
         return p
 
