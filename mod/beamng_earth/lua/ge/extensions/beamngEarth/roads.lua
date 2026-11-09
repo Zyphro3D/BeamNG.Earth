@@ -194,6 +194,9 @@ local function loadMaterials()
   end
   local pad = scenetree.findObject('tactile_indicator')    -- curb ramp pads: US truncated domes are yellow
   if pad then pcall(function() pad:setField('baseColorFactor', 0, '0.95 0.78 0.18 1'); pad:flush(); pad:reload() end) end
+  -- shortcut: lightens this concrete everywhere, not only in France; move behind a country check if the fork goes wider
+  local walk = scenetree.findObject('sidewalk_concrete')   -- (the stock map's was near black beside a light road)
+  if walk then pcall(function() walk:setField('baseColorFactor', 0, '1.45 1.42 1.36 1'); walk:flush(); walk:reload() end) end
   loadedMaterials = true
 end
 

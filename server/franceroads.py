@@ -27,7 +27,8 @@ LANES_MAX_M = 12.0
 SPLIT_PIECE_M = 150.0           # m: an unnamed one-way piece this short is part of a junction: no sidewalks on it
 WALK_STEP_M = 5.0               # m between the points a sidewalk's surroundings are read at (walks_in_town)
 WALK_TOWN_REACH_M = 20.0        # m each side of it the land cover is read
-WALK_TOWN_WINDOW_M = 25.0       # m along it a built-up reading counts
+WALK_TOWN_WINDOW_M = 70.0       # m along it a built-up reading counts (shorter chopped a street between two houses)
+WALK_TOWN_KEEP_M = 40.0         # m: a shorter stretch left after cutting is dropped
 WALK_ISOLATED_M = 12.0          # m: a shorter run joined to nothing is a scrap in a junction
 SAME_STREET_SPREAD_M = 3.5      # m: wider apart than this, the pieces really are different roads
 T1, TP1, T3, T2, T4 = (3., 10.), (1.5, 5.), (3., 1.33), (3., 3.5), (39., 13.)
@@ -163,7 +164,7 @@ def walks_in_town(runs, frame, urban_fn, french):
         elif not near.all():
             built = np.convolve(near.astype(np.int32), np.ones(2 * reach + 1, np.int32), "same") > 0
             if not built.all():
-                done[k] = roads.walk_pieces(rn, pts, ~built)
+                done[k] = [p for p in roads.walk_pieces(rn, pts, ~built) if roads._length(p["pts"]) >= WALK_TOWN_KEEP_M]
     return [p for k, rn in enumerate(runs) for p in done.get(k, [rn])]
 
 
