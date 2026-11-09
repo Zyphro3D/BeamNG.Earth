@@ -6801,14 +6801,22 @@ def walks_off_roads(runs, carriageways):
         if not on.any():
             out.append(rn)
             continue
-        edges = np.flatnonzero(np.diff(np.r_[0, (~on).astype(np.int8), 0]))
-        for i0, i1 in zip(edges[::2], edges[1::2]):
-            piece = pts[i0:i1]
-            if len(piece) < 2 or _length(piece) < WALK_TRIM_KEEP_M:
-                continue
-            out.append({**rn, "pts": densify(simplify(piece)),
-                        "j": (rn["j"][0] and i0 == 0, rn["j"][1] and i1 == len(pts)),
-                        "open": (rn["open"][0] and i0 == 0, rn["open"][1] and i1 == len(pts))})
+        out.extend(walk_pieces(rn, pts, on))
+    return out
+
+
+def walk_pieces(rn, pts, off):
+    """The parts of sidewalk run rn (densified to pts) where bool off is False, each a run like it (the short ones
+    dropped): only the run's own ends keep their junctions and open ends."""
+    out = []
+    edges = np.flatnonzero(np.diff(np.r_[0, (~off).astype(np.int8), 0]))
+    for i0, i1 in zip(edges[::2], edges[1::2]):
+        piece = pts[i0:i1]
+        if len(piece) < 2 or _length(piece) < WALK_TRIM_KEEP_M:
+            continue
+        out.append({**rn, "pts": densify(simplify(piece)),
+                    "j": (rn["j"][0] and i0 == 0, rn["j"][1] and i1 == len(pts)),
+                    "open": (rn["open"][0] and i0 == 0, rn["open"][1] and i1 == len(pts))})
     return out
 
 
@@ -11996,6 +12004,9 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
                                    + [(mapped[:, :2], 2.9) for _, mapped, _ in mapped_walks])
         # (France fork: a generated sidewalk's slab cut where it reaches into a carriageway)
         runs_near = walks_off_roads(runs_near, [(p2[:, :2], s2.width / 2) for _, s2, p2, _ in roads])
+        if franceroads.ON and urban_fn is not None:   # (France fork: generated sidewalks only where it is built)
+            runs_near = franceroads.walks_in_town(runs_near, frame, urban_fn,
+                                                  {fid for fid, sp, _, _ in roads if getattr(sp, "france", False)})
         for fid, run, style in mapped_walks:
             runs_near.append({"fid": fid, "pts": run, "w": style.width, "side": 1,
                               "j": (False, False), "footway": style, "mapped": True})

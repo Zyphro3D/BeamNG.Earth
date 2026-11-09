@@ -56,7 +56,8 @@ WALL, FENCE, HEDGE = "frwall", "frfence", "shrub"
 FENCE_MAX_M = 1.7
 WALL_LEN, WALL_TOP = 3.3, 1.0   # italy_wall_concrete_plain: 3.36 m long, its top 1.0 m over its origin, 1.53 under it
 FENCE_LEN, FENCE_TOP = 6.25, 1.59   # italy_fence_mesh_6m_conc_base
-HEDGE_STEP = 1.5
+HEDGE_STEP = 1.9
+HEDGE_MAX_M = 2.4           # m: a garden hedge; a taller reading is the tree or the wall behind it
 WALL_H_MAX = 2.4
 PAD_M = 8.0
 
@@ -369,7 +370,7 @@ def _panels(ex, ey, fx, fy, kind, h):
     tx, ty = (fx - ex) / length, (fy - ey) / length
     yaw = math.degrees(math.atan2(ty, tx)) % 360.0
     if kind == 2:
-        group, step, top, natural = HEDGE, HEDGE_STEP, min(3.5, max(1.0, h)), min(3.5, max(1.0, h))
+        group, step, top, natural = HEDGE, HEDGE_STEP, min(HEDGE_MAX_M, max(1.0, h)), min(HEDGE_MAX_M, max(1.0, h))
     elif h < FENCE_MAX_M:
         group, step, top, natural = FENCE, FENCE_LEN, FENCE_TOP, FENCE_TOP
     else:

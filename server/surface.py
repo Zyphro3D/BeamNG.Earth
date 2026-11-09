@@ -28,7 +28,7 @@ import weakref
 from runtimeprofiler import ThreadPoolExecutor
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 import beaches
 import fast
