@@ -10,10 +10,15 @@ import os
 import numpy as np
 
 ON = os.environ.get("BNE_FR_ROADS", "off").lower() in {"on", "1", "true"}
-VERSION = "fr-roads-signs-v5"
+VERSION = "fr-roads-signs-v6"
 PAINT_MATERIAL = "line_bne_fr_white"
 RURAL_WIDTH = {"primary": 7.0, "secondary": 6.0, "tertiary": 5.0,
                "unclassified": 4.5, "residential": 5.0, "service": 3.5}
+# Unmapped streets in town: the base class width plus two parking lanes drew 10 m residential streets; 2.5 m sidewalks
+# on both sides took the room left between the houses.
+URBAN_WIDTH = {"secondary": 7.0, "tertiary": 6.5, "unclassified": 6.0, "residential": 5.5, "living_street": 4.5}
+URBAN_ONE_WAY_M = 4.0
+URBAN_WALK_M = 1.6
 T1, TP1, T3, T2, T4 = (3., 10.), (1.5, 5.), (3., 1.33), (3., 3.5), (39., 13.)
 
 # Appearance reference supplied by Alexandre for the forest road north of
@@ -93,6 +98,11 @@ def adjust_specs(feats, specs):
             else:
                 width = 3.5 if sp.oneway else RURAL_WIDTH[sp.cls]
             sp = sp._replace(width=width)
+        if sp.urban:
+            if (mapped is None and not sp.link and not sp.median and not roads.is_ring(feats, i)
+                    and sp.cls in URBAN_WIDTH and not sp.lanes):
+                sp = sp._replace(width=URBAN_ONE_WAY_M if sp.oneway else URBAN_WIDTH[sp.cls], parking=False)
+            sp = sp._replace(walk=min(sp.walk, URBAN_WALK_M))
         out[i] = sp
     return out
 
