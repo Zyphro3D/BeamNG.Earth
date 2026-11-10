@@ -1,0 +1,12 @@
+# Lint rules the code keeps (CI: .github/workflows/quality.yml). Only rules that catch real defects: undefined or unused
+# names and imports (F), syntax errors (E9), mutable or call defaults (B006, B008), exceptions re-raised without their
+# cause (B904). Style is not enforced.
+target-version = "py310"
+line-length = 120
+extend-exclude = [
+    "tools/deshadow_prototype",     # research prototypes, not run by the app or its tools
+    "tools/roadstudy",
+]
+
+[lint]
+select = ["F", "E9", "B006", "B008", "B904"]
