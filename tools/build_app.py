@@ -191,7 +191,7 @@ def pyinstaller(work, ico, onefile, ver=None, boot=None):
     cmd += ["--add-data", f"{os.path.join(work, 'REVISIT_ID')}{SEP}."]
     cmd += ["--onefile"] if onefile else ["--onedir"]
     if IS_WIN:
-        vf, mf = version_files(work, ver)
+        vf, mf = version_files(work, ver or version())     # (the VERSION file's when none is given)
         cmd += ["--version-file", vf, "--manifest", mf]
     for m in mods:                                  # the server runs from launcher.py --server: all of it
         cmd += ["--hidden-import", m]
