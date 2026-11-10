@@ -669,7 +669,7 @@ class Spec:
     """What is built for one footprint (decided by plan())."""
     __slots__ = ("ring", "floors", "floor_h", "height", "roof", "roof_mat", "facade", "band", "shop", "plain", "min_h", "wall", "door", "windows", "front", "steeple", "stoop",
                  "sign", "porch", "cls", "seed", "deck", "pitch", "portal", "gring", "ship", "fr_house", "across", "hi",
-                 "roof_h", "hf", "holes", "skel", "skel_cap", "tank", "street", "slope_dir", "ml")
+                 "roof_h", "hf", "holes", "skel", "skel_cap", "tank", "street", "slope_dir", "ml", "us_signs")
 
     def __init__(self, **kw):
         for k in self.__slots__:
@@ -1363,7 +1363,7 @@ def plan(ring, attrs, neighbours=0, lat=None, lon=None, look=None, town=False, d
                                           and (STEEPLE_KIND.get(style.name, "spire") if
                                                _hash01(seed, "tower") < STEEPLE_SHARE.get(style.name, 1.0) else False)),
                 porch=porch, cls=cls,
-                deck=garage and roof == "flat",
+                deck=garage and roof == "flat", us_signs=style.name.startswith("us_"),
                 pitch=math.degrees(dmath.atan2(dome_rise(roof, hw, rh), max(float(hw), 0.1))) if roof in DOME_ROOFS
                 else (mapped_pitch(roof, shw, attrs.get("roof_height")) or style.pitch),
                 across=across, hi=hi, roof_h=mapped_roof_h(roof, attrs.get("roof_height")), hf=hf, skel=skel,
@@ -5478,8 +5478,9 @@ def _sign_in_open(rows, spec, d, out, others):
 
 
 def _wall_sign(spec, a, d, Le, out, gmax):
-    """A company sign centred high on a big box's or restaurant's street wall (WALL_SIGNS), if it fits."""
-    if _hash01(spec.seed, "wallsign") >= WALL_SIGN_SHARE:
+    """A company sign centred high on a big box's or restaurant's street wall (WALL_SIGNS), if it fits. Only in
+    North America: the firms are West Coast USA's (a big box in France carried an English slogan on its front)."""
+    if not spec.us_signs or _hash01(spec.seed, "wallsign") >= WALL_SIGN_SHARE:
         return []
     if spec.cls in RESTAURANT_CLASSES:
         key = "burger"
