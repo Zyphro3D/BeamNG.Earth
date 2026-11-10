@@ -230,6 +230,17 @@ class DualCarriagewayTest(unittest.TestCase):
         w = roads.carriageway("trunk", "paved", False, None, True)
         self.assertTrue(all(abs(s_.width - w) < 1e-9 for s_ in roads.road_specs(far)))
 
+    def test_a_mapped_width_does_not_overlap_the_other_carriageway(self):
+        """A whole road's width read onto each carriageway (IGN BD TOPO's 9 m on two carriageways 5.9 m apart,
+        2026-11-10): capped at the gap; a mapped width that fits is not narrowed."""
+        f = self.feats([[(0, 0), (300, 0)], [(300, 5.9), (0, 5.9)]], ["Avenue", "Avenue"])
+        f.attrs["osm_width"] = np.array(["9", "9"], object)
+        for s_ in roads.road_specs(f):
+            self.assertLessEqual(s_.width, 5.9 + 1e-6)
+        f.attrs["osm_width"] = np.array(["4.5", "4.5"], object)
+        for s_ in roads.road_specs(f):
+            self.assertTrue(4.5 - 1e-6 <= s_.width <= 5.9 + 1e-6, s_.width)
+
     def test_other_names_and_crossing_roads_untouched(self):
         f = self.feats([[(0, 0), (300, 0)], [(300, 20), (0, 20)], [(150, -100), (150, 100)]],
                        ["Boston Street", "Elliott Street", "Boston Street"])
@@ -1490,6 +1501,11 @@ class MedianTest(unittest.TestCase):
         far = sp._replace(median=60.0)
         self.assertFalse(roads.has_median(far))
         self.assertEqual(roads.walk_sides(far), (1, -1))
+        # carriageways side by side (a divided bridge, under MEDIAN_MIN_M of ground between them): the inner
+        # sidewalk would lie on the other carriageway
+        touching = sp._replace(median=7.3)
+        self.assertFalse(roads.has_median(touching))
+        self.assertEqual(roads.walk_sides(touching), (-1,))
 
     def test_median_painted_lawn(self):
         import surface as sf

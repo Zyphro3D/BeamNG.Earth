@@ -2003,12 +2003,13 @@ def dual_cap(gap, w, lanes=None, other=None):
 
 
 def _dual_width(sp, w, gap, feats, i):
-    """A divided road carriageway's width: a mapped width stands; in a city with its centre lines within
-    URBAN_MEDIAN_GAP_M, out to an URBAN_MEDIAN_M median (at most URBAN_DUAL_MAX_W); never overlapping the other
-    (dual_cap)."""
+    """A divided road carriageway's width: a mapped width stands, but never over the other carriageway (a whole road's
+    width read onto each of its carriageways, IGN BD TOPO's in France: two 9 m carriageways 5.9 m apart, 2026-11-10);
+    in a city with its centre lines within URBAN_MEDIAN_GAP_M, out to an URBAN_MEDIAN_M median (at most
+    URBAN_DUAL_MAX_W); never overlapping the other (dual_cap)."""
     if (_rule_value(feats.rules.get("width"), i) is not None
             or _osm(feats, "width", i, *OSM_WIDTH_M) is not None):
-        return w
+        return float(min(w, max(gap, DUAL_MIN_W)))
     if sp.urban and sp.parking and gap <= URBAN_MEDIAN_GAP_M:
         w = float(np.clip(gap - URBAN_MEDIAN_M, w, URBAN_DUAL_MAX_W))
     return dual_cap(gap, w)
@@ -4698,7 +4699,10 @@ def walk_sides(spec, left_hand=False):
     the left; the other side is the median). Where OpenStreetMap's sidewalk tag says which: those (_osm_sidewalks)."""
     if getattr(spec, "sides", None):
         return tuple(spec.sides)
-    if (spec.cls == "trunk" or has_median(spec)) and spec.oneway:     # (a divided road's median: its curbed band)
+    # (a divided road's median: its curbed band; carriageways closer than MEDIAN_MIN_M of ground: the inner one would
+    # lie on the other carriageway, two pale strips down the middle of a French divided bridge, 2026-11-10)
+    narrow = bool(spec.median) and median_width(spec) < MEDIAN_MIN_M
+    if (spec.cls == "trunk" or has_median(spec) or narrow) and spec.oneway:
         right = -1 if spec.dir >= 0 else 1
         return (-right,) if left_hand else (right,)
     return (1, -1)
