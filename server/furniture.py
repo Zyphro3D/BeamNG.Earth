@@ -465,6 +465,14 @@ def give_way_arms(roads, signals=None, country=None, priority=None, stops=False)
     return out
 
 
+def _pavement_lines(lines, decks):
+    """(half width, line (k, 2)) of the carriageways and decks a junction's signs keep off. A deck whose width varies
+    gives a half width per segment (roads._deck_clearance): its widest is kept (float() of it failed the whole road
+    tile at a French interchange, 2026-11-10)."""
+    return ([(w, ln[:, :2]) for w, ln in lines] +
+            [(float(np.max(h)), np.asarray(pts, np.float64)[:, :2]) for pts, h in decks if len(pts) >= 2])
+
+
 def junction_props(roads, box, curb_h=0.15, left_hand=False, decks=(), signals=None, country=None, priority=None,
                    ground=None, clearance=None, sign_obstacles=None):
     """Signals at the junctions with a mapped traffic signal (signals: mapped_signals'; None: at urban junctions of
@@ -519,9 +527,7 @@ def junction_props(roads, box, curb_h=0.15, left_hand=False, decks=(), signals=N
                 # (PR #505: the sign where an approaching driver sees it, clear of the mapped obstacles)
                 import signplacement
                 if paved is None:
-                    paved = signplacement.pavement([(w, ln[:, :2]) for w, ln in lines] +
-                                                   [(float(h), np.asarray(pts, np.float64)[:, :2]) for pts, h in decks
-                                                    if len(pts) >= 2])
+                    paved = signplacement.pavement(_pavement_lines(lines, decks))
                     arm_lines = {}
                     for afid, _, ap, _ in roads:
                         if len(ap) >= 2:
