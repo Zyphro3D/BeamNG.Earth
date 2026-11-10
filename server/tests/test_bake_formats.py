@@ -59,19 +59,30 @@ class FormatTest(unittest.TestCase):
         self.addCleanup(roads._FACTS_MEM.clear)
 
     def check(self, name, fmt, digest):
+        """digest against the golden one of this platform (sys.platform): the plans differ a little between Windows and
+        Linux (2 of their 5929 heights by 0.21 m, a grading threshold one ulp apart: todo #2414), so each platform keeps
+        its own digest under a format number."""
+        here = sys.platform
         got = json.load(open(GOLDEN)) if os.path.exists(GOLDEN) else {}
         want = got.get(name)
-        if os.environ.get("BNGE_UPDATE_GOLDEN") and (want is None or want["format"] != fmt or want["digest"] != digest):
-            if want is not None and want["format"] == fmt and want["digest"] != digest:
+        mine = None
+        if want is not None:
+            mine = want["digest"].get(here) if isinstance(want["digest"], dict) else want["digest"]
+        if os.environ.get("BNGE_UPDATE_GOLDEN") and (want is None or want["format"] != fmt or mine != digest):
+            if want is not None and want["format"] == fmt and mine is not None and mine != digest:
                 self.fail(f"{name}: the digest changed: bump its format number first")
-            got[name] = {"format": fmt, "digest": digest}
+            digests = want["digest"] if want is not None and want["format"] == fmt and isinstance(want["digest"],
+                                                                                                  dict) else {}
+            got[name] = {"format": fmt, "digest": dict(digests, **{here: digest})}
             os.makedirs(os.path.dirname(GOLDEN), exist_ok=True)
             with open(GOLDEN, "w") as fh:
                 json.dump(got, fh, indent=1, sort_keys=True)
             return
         self.assertIsNotNone(want, f"no golden {name}: run with BNGE_UPDATE_GOLDEN=1")
         if want["format"] == fmt:
-            self.assertEqual(digest, want["digest"],
+            self.assertIsNotNone(mine, f"{name}: no golden digest for {here} under format {fmt}: run with "
+                                       f"BNGE_UPDATE_GOLDEN=1 on {here}")
+            self.assertEqual(digest, mine,
                              f"{name} output changed under format {fmt}: bump it (plancache.PLANS_FORMAT / "
                              f"roads.FACTS_FORMAT), then run with BNGE_UPDATE_GOLDEN=1; baked packs of the old "
                              f"format are then ignored")
