@@ -325,7 +325,7 @@ def pick(want, title, start=None, name=None, run=None):
 def ask_path(question, want, accept, ask=None, say=print, name=None, start=None, tries=3):
     """In a console: the path of something, from the system's window (Enter) or typed / pasted. accept(path) gives the
     value to keep or None when it is not there; returns that value, or None (skipped: an empty answer with no window,
-    "s", or tries wrong answers)."""
+    "s", or tries wrong answers). accept gets the answer cleaned (clean: no quotes, variables expanded, absolute)."""
     ask = ask or input
     window = True
     for _ in range(tries):
@@ -350,7 +350,7 @@ def ask_path(question, want, accept, ask=None, say=print, name=None, start=None,
                 say("  (nothing chosen)")
                 continue
             answer = path
-        value = accept(answer)
+        value = accept(clean(answer))       # (quotes from Explorer's "Copy as path", ~ and %VARS%: once, here)
         if value:
             return value
         say(f"  Not found there: {answer}")
