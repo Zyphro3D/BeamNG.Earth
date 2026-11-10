@@ -524,6 +524,10 @@ class DerivedTablesTest(unittest.TestCase):
                                               np.array(sorted(a.items()), dtype=object),
                                               np.asarray(b, float) if not isinstance(b, dict) else
                                               np.array(sorted(b.items()), dtype=object))
+            # (the mapped tables let go before the folder goes: Windows cannot delete a file still mapped)
+            del mapped, a, b
+            import gc
+            gc.collect()
 
     def test_bad_folder(self):
         import tempfile
