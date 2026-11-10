@@ -118,6 +118,9 @@ class AdvanceLayoutTest(unittest.TestCase):
         import importlib.util
         if importlib.util.find_spec('fontTools') is None:
             self.skipTest('regenerating the atlas needs fonttools (server/requirements-ci.lock)')
+        from PIL import features
+        if not features.check('raqm'):
+            self.skipTest('needs Pillow with libraqm (the atlas was measured with its layout)')
         root=Path(__file__).resolve().parents[2]
         sys.path.insert(0,str(root/'tools'))
         import build_sign_glyphs

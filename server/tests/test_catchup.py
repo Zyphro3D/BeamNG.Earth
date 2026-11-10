@@ -119,8 +119,12 @@ class HoldBoostTest(unittest.TestCase):
         s = self.server()
         c = types.SimpleNamespace(s=s)
         pins = []
+        # (the fixture's CPUs, not this machine's: 8 cores, CPU c and c + 8 on one; a 4-CPU runner had no split)
+        def cores(usable=None):
+            return sorted({c % 8: sorted(c2 for c2 in usable if c2 % 8 == c % 8) for c in usable}.items())
         with mock.patch.object(earthd.cpupin, "pin_tree", lambda cpus: pins.append(("server", set(cpus))) or 1), \
-                mock.patch.object(earthd.cpupin, "pin_game", lambda cpus: pins.append(("game", set(cpus) if cpus else None)) or 1):
+                mock.patch.object(earthd.cpupin, "pin_game", lambda cpus: pins.append(("game", set(cpus) if cpus else None)) or 1), \
+                mock.patch.object(earthd.cpupin, "_siblings", cores):
             earthd.Connection.hold_boost(c, True)
             self.assertTrue(c.hold_split and s.split_on)
             self.assertEqual(pins[0], ("server", s.server_cpus | s.game_cpus))

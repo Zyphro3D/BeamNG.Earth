@@ -37,7 +37,12 @@ def chars(font_path):
 
 
 def build(font_path=FONT, size=SIZE, px=PX):
-    font = ImageFont.truetype(font_path, px)
+    # RAQM's layout, the one the committed atlas was measured with: Pillow's basic one (its wheel on Windows has no
+    # libraqm) gives 179 of its glyphs other boxes or advances (2026-11-10)
+    from PIL import features
+    if not features.check("raqm"):
+        raise RuntimeError("the sign atlas is measured with Pillow's RAQM layout: this Pillow has no libraqm")
+    font = ImageFont.truetype(font_path, px, layout_engine=ImageFont.Layout.RAQM)
     ascent, descent = font.getmetrics()
     row = ascent + descent + PAD
     sw, sh = size

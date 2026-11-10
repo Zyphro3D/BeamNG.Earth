@@ -13,7 +13,8 @@ sys.path.insert(0, str(ROOT))
 
 from tools import build_app
 
-NOT_DATA = {"server/README.md", "server/requirements.txt", "server/earthfast.abi3.so", "server/earthfast.pyd"}
+NOT_DATA = {"server/README.md", "server/requirements.txt", "server/earthfast.abi3.so", "server/earthfast.pyd",
+            "server/requirements-build.lock", "server/requirements-ci.lock"}     # (build and CI inputs, not run)
 
 
 class AppDataTest(unittest.TestCase):

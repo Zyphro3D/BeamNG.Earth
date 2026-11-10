@@ -1,2 +1,5 @@
 *.bat text eol=crlf
 *.sh text eol=lf
+# Source art hashed by the tests (server/tests/test_road_detail_corrections.py: its sha256 in sources.json): the bytes
+# as committed on every system, no line-ending conversion at checkout (a Windows runner converted them, 2026-11-10)
+*.svg -text
