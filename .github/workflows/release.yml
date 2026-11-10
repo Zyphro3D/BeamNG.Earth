@@ -42,7 +42,7 @@ jobs:
       publish: ${{ steps.v.outputs.publish }}
       dev: ${{ steps.v.outputs.dev }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - id: v
         env:
           GH_TOKEN: ${{ github.token }}
@@ -72,11 +72,11 @@ jobs:
     if: needs.check.outputs.build == 'true'
     runs-on: ubuntu-22.04          # an older glibc: the AppImage runs on more distributions
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Development build's version
         if: needs.check.outputs.dev == 'true'
         run: printf '%s\n' "${{ needs.check.outputs.version }}" > VERSION
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
       - name: Rust kernels
@@ -84,16 +84,20 @@ jobs:
       - name: Grass patch (tools/gcpatch)
         run: sh tools/gcpatch/build.sh
       - name: Python packages
-        run: python -m pip install pyinstaller==6.22.3 -r server/requirements.txt
+        run: python -m pip install --require-hashes -r server/requirements-build.lock
       - name: appimagetool
         run: |
-          # a failed or half download once arrived as a non-program file (Exec format error, dev.248): retry until it is an ELF
+          # a fixed release checked against its SHA-256 (GitHub's published digest): never the moving "continuous" build,
+          # whose bytes change under the same name. A failed or half download once arrived as a non-program file
+          # (Exec format error, dev.248): retried until the digest matches
+          want=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
           for i in 1 2 3 4 5; do
-            curl -fsSL --retry 3 -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage \
-              && [ "$(head -c 4 appimagetool | od -An -tx1 | tr -d ' ')" = 7f454c46 ] && break
-            echo "appimagetool download $i not an ELF, retrying"; sleep 10
+            curl -fsSL --proto '=https' --proto-redir '=https' --retry 3 -o appimagetool \
+              https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage \
+              && echo "$want  appimagetool" | sha256sum -c - && break
+            echo "appimagetool download $i did not match its digest, retrying"; sleep 10
           done
-          [ "$(head -c 4 appimagetool | od -An -tx1 | tr -d ' ')" = 7f454c46 ]
+          echo "$want  appimagetool" | sha256sum -c -
           chmod +x appimagetool
           mv appimagetool appimagetool.AppImage
       - name: Build the AppImage
@@ -103,7 +107,7 @@ jobs:
           f=$(ls dist/*.AppImage)
           "$f" --appimage-extract-and-run --server --help > help.txt && head -3 help.txt
           "$f" --appimage-extract-and-run --world-cache --help > world-cache-help.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: linux
           path: dist/*.AppImage
@@ -116,18 +120,18 @@ jobs:
     env:
       SIGN_PFX_SET: ${{ secrets.BNGE_SIGN_PFX != '' }}     # (the signing step's condition: secrets cannot be in an if)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Development build's version
         if: needs.check.outputs.dev == 'true'
         shell: bash
         run: printf '%s\n' "${{ needs.check.outputs.version }}" > VERSION
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
       - name: Rust kernels
         run: python tools/build_native.py
       - name: Python packages
-        run: python -m pip install pyinstaller==6.22.3 -r server/requirements.txt
+        run: python -m pip install --require-hashes -r server/requirements-build.lock
       # PyInstaller's bootloader compiled here (MSVC) instead of the wheel's prebuilt one that antivirus heuristics
       # know (VirusTotal 2026-10-17: 2/60 on 1.4.35); build_app.py stops without it
       - name: Bootloader from source
@@ -180,7 +184,7 @@ jobs:
           "$f" --world-cache --help > world-cache-help.txt
       - name: Verify the Windows hosting executable
         run: python tools/build_host.py --platform windows --out build/host-smoke --smoke
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: windows
           path: dist/*.exe
@@ -190,11 +194,15 @@ jobs:
     needs: [check, linux, windows]
     if: needs.check.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write               # the release and its files
+      id-token: write               # the provenance attestation's signature (Sigstore, through GitHub's OIDC token)
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           fetch-depth: 0              # (a development build's notes: the commits since the previous one)
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           path: out
       - name: Publish the development build v${{ needs.check.outputs.version }}
@@ -231,7 +239,10 @@ jobs:
           } > notes.md
           # every release's notes end with the launch steps (the user, 2026-11-04)
           { echo; echo "---"; echo; python3 tools/release_notes.py --launch-only "$v"; } >> notes.md
-          gh release create "v$v" out/linux/* out/windows/* dist/BeamNG.Earth-BeamMP-Server-*.zip dist/BeamNG.Earth-Host-*.zip dist/BeamMP-Server-*-corresponding-source.zip \
+          # every published file's SHA-256, published beside them and attested below (verify a download with
+          # sha256sum -c SHA256SUMS --ignore-missing, or gh attestation verify FILE -R ${{ github.repository }})
+          for f in out/linux/* out/windows/* dist/BeamNG.Earth-BeamMP-Server-*.zip dist/BeamNG.Earth-Host-*.zip dist/BeamMP-Server-*-corresponding-source.zip; do sha256sum "$f" | sed 's#  .*/#  #'; done > SHA256SUMS
+          gh release create "v$v" out/linux/* out/windows/* dist/BeamNG.Earth-BeamMP-Server-*.zip dist/BeamNG.Earth-Host-*.zip dist/BeamMP-Server-*-corresponding-source.zip SHA256SUMS \
             --target "$GITHUB_SHA" --title "BeamNG.Earth $v (development build)" --notes-file notes.md --prerelease
           # only the newest DEV_KEEP development builds stay (the releases page has no filter: the betas got lost among
           # them, and the in-game update check reads the newest 30 releases only)
@@ -264,5 +275,14 @@ jobs:
           Steam must be running. Closing the game stops the server. See the README for details.
           EOF
           { echo; echo "---"; echo; python3 tools/release_notes.py --launch-only "$v"; } >> notes.md
-          gh release create "v$v" out/linux/* out/windows/* dist/BeamNG.Earth-BeamMP-Server-*.zip dist/BeamNG.Earth-Host-*.zip dist/BeamMP-Server-*-corresponding-source.zip --target "$GITHUB_SHA" --title "BeamNG.Earth $v" \
+          # every published file's SHA-256, published beside them and attested below (verify a download with
+          # sha256sum -c SHA256SUMS --ignore-missing, or gh attestation verify FILE -R ${{ github.repository }})
+          for f in out/linux/* out/windows/* dist/BeamNG.Earth-BeamMP-Server-*.zip dist/BeamNG.Earth-Host-*.zip dist/BeamMP-Server-*-corresponding-source.zip; do sha256sum "$f" | sed 's#  .*/#  #'; done > SHA256SUMS
+          gh release create "v$v" out/linux/* out/windows/* dist/BeamNG.Earth-BeamMP-Server-*.zip dist/BeamNG.Earth-Host-*.zip dist/BeamMP-Server-*-corresponding-source.zip SHA256SUMS --target "$GITHUB_SHA" --title "BeamNG.Earth $v" \
             --notes-file notes.md --generate-notes $pre
+      - name: Signed provenance of every published file
+        # (gh attestation verify BeamNG.Earth-<v>.exe -R <this repository>: proves the file was built by this workflow
+        # from this repository's commit, not uploaded by hand)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-checksums: SHA256SUMS
