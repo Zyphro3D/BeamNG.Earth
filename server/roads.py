@@ -6154,7 +6154,10 @@ def walk_sides(spec, left_hand=False):
         return tuple(side for side, walk in street.walks() if walk.setback == 0.)
     if getattr(spec, "sides", None):
         return tuple(spec.sides)
-    if (spec.cls == "trunk" or has_median(spec)) and spec.oneway:     # (a divided road's median: its curbed band)
+    # (a divided road's median: its curbed band; carriageways closer than MEDIAN_MIN_M of ground: the inner one would
+    # lie on the other carriageway, two pale strips down the middle of a French divided bridge, 2026-11-10)
+    narrow = bool(spec.median) and median_width(spec) < MEDIAN_MIN_M
+    if (spec.cls == "trunk" or has_median(spec) or narrow) and spec.oneway:
         right = -1 if spec.dir >= 0 else 1
         return (-right,) if left_hand else (right,)
     return (1, -1)

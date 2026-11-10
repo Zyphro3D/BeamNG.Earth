@@ -764,7 +764,10 @@ fn swedish(l: &Layer, rules: &RoadRules, prm: &Prm, out: &mut [Option<Sp>], widt
 /// _dual_width: a divided road carriageway's width (keep: w itself, its type kept).
 fn dual_width(l: &Layer, rules: &RoadRules, sp: &Sp, w: f64, gap: f64, i: usize) -> (f64, bool) {
     if l.mapped_w(i) {
-        return (w, true);
+        // (the France fork: a mapped width never over the other carriageway: a whole road's width read onto each of
+        // its carriageways, IGN BD TOPO's in France, two 9 m carriageways 5.9 m apart, 2026-11-10)
+        let cap = if gap > rules.dual_min_w { gap } else { rules.dual_min_w };
+        return (if w < cap { w } else { cap }, true);
     }
     let mut w = w;
     if sp.urban && sp.parking && gap <= rules.urban_median_gap {
