@@ -198,6 +198,28 @@ def _tie_beside(lines, zs, specs, measured=None):
 
     own = [z.copy() for z in zs]
 
+    def travel(i, e):
+        """The unit direction traffic takes on part i at its end e (its geometry's, reversed for dir -1)."""
+        p = pts[i]
+        v = (p[1] - p[0]) if e == 0 else (p[-1] - p[-2])
+        v = v * (getattr(specs[i], "dir", 0) or 1)
+        return v / max(float(np.hypot(*v)), 1e-12)
+
+    def opposite(i, e, j):
+        """Whether parts i and j are both one way with their traffic opposite where i's end e meets j: the other
+        carriageway of a divided road, never the road a branch leaves (a branch runs with its road's traffic). The
+        narrower carriageway's deck end, 5.3 m from the wider one's centre line, was held at that one's unraised height:
+        a 1.2 m step onto its own raised approach (#2373, 2026-11-10)."""
+        if not (getattr(specs[i], "oneway", False) and getattr(specs[j], "oneway", False)):
+            return False
+        P, ab = pts[j][:-1], np.diff(pts[j], axis=0)
+        q = pts[i][e]
+        t = np.clip(((q - P) * ab).sum(1) / np.maximum((ab * ab).sum(1), 1e-12), 0.0, 1.0)
+        k = int(np.argmin(np.hypot(*(q - (P + t[:, None] * ab)).T)))
+        vj = ab[k] * (getattr(specs[j], "dir", 0) or 1)
+        vj = vj / max(float(np.hypot(*vj)), 1e-12)
+        return float(travel(i, e) @ vj) < -0.5
+
     def fixed(i, e, j):
         """Whether end e of part i keeps its own height when i is held at part j's: an abutment (the road going on
         on the ground from it) or a joint with another part (that part goes on at i's height there); only an end on
@@ -228,7 +250,7 @@ def _tie_beside(lines, zs, specs, measured=None):
                     continue
                 branch = (getattr(specs[i], "link", False) and not getattr(specs[j], "link", False)) or \
                     (getattr(specs[i], "link", False) == getattr(specs[j], "link", False) and wi < wj - 0.5)
-                if not branch:
+                if not branch or opposite(i, e, j):
                     continue
                 # the part it runs beside from the fork (of the parts at it: the nearest ~15 m along)
                 a = 15.0 if e == 0 else arcs[i][-1] - 15.0

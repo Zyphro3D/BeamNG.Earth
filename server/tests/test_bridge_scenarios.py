@@ -380,6 +380,24 @@ class RampTieScenarios(unittest.TestCase):
         _, rz, _ = roads._tie_beside([main, ramp, nxt], [main_z, ramp_z, np.full(22, 11.6)], [mspec, rspec, rspec])
         self.assertAlmostEqual(float(rz[-1]), 11.6, places=6, msg="its joint at its own height")
 
+    def test_other_carriageway_is_not_a_ramp(self):
+        # a divided road's two one-way carriageways on decks side by side, drawn (and driven) opposite ways, the
+        # narrower one's end within the wider one's half width + 1 m: not a branch of it, its end keeps its own height
+        # (a 1.2 m step onto its raised approach, #2373)
+        xs = np.arange(0.0, 201.0, 5.0)
+        wide = np.c_[xs[::-1], np.full(len(xs), 5.3)]         # southbound, drawn from x = 200 to 0
+        narrow = np.c_[xs, np.zeros_like(xs)]                  # northbound, drawn from x = 0 to 200
+        wide_z = np.full(len(xs), 136.9)
+        narrow_z = np.interp(xs, [0.0, 150.0, 200.0], [137.3, 137.3, 138.6])     # its abutment raised at x = 200
+        wspec = roads.Spec(width=9.0, kind="paved", urban=False, cls="primary", oneway=True, dir=1)
+        nspec = roads.Spec(width=5.3, kind="paved", urban=False, cls="primary", oneway=True, dir=1)
+        wz, nz = roads._tie_beside([wide, narrow], [wide_z, narrow_z], [wspec, nspec])
+        np.testing.assert_allclose(nz, narrow_z, err_msg="its own heights, the abutment's too")
+        np.testing.assert_allclose(wz, wide_z)
+        # the same lines with the wide one driven the narrow one's way (a road it forks from): held at it, as before
+        _, nz = roads._tie_beside([wide, narrow], [wide_z, narrow_z], [wspec._replace(dir=-1), nspec])
+        self.assertAlmostEqual(float(nz[-1]), 136.9, places=6, msg="a branch of a road going its way is held at it")
+
     def test_measured_ramp_kept_a_level_apart(self):
         # a ramp whose heights the lidar measured: held at its road's only within TIE_MEASURED_M
         xs = np.arange(0.0, 301.0, 5.0)
