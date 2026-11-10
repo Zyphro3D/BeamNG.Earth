@@ -9,6 +9,9 @@ from pathlib import Path
 import sys
 import unittest
 from unittest.mock import patch
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from patching import patch_all  # noqa: E402
 import xml.etree.ElementTree as ET
 
 import numpy as np
@@ -76,7 +79,7 @@ class PlacementTest(unittest.TestCase):
         import buildings
 
         spec = buildings.Spec(ring=ring, roof="flat", height=6.2, floor_h=3.1, seed="house")
-        with patch.object(buildings, "near_rings", return_value=[ring]) as nearby:
+        with patch_all(buildings, "near_rings", return_value=[ring]) as nearby:
             obs = placement.for_tile(FRAME, 0, 0, None, [(spec, 0.0, 0.0)])
             nearby.assert_not_called()
             mesh, posts, records = self.street_rows(rr, obs)

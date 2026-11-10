@@ -16,6 +16,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import buildings as bld  # noqa: E402
+from patching import patch_all  # noqa: E402
 import cdae  # noqa: E402
 import threedmr  # noqa: E402
 
@@ -619,7 +620,7 @@ class PartsTest(unittest.TestCase):
         self.assertEqual(tops, [5, 10], "the part and the building")
         whole = max(items, key=lambda it: abs(bld._area2(it[0].ring)))
         self.assertAlmostEqual(abs(bld._area2(whole[0].ring)) / 2, 50000.0, delta=500.0)
-        with unittest.mock.patch.object(bld, "PARTS_COVER_ON", False):
+        with patch_all(bld, "PARTS_COVER_ON", False):
             self.assertEqual([round(s.height) for s, _, _ in self._items((60, 60, 21, 22))], [5], "(off: as before)")
 
     def test_parts_covering_most_of_it_still_draw_it(self):
@@ -762,13 +763,13 @@ class OverRoadTest(unittest.TestCase):
         ground = lambda la, lo: np.zeros(np.shape(la))
         with mock.patch("roads.tile_bbox", return_value=Owned((0.0, 0.0, 256.0, 256.0))), \
              mock.patch("roads.cells_of_tile", return_value=[]), \
-             mock.patch.object(bld, "tile_buildings", side_effect=tile_buildings), \
-             mock.patch.object(bld, "district_town", return_value=False):
+             patch_all(bld, "tile_buildings", side_effect=tile_buildings), \
+             patch_all(bld, "district_town", return_value=False):
             bld.road_tile_items(self.f, 0, 0, MD(), ground)
             self.assertTrue(hasattr(got.get("own"), "owns"), "a geotile's box is passed as own")
         with mock.patch("roads.cells_of_tile", return_value=[]), \
-             mock.patch.object(bld, "tile_buildings", side_effect=tile_buildings), \
-             mock.patch.object(bld, "district_town", return_value=False):
+             patch_all(bld, "tile_buildings", side_effect=tile_buildings), \
+             patch_all(bld, "district_town", return_value=False):
             bld.road_tile_items(self.f, 0, 0, MD(), ground)
             self.assertIsNone(got.get("own"), "an anchor tile's square: its half-open box")
 
