@@ -18,7 +18,8 @@ import roads  # noqa: E402
 
 out, lat, lon, alat, alon = sys.argv[1], *map(float, sys.argv[2:6])
 revisit.ON = False
-bw._s = bw._State(os.path.expanduser("~/.cache/beamng-earth"), True, True, True, True, True, True, True)
+# (online: the place is fetched where this machine has not been; the tests that run this are opt-in, realdata.py)
+bw._s = bw._State(os.path.expanduser("~/.cache/beamng-earth"), False, True, True, True, True, True, True)
 os.makedirs(os.path.join(out, "anchor"), exist_ok=True)
 f = geodesy.EnuFrame(alat, alon)
 x, y, _ = f.geodetic_to_enu(lat, lon, 0.0)

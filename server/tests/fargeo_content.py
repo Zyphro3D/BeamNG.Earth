@@ -19,7 +19,8 @@ import roads  # noqa: E402
 
 out, lat, lon, blat, blon, alat, alon = sys.argv[1], *map(float, sys.argv[2:8])
 revisit.ON = False
-bw._s = bw._State(os.path.expanduser("~/.cache/beamng-earth"), True, True, True, True, True, True, True)
+# (online: the place is fetched where this machine has not been; the tests that run this are opt-in, realdata.py)
+bw._s = bw._State(os.path.expanduser("~/.cache/beamng-earth"), False, True, True, True, True, True, True)
 os.makedirs(os.path.join(out, "anchor"), exist_ok=True)
 f = geodesy.EnuFrame(alat, alon)
 for la, lo in ((lat, lon), (blat, blon)):
@@ -29,7 +30,13 @@ for la, lo in ((lat, lon), (blat, blon)):
     bw.far_bridge_tile(1, alat, alon, 15, tx, ty, os.path.join(out, "anchor"), "/x")
 for kind, la, lo in (("bldfar", lat, lon), ("bldsky", lat, lon), ("brfar", blat, blon)):
     gx, gy = geotiles.tile_of(la, lo, bw.far_geo_zoom(kind))
-    assert bw.far_geo(kind, gx, gy, 15, out, "/x") is not None, kind
+    # (far_geo answers None while its cells download and is asked again later, as the server's tracker does: since
+    # 2026-11-07 it no longer blocks on a first visit's downloads)
+    import time
+    deadline = time.monotonic() + bw.FAR_CELLS_WAIT_S + 60.0
+    while bw.far_geo(kind, gx, gy, 15, out, "/x") is None:
+        assert time.monotonic() < deadline, kind
+        time.sleep(1.0)
 for n in sorted(os.listdir(out)):
     if n[:3] in ("bf_", "bs_", "bb_"):
         print(n, hashlib.sha1(open(os.path.join(out, n), "rb").read()).hexdigest())

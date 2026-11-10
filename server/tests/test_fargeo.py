@@ -237,7 +237,8 @@ class RealDataTest(unittest.TestCase):
         self.addCleanup(setattr, railways, "COARSE_AT", railways.COARSE_AT)
         self.addCleanup(setattr, bw, "_s", getattr(bw, "_s", None))
         revisit.ON = False
-        bw._s = bw._State(CACHE, True, True, True, True, True, True, True)
+        # (online: the place is fetched where this machine has not been; realdata.py makes these tests opt-in)
+        bw._s = bw._State(CACHE, False, True, True, True, True, True, True)
         raw = lambda la, lo: bw.ground(None, la, lo, bw._s.dem.sample(la, lo, 15))     # noqa: E731
         sx, sy = geotiles.tile_of(LAT, LON, geotiles.SKY_Z)
         keys = geotiles.children(sx, sy, geotiles.SKY_Z, geotiles.FAR_Z)

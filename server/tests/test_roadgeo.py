@@ -294,7 +294,8 @@ class RealDataTest(unittest.TestCase):
         self.addCleanup(setattr, revisit, "CACHE_DIR", revisit.CACHE_DIR)      # (_State points it at CACHE)
         self.addCleanup(setattr, bw, "_s", getattr(bw, "_s", None))
         revisit.ON = False
-        bw._s = bw._State(CACHE, True, True, True, True, True, True, True)
+        # (online: the place is fetched where this machine has not been; realdata.py makes these tests opt-in)
+        bw._s = bw._State(CACHE, False, True, True, True, True, True, True)
         out = tempfile.mkdtemp(prefix="roadgeo_")
         try:
             f = geodesy.EnuFrame(LAT, LON)
