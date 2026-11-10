@@ -372,6 +372,23 @@ class BridgeOverrideTest(unittest.TestCase):
         self.assertAlmostEqual(float(out[0][-1]), float(stub[0]), places=6)
         self.assertLessEqual(float(np.max(np.abs(np.diff(stub)) / 3.5)), roads.OBS_JOINT_GRADE * 1.5)
 
+    def test_a_measured_deck_never_lies_under_the_ground(self):
+        # a deck mapped on its embankment, measured 0.5 m under the elevation there (BD TOPO against the DEM): the fill
+        # stood over its lanes for 40 m (#2373). Floored at the ground + DECK_CLEAR, the solve's own floor
+        xy = np.c_[np.linspace(0.0, 80.0, 41), np.zeros(41)]
+        roadz.PROVIDER = StubProvider(lambda xy, s: np.full(len(xy), 129.5))
+        bp = roads.BridgeProfiles(FRAME, lambda key: None, lambda la, lo: np.full(np.shape(la), 130.0))
+        comp = [("deck", 0)]
+        pool = {comp[0]: (SimpleNamespace(width=7.0),)}
+        ground = np.asarray(bp._ground(xy), np.float64)
+        zs = [ground + roads.DECK_CLEAR]
+        out = np.asarray(bp._observed(comp, pool, [xy], zs)[0])
+        self.assertGreaterEqual(float((out - ground).min()), roads.DECK_CLEAR - 1e-6, "on the ground, not under it")
+        # a measurement over the ground stands (the floor only lifts)
+        roadz.PROVIDER = StubProvider(lambda xy, s: np.full(len(xy), 131.0))
+        out = np.asarray(bp._observed(comp, pool, [xy], [ground + roads.DECK_CLEAR])[0])
+        self.assertGreater(float(out[20]), 130.9)
+
     def test_fallback_is_the_inference(self):
         roadz.PROVIDER = None
         xy0, z0 = solve_overpass()

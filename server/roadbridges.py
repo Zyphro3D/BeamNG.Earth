@@ -15,6 +15,7 @@ from roadbase import (
     BRIDGE_HEADROOM_MARGIN_M,
     CHAIN_CELLS,
     CONCRETE_WALL_CLASSES,
+    DECK_CLEAR,
     DECK_CLEAR_REACH_M,
     DECK_DESIGN_GRADE,
     DECK_FULL_DEPTH,
@@ -770,6 +771,14 @@ class BridgeProfiles:
                     # pulled a deck through the road under it (-1.8 m over I-95 at Springfield)
                     # (the ends as eased: the parts at a joint keep meeting at one height)
                     zz = np.r_[zz[0], np.maximum(zz, np.minimum(z, o))[1:-1], zz[-1]]
+                    # and never under the graded ground on its line (DECK_CLEAR, as the solve), up to the solve at
+                    # most: a measured deck on its embankment lay 0.5 m under it for 40 m, the fill over its lanes
+                    # (BD TOPO against the elevation, #2373, 2026-11-10)
+                    try:
+                        floor = np.minimum(z, np.asarray(self._ground(xy), np.float64) + DECK_CLEAR)
+                        zz = np.r_[zz[0], np.maximum(zz, floor)[1:-1], zz[-1]]
+                    except Exception as ex:     # (the measurement as eased rather than no deck)
+                        log.debug("observed deck %s: ground floor: %s: %s", comp[k], type(ex).__name__, ex)
                     measured.add(comp[k])
             if 0 < s[-1] < OBS_JOINT_SHORT_M and float(np.max(np.abs(np.diff(zz)) / np.maximum(np.diff(s), 0.5))) > OBS_JOINT_GRADE * 1.25:
                 zz = float(t0) + (float(t1) - float(t0)) * s / s[-1]    # (the easing's minimum length bunched a short part's climb)
