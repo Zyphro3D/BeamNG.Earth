@@ -6,6 +6,13 @@
   },
   "format": 12
  },
+ "facts_fr": {
+  "digest": {
+   "linux": "7acb086c0a099a8f1f932e1959d2e5fa269c321a",
+   "win32": "7acb086c0a099a8f1f932e1959d2e5fa269c321a"
+  },
+  "format": 12
+ },
  "plans": {
   "digest": {
    "linux": "a25f23173ef21b02ba1b358e9b277a48ebe76f75",

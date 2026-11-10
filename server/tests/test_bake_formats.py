@@ -2,8 +2,11 @@
 plancache.PLANS_FORMAT / roads.FACTS_FORMAT, or players would get the old ones from a pack. This test holds a
 fixture's plans (as the heights graded with them) and facts digests with the format numbers they were made at
 (golden/bake_formats.json): a digest that changed under the same number fails. After bumping the number, run with
-BNGE_UPDATE_GOLDEN=1 to store the new digest. (A fixture covers the common paths, not every rule: bump on any
-deliberate change of planning or road facts output even when this passes.)
+BNGE_UPDATE_GOLDEN=1 to store the new digest. The facts are also digested on the same roads in France with the French
+road rules on (franceroads.ON, as the fork's launcher runs them: FORK_DEFAULTS), in town and out of it; the plans' key
+holds the facts' number, and these rules move no planned height of the fixture (2 m grid, 2026-11-10).
+(A fixture covers the common paths, not every rule: bump on any deliberate change of planning or road facts output even
+when this passes.)
 
 Also: a pack's items round trip, are found only under a matching meta, and a run without plans reads them from it."""
 import hashlib
@@ -13,11 +16,17 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+
+os.environ.setdefault("BNE_REGIONAL_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures",
+                                                       "regional"))     # (the country borders: the French fixture's)
 
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import bakepack  # noqa: E402
+import franceroads  # noqa: E402
+import geodesy  # noqa: E402
 import grading  # noqa: E402
 import plancache  # noqa: E402
 import roads  # noqa: E402
@@ -35,6 +44,26 @@ def fixture():
                     flags=[(2, "is_bridge", 0.45, 0.6)])
 
 
+FR_FRAME = geodesy.EnuFrame(49.02127, 7.80967)      # (rural Alsace, tests/test_france_roads.py's)
+
+
+def french_fixture():
+    """fixture()'s roads in France (FR_FRAME): in town north of FR_FRAME's origin (fr_urban), in the country south."""
+    f = fixture()
+    from test_roads import LAT, LON, M_LAT, M_LON      # (features() put them round LAT, LON at M_LAT, M_LON m/degree)
+    e = (f.lonlat[:, 0] - LON) * M_LON
+    n = (f.lonlat[:, 1] - LAT) * M_LAT
+    la, lo, _ = FR_FRAME.enu_to_geodetic(e, n, 0.0)
+    f.lonlat[:] = np.c_[lo, la]
+    return f
+
+
+def fr_urban(la, lo):
+    """Built-up north of FR_FRAME's origin."""
+    _e, n, _u = FR_FRAME.geodetic_to_enu(np.asarray(la, np.float64), np.asarray(lo, np.float64), 0.0)
+    return np.asarray(n) > 0.0
+
+
 def plans_digest():
     g = grading.Grader(FRAME, FakeMD(fixture()), lambda la, lo: 10.0 + 0.002 * np.asarray(lo) * 0
                        + 0.0 * np.asarray(la))
@@ -44,10 +73,11 @@ def plans_digest():
     return hashlib.sha1(np.round(np.asarray(z, np.float64), 4).tobytes()).hexdigest()
 
 
-def facts_digest():
-    f = fixture()
+def facts_digest(france=False):
+    f = french_fixture() if france else fixture()
     rng = [roads.level_ranges(f, i) for i in range(len(f))]
-    specs = [None if sp is None else roads._spec_json(sp) for sp in roads.road_specs(f, None, None, False)]
+    specs = [None if sp is None else roads._spec_json(sp)
+             for sp in roads.road_specs(f, fr_urban if france else None, None, False)]
     data = json.dumps({"ranges": [[[round(a, 6), round(b, 6), k] for a, b, k in r] for r in rng], "specs": specs},
                       sort_keys=True, default=str)
     return hashlib.sha1(data.encode("utf-8")).hexdigest()
@@ -75,7 +105,7 @@ class FormatTest(unittest.TestCase):
                                                                                                   dict) else {}
             got[name] = {"format": fmt, "digest": dict(digests, **{here: digest})}
             os.makedirs(os.path.dirname(GOLDEN), exist_ok=True)
-            with open(GOLDEN, "w") as fh:
+            with open(GOLDEN, "w", newline="\n") as fh:       # (the same file on Windows and Linux)
                 json.dump(got, fh, indent=1, sort_keys=True)
             return
         self.assertIsNotNone(want, f"no golden {name}: run with BNGE_UPDATE_GOLDEN=1")
@@ -94,6 +124,10 @@ class FormatTest(unittest.TestCase):
 
     def test_facts_format(self):
         self.check("facts", roads.FACTS_FORMAT, facts_digest())
+
+    def test_french_facts_format(self):
+        with patch.object(franceroads, "ON", True):
+            self.check("facts_fr", roads.FACTS_FORMAT, facts_digest(france=True))
 
 
 class PackTest(unittest.TestCase):
