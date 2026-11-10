@@ -11,7 +11,8 @@ edgeguard.lua: every threshold read from the Lua files) and sends the 2 Hz poses
 guard would pause the game (the car within PAUSE_LEAD_S of its block's stop line), the car stands still until the next
 block is committed, as in the game.
 
-Writes DIR/vitesse.json: the pauses (count, total s, the longest), the blocks asked and their latency (median, max), the
+Writes DIR/vitesse.json: the pauses (count, total s, the longest; pause_list: [s into the drive, m driven, s] each),
+the blocks asked and their latency (median, max), the
 blocks that came late, the closest the car came to an edge, and the server's log (DIR/server.log). Nothing else is
 written outside DIR and the cache.
 """
@@ -39,6 +40,8 @@ def args_parse(argv=None):
     ap.add_argument("--speed", type=float, default=69.4, help="m/s (69.4: 250 km/h)")
     ap.add_argument("--heading", type=float, default=0.0, help="degrees from east, counterclockwise (90: north)")
     ap.add_argument("--km", type=float, default=10.0)
+    ap.add_argument("--accel", type=float, default=0.0,
+                    help="m/s/s from standing to --speed (0: at --speed from the start; ~3: a quick car's full throttle)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--cache", default=None, help="the server's cache folder (default: the player's)")
     ap.add_argument("--rebase-m", type=float, default=None, help="the rebase distance (default: the mod's)")
@@ -102,10 +105,12 @@ def drive(client, frame, aid, ready, size, a, modsim, REBASE, cheb):
     rebase_m = a.rebase_m or float(REBASE["DEFAULT_DISTANCE"])
     st = {"block": (ready["terrain"]["cx"], ready["terrain"]["cy"]), "tp": None, "pending": None, "next": 2,
           "t_lat": None, "a_lat": None}
-    out = {"pauses": 0, "paused_s": 0.0, "longest_pause_s": 0.0, "late": 0, "commits": 0, "rebases": 0,
+    out = {"pause_list": [], "pauses": 0, "paused_s": 0.0, "longest_pause_s": 0.0, "late": 0, "commits": 0,
+           "rebases": 0,
            "prepares": 0, "latency": [], "edge_min": math.inf, "edge_at": None, "errors": []}
     hd = math.radians(a.heading)
-    vx, vy = a.speed * math.cos(hd), a.speed * math.sin(hd)
+    v = a.speed if a.accel <= 0 else 0.5         # m/s now (accelerating at --accel to --speed)
+    vx, vy = v * math.cos(hd), v * math.sin(hd)
     x = y = 0.0
     driven = clock = 0.0
     paused_since = None
@@ -154,16 +159,20 @@ def drive(client, frame, aid, ready, size, a, modsim, REBASE, cheb):
                 out["pauses"] += 1
         elif paused_since is not None:
             dur = clock - paused_since
+            out["pause_list"].append([round(paused_since, 1), round(driven), round(dur, 1)])
             out["paused_s"] += dur
             out["longest_pause_s"] = max(out["longest_pause_s"], dur)
             paused_since = None
         if paused_since is None:
+            if v < a.speed:
+                k = min(a.speed, v + a.accel * DT) / v
+                v, vx, vy = v * k, vx * k, vy * k
             x, y = x + vx * DT, y + vy * DT
-            driven += a.speed * DT
+            driven += v * DT
         e = min(x - box[0], box[2] - x, y - box[1], box[3] - y)
         if e < out["edge_min"]:
             out["edge_min"], out["edge_at"] = e, (round(clock, 2), round(driven))
-        speed_now = 0.0 if paused_since is not None else a.speed
+        speed_now = 0.0 if paused_since is not None else v
         # origin rebase first (core.lua updateWorld)
         p = st["pending"]
         stale = edge = None
