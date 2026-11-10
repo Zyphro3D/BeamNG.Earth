@@ -16,6 +16,7 @@ import fast  # noqa: E402
 import mapcells  # noqa: E402
 import revisit  # noqa: E402
 import roads  # noqa: E402
+import roadbase  # noqa: E402
 import roadz  # noqa: E402
 from test_roads import features, FRAME  # noqa: E402
 from test_roadz import FakeMDem  # noqa: E402
@@ -120,12 +121,12 @@ class RangesTest(unittest.TestCase):
     """A viaduct p0 (y -300..0) going on as a ground road p1 (y 0..200)."""
 
     def setUp(self):
-        self.old = (roadz.PROVIDER, roads.LIDAR_GAPS_ON, os.environ.pop("BNGE_PLAN_RUN", None), revisit.CACHE_DIR)
+        self.old = (roadz.PROVIDER, roadbase.LIDAR_GAPS_ON, os.environ.pop("BNGE_PLAN_RUN", None), revisit.CACHE_DIR)
         revisit.CACHE_DIR = None            # (no cell facts on disk: another test's under the same cell id)
         roads._FACTS_MEM.clear()            # (each test's provider its own: no facts of another test's)
 
     def tearDown(self):
-        roadz.PROVIDER, roads.LIDAR_GAPS_ON, run, revisit.CACHE_DIR = self.old
+        roadz.PROVIDER, roadbase.LIDAR_GAPS_ON, run, revisit.CACHE_DIR = self.old
         if run is not None:
             os.environ["BNGE_PLAN_RUN"] = run
         roads._FACTS_MEM.clear()
@@ -162,7 +163,7 @@ class RangesTest(unittest.TestCase):
 
     def test_off(self):
         roadz.PROVIDER = StubProvider([("p1", ll(0, 0), ll(0, 80))])
-        roads.LIDAR_GAPS_ON = False
+        roadbase.LIDAR_GAPS_ON = False
         self.assertEqual(roads.level_ranges(self.feats(), 1), [])
 
 
@@ -171,7 +172,7 @@ class CellFactsTest(unittest.TestCase):
     server run for its processes (_run_facts_path), the lidar rule's too (2026-11-02: 787 makings of 89 cells)."""
 
     def setUp(self):
-        self.old = roadz.PROVIDER, roads.LIDAR_GAPS_ON, revisit.CACHE_DIR, os.environ.get("BNGE_PLAN_RUN")
+        self.old = roadz.PROVIDER, roadbase.LIDAR_GAPS_ON, revisit.CACHE_DIR, os.environ.get("BNGE_PLAN_RUN")
         self.tmp = tempfile.mkdtemp()
         revisit.CACHE_DIR = self.tmp
         os.environ["BNGE_PLAN_RUN"] = "test_run"
@@ -179,7 +180,7 @@ class CellFactsTest(unittest.TestCase):
         roads._FACTS_MEM.clear()
 
     def tearDown(self):
-        roadz.PROVIDER, roads.LIDAR_GAPS_ON, revisit.CACHE_DIR, run = self.old
+        roadz.PROVIDER, roadbase.LIDAR_GAPS_ON, revisit.CACHE_DIR, run = self.old
         if run is None:
             os.environ.pop("BNGE_PLAN_RUN", None)
         else:

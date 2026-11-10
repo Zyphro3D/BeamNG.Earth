@@ -113,6 +113,7 @@ def _candidates(f):
         return got
     cid = f.__dict__.get("_bnge_cell")
     import roads
+    import roadbase
     mk = (cid, "fuel_candidates") if cid is not None else None
     if mk is not None:          # (this process's, for another copy of the layer: the map data reloads them)
         with roads._FACTS_LOCK:
@@ -140,7 +141,7 @@ def _candidates(f):
     if mk is not None:
         with roads._FACTS_LOCK:
             roads._FACTS_MEM[mk] = out
-            while len(roads._FACTS_MEM) > roads.FACTS_MEM_KEPT:
+            while len(roads._FACTS_MEM) > roadbase.FACTS_MEM_KEPT:
                 roads._FACTS_MEM.popitem(last=False)
     return out
 

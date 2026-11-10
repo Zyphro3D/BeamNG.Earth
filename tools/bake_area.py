@@ -31,11 +31,12 @@ def _worker(args):
     import mapcells
     import plancache
     import roads
+    import roadspecs
     earthd.raise_open_files()
     bw.init(cache, False, True, True, True, True, None, logging.WARNING, True, True, 0, None, False)
     rec = open(out_jsonl, "a")
     orig_store = plancache.PlanCache.store
-    orig_facts = roads._facts_store
+    orig_facts = roadspecs._facts_store       # (its only caller: road_specs and the level ranges, roadspecs.py)
 
     def store(self, key, plans, keeps, covers, opens, persist=False):
         ok = orig_store(self, key, plans, keeps, covers, opens, persist)
@@ -53,7 +54,7 @@ def _worker(args):
                                   "data": data}) + "\n")
             rec.flush()
     plancache.PlanCache.store = store
-    roads._facts_store = facts
+    roadspecs._facts_store = facts
     lat0, lon0 = cells[0][3], cells[0][4]
     g, _ = bw._s.anchor(1, lat0, lon0)
     md = bw._s.md

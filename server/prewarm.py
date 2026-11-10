@@ -113,8 +113,9 @@ def _shape(path, mats, extra=False):
 def write(out_dir, vfs_dir):
     """The shape written to out_dir (and, with the dirt strips on, its NAME_X sibling); returns its vfs path."""
     import roads
+    import roadbase
     _shape(os.path.join(out_dir, NAME), materials())
-    if roads.DIRT_STRIPS:
+    if roadbase.DIRT_STRIPS:
         _shape(os.path.join(out_dir, NAME_X), road_materials(), extra=True)
     else:
         try:

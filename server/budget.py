@@ -125,7 +125,8 @@ def apply(is_small=None):
         mapdata.MEM_MB = SMALL_MAPDATA_MB
         roadwidth.WALL_CELLS = SMALL_WALL_CELLS
         import roads
-        roads.FACTS_MEM_KEPT = SMALL_FACTS_CELLS   # (~0.5 MB a city cell's facts, in each process)
+        import roadbase
+        roadbase.FACTS_MEM_KEPT = SMALL_FACTS_CELLS   # (~0.5 MB a city cell's facts, in each process)
         import imagery
         gb = total_gb() or 16.0
         imagery.MEM_FINISHED_MB = int(min(imagery.MEM_FINISHED_MB, max(SMALL_FIN_MB, round(FIN_MB_PER_GB * gb))))

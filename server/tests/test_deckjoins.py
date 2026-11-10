@@ -12,6 +12,8 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import fast  # noqa: E402
 import roads  # noqa: E402
+import roadspecs  # noqa: E402
+import roaddecks  # noqa: E402
 import roadz  # noqa: E402
 from test_approaches import flat_elev, FLAT  # noqa: E402
 from test_roads import features, FRAME  # noqa: E402
@@ -55,11 +57,11 @@ class EndJoinTest(unittest.TestCase):
     """A viaduct (p0 then p1, joined at (0, 0)) and its right-hand branch p2 starting 3.3 m off the joint."""
 
     def setUp(self):
-        self.old = roadz.PROVIDER, roads.END_JOIN_ON
+        self.old = roadz.PROVIDER, roaddecks.END_JOIN_ON
         self.f = _feats([[(0, -300), (0, 0)], [(0, 0), (0, 300)], [(3.3, 0), (12, 300)]], [0, 1, 2])
 
     def tearDown(self):
-        roadz.PROVIDER, roads.END_JOIN_ON = self.old
+        roadz.PROVIDER, roaddecks.END_JOIN_ON = self.old
 
     def check(self):
         d = _solve(self.f)
@@ -82,7 +84,7 @@ class EndJoinTest(unittest.TestCase):
 
     def test_was_a_cliff_without_it(self):
         roadz.PROVIDER = None
-        roads.END_JOIN_ON = False
+        roaddecks.END_JOIN_ON = False
         d = _solve(self.f)
         self.assertGreater(abs(d["p2"][1][0] - d["p0"][1][-1]), 3.0, "(the case the join is for)")
 
@@ -111,11 +113,11 @@ class EndOnDeckTest(unittest.TestCase):
     line, going north 150 m down to a street (p2 goes on from its end on the ground)."""
 
     def setUp(self):
-        self.old = roadz.PROVIDER, roads.END_JOIN_ON
+        self.old = roadz.PROVIDER, roaddecks.END_JOIN_ON
         roadz.PROVIDER = None
 
     def tearDown(self):
-        roadz.PROVIDER, roads.END_JOIN_ON = self.old
+        roadz.PROVIDER, roaddecks.END_JOIN_ON = self.old
 
     def solve(self, extra=()):
         lines = [[(-150, 0), (150, 0)], [(0, 3), (0, 150)], [(0, 150), (0, 300)],
@@ -139,7 +141,7 @@ class EndOnDeckTest(unittest.TestCase):
         self.assertLess(abs(d["p1"][1][0] - FLAT), 0.2)
 
     def test_off(self):
-        roads.END_JOIN_ON = False
+        roaddecks.END_JOIN_ON = False
         self.assertLess(abs(self.solve()["p1"][1][0] - FLAT), 0.2, "(the case it is for)")
 
 
@@ -148,11 +150,11 @@ class GroundGapTest(unittest.TestCase):
     """A viaduct p0 - a 40 m stretch p1 the map has on the ground - a viaduct p2."""
 
     def setUp(self):
-        self.old = roadz.PROVIDER, roads.GAP_DECK_ON
+        self.old = roadz.PROVIDER, roadspecs.GAP_DECK_ON
         self.lines = [[(0, -300), (0, -20)], [(0, -20), (0, 20)], [(0, 20), (0, 300)]]
 
     def tearDown(self):
-        roadz.PROVIDER, roads.GAP_DECK_ON = self.old
+        roadz.PROVIDER, roadspecs.GAP_DECK_ON = self.old
 
     def check(self, max_grade=roads.DECK_MAX_GRADE + 0.02):
         f = _feats(self.lines, [0, 2])
@@ -185,7 +187,7 @@ class GroundGapTest(unittest.TestCase):
         self.assertEqual(roads.level_ranges(f, 0), [(0.0, 1.0, "bridge")])
 
     def test_off(self):
-        roads.GAP_DECK_ON = False
+        roadspecs.GAP_DECK_ON = False
         f = _feats(self.lines, [0, 2])
         self.assertEqual(roads.level_ranges(f, 1), [])
 

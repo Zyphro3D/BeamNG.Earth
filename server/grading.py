@@ -4465,7 +4465,7 @@ _ACTIVE_STORE = None    # the process's PlanStore (the last made): the carriagew
 
 
 def _deck_z_hook(frame, lines, fids=None):
-    """roads.DECK_Z_HOOK: per deck line (frame ENU (k, 2+)), its heights (frame up m) from its carriageway's profile, or
+    """roadbase.DECK_Z_HOOK: per deck line (frame ENU (k, 2+)), its heights (frame up m) from its carriageway's profile, or
     None where it is not one's."""
     store = _ACTIVE_STORE
     if store is None:
@@ -4488,7 +4488,8 @@ def _deck_z_hook(frame, lines, fids=None):
 
 
 if CW_ON:
-    roadsmod.DECK_Z_HOOK = _deck_z_hook
+    import roadbase                     # (where roads' bridge code reads the hook: roadbridges.py)
+    roadbase.DECK_Z_HOOK = _deck_z_hook
 
 
 PLANNERS_KEPT = 6               # planning regions a PlanStore keeps in memory (~30 km each)

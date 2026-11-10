@@ -85,6 +85,7 @@ def _spans_kept(md, key, feats):
     plans, 2026-11-02). Kept when made with no fault of this thread (a neighbour not there yet)."""
     import revisit
     import roads
+    import roadbase
     cid = feats.__dict__.get("_bnge_cell")
     mk = (cid, "gradesep", MODE, VERSION, ON, TUNNELS) if cid is not None else None
     if mk is not None:
@@ -99,7 +100,7 @@ def _spans_kept(md, key, feats):
     if mk is not None and revisit.thread_faults() == f0:
         with roads._FACTS_LOCK:
             roads._FACTS_MEM[mk] = (spans, feats.__dict__.get("_gradesep_why"))
-            while len(roads._FACTS_MEM) > roads.FACTS_MEM_KEPT:
+            while len(roads._FACTS_MEM) > roadbase.FACTS_MEM_KEPT:
                 roads._FACTS_MEM.popitem(last=False)
     return spans
 

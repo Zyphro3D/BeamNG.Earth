@@ -14,6 +14,7 @@ import mapgeom
 import maprasters
 import roads
 import revisit
+import roadspecs  # noqa: E402
 import surface
 from test_roads import FRAME, features
 
@@ -131,9 +132,9 @@ class ActualHorseCreekTest(unittest.TestCase):
     def test_minor_roadside_patch_does_not_widen_tertiary_road(self):
         f, s = self.load_fixture("horse_creek_tertiary_urban.npz")
         try:
-            with mock.patch.object(roads, "URBAN_BESIDE_SHARE", .20):
+            with mock.patch.object(roadspecs, "URBAN_BESIDE_SHARE", .20):
                 permissive = roads._road_specs(f, s.urban, False)[0]
-            with mock.patch.object(roads, "URBAN_BESIDE_SHARE", .35):
+            with mock.patch.object(roadspecs, "URBAN_BESIDE_SHARE", .35):
                 conservative = roads._road_specs(f, s.urban, False)[0]
             self.assertTrue(permissive.urban)
             self.assertEqual(permissive.width, 10.8)

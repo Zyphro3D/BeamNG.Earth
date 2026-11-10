@@ -17,6 +17,7 @@ import cdae  # noqa: E402
 import prewarm  # noqa: E402
 import roadmesh  # noqa: E402
 import roads  # noqa: E402
+import roadbase  # noqa: E402
 import sidewalks  # noqa: E402
 from test_blockworker import FakeDem, FakeMapData, tmp_cache  # noqa: E402
 from test_roads import LAT, LON, FRAME, features  # noqa: E402
@@ -59,20 +60,20 @@ class PrewarmTest(unittest.TestCase):
         rm = prewarm.road_materials()
         for m in (*roads.DIRT_MATERIALS, "line_white", "line_yellow", "road_asphalt_2lane"):
             self.assertIn(m, rm)
-        was = roads.DIRT_STRIPS
+        was = roadbase.DIRT_STRIPS
         try:
             with tempfile.TemporaryDirectory() as d:
-                roads.DIRT_STRIPS = True
+                roadbase.DIRT_STRIPS = True
                 prewarm.write(d, "/temp/x")
                 shape = cdae.decode(Path(d, prewarm.NAME_X).read_bytes())
                 self.assertEqual([m["name"] for m in shape["materials"]], rm)
                 a = cdae.mesh_arrays(shape["meshes"][0])
                 self.assertEqual(len(a["tverts2"]), len(a["verts"]))
-                roads.DIRT_STRIPS = False
+                roadbase.DIRT_STRIPS = False
                 prewarm.write(d, "/temp/x")
                 self.assertFalse(Path(d, prewarm.NAME_X).exists())
         finally:
-            roads.DIRT_STRIPS = was
+            roadbase.DIRT_STRIPS = was
 
     def test_a_dirt_road_tiles_materials_are_covered(self):
         import blockworker

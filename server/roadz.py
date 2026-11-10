@@ -532,7 +532,8 @@ class RoadZ:
 
     def _path(self, src, key):
         import roads
-        if src == "lidar" and not roads.LIDAR_GAPS_ON:
+        import roadbase
+        if src == "lidar" and not roadbase.LIDAR_GAPS_ON:
             src = "lidar-nogaps"            # (built without the ground stretches: not the cells with them)
         return os.path.join(self.dir, src, str(key.z), str(key.x), f"{key.y}.npz") if self.dir else None
 
@@ -711,7 +712,8 @@ class RoadZ:
         """roads.lidar_gap_candidates of the cell whose deck end (the line's first point) lies in its box: [(fid, lonlat
         (k, 2), half width)] ([] off)."""
         import roads
-        if not roads.LIDAR_GAPS_ON or not self.md:
+        import roadbase
+        if not roadbase.LIDAR_GAPS_ON or not self.md:
             return []
         feats = self.md.cell(key, layers=("roads",), kind="demand").layers.get("roads")
         if feats is None or not len(feats):

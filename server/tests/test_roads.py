@@ -1329,11 +1329,9 @@ class DirtStripTest(unittest.TestCase):
     PR #455), fading at its sides and open ends; BNE_DIRT_STRIPS=off: none."""
 
     def setUp(self):
-        self._rig, roads.ROADS_IN_GROUND = roads.ROADS_IN_GROUND, True
-        self._ds, roads.DIRT_STRIPS = roads.DIRT_STRIPS, True
-
-    def tearDown(self):
-        roads.ROADS_IN_GROUND, roads.DIRT_STRIPS = self._rig, self._ds
+        import roadbase
+        self.enterContext(mock.patch.object(roads, "ROADS_IN_GROUND", True))
+        self.enterContext(mock.patch.object(roadbase, "DIRT_STRIPS", True))
 
     def test_dirt_and_gravel_get_a_continuous_strip_paved_none(self):
         dirt = features([[(-20, 40), (600, 40)]], ["track"], ids=["trk"])
@@ -1421,17 +1419,19 @@ class DirtStripTest(unittest.TestCase):
         self.assertLess(abs(a0[1] - a1[1]), 0.25)
 
     def test_off_with_the_switch(self):
+        import roadbase
         import roadmesh
-        roads.DIRT_STRIPS = False
-        road = features([[(-20, 40), (600, 40)]], ["track"], ids=["trk"])
-        self.assertFalse(_strips(0, road), "no strip: the ground's tint alone")
-        self.assertEqual(roads.look_of(roads.road_specs(road)[0], "trk"), roads.LOOK["dirt"])
-        roads.ROADS_IN_GROUND = False           # (meshes for every carriageway: the old look, no fade uv)
-        ch = [c for c in roads.build_tile(FRAME, 0, 0, [road], flat) if c["m"] == roads.LOOK["dirt"]["m"]]
-        self.assertTrue(ch)
-        self.assertNotIn("slen", ch[0])
-        x0, y0, x1, y1 = roads.tile_bbox(0, 0)
-        self.assertEqual(len(roadmesh.build(FRAME, ch, flat, (x0, y0, 0.0), clip=(x0, y0, x1, y1))), 5)
+        # (the switch lives in roadbase, read there by roads.build_tile and look_of; put back after)
+        with mock.patch.object(roadbase, "DIRT_STRIPS", False):
+            road = features([[(-20, 40), (600, 40)]], ["track"], ids=["trk"])
+            self.assertFalse(_strips(0, road), "no strip: the ground's tint alone")
+            self.assertEqual(roads.look_of(roads.road_specs(road)[0], "trk"), roads.LOOK["dirt"])
+            with mock.patch.object(roads, "ROADS_IN_GROUND", False):   # (meshes for every carriageway: no fade uv)
+                ch = [c for c in roads.build_tile(FRAME, 0, 0, [road], flat) if c["m"] == roads.LOOK["dirt"]["m"]]
+            self.assertTrue(ch)
+            self.assertNotIn("slen", ch[0])
+            x0, y0, x1, y1 = roads.tile_bbox(0, 0)
+            self.assertEqual(len(roadmesh.build(FRAME, ch, flat, (x0, y0, 0.0), clip=(x0, y0, x1, y1))), 5)
 
 
 class NearNodePairsTest(unittest.TestCase):
@@ -1918,7 +1918,8 @@ class GravelTest(unittest.TestCase):
 
     def test_off(self):
         from unittest import mock
-        with mock.patch.object(roads, "REGIONAL_ON", False):
+        import roadspecs
+        with mock.patch.object(roadspecs, "REGIONAL_ON", False):
             self.assertEqual(roads.road_specs(self.roads(4, "gravel"))[-1].kind, "paved")
 
 

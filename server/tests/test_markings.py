@@ -116,8 +116,9 @@ class SwedenTest(unittest.TestCase):
         a = {"lanes": "3", "lanes:forward": "2", "lanes:backward": "1"}
         b = {"lanes": "3", "lanes:forward": "1", "lanes:backward": "2"}
         parts = [(0.0, 0.5, "w1", a), (0.5, 1.0, "w2", b)]
-        with mock.patch.object(roads, "lane_tag_parts", return_value=parts), \
-                mock.patch.object(roads, "level_ranges", return_value=[]):
+        import roadwalks
+        with mock.patch.object(roadwalks, "lane_tag_parts", return_value=parts), \
+                mock.patch.object(roadwalks, "level_ranges", return_value=[]):   # (where way_lines looks them up)
             ex = roads.way_lines(roads.extras(sp, self.LINE, 12.0, country="SE", osm=a), Feats, 0, sp, self.LINE, 12.0,
                                  False, "SE")
         mids = {round(float(ln[0][1]), 1) for lk, _, ln in ex if lk.get("kind") == "centre"}
