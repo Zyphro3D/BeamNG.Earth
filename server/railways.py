@@ -1425,7 +1425,7 @@ def tile_mesh(frame, tx, ty, cells, ground, sign_style=None, far_ground=None, re
             crossers.append((line, hw, zc[k:k + len(line)]))
             k += len(line)
     mesh = _Mesh((box[0], box[1], 0.0))
-    ballast, concrete, steel = mesh.mat(BALLAST), mesh.mat(CONCRETE), mesh.mat(STEEL)
+    _ballast, concrete, _steel = mesh.mat(BALLAST), mesh.mat(CONCRETE), mesh.mat(STEEL)   # (each registered in order)
     up = np.array([0.0, 0.0, 1.0])
     small = []                                      # sleepers and piers: drawn last, as room allows
     for (fid, cls, kind, xy), (zb, zg) in zip(rails, prof):

@@ -7,7 +7,6 @@ mosaic (the sphere's uv is Mercator: no reprojection; the caps past MERC_LAT tak
 The texture is made once and kept in the cache (WORLD_ZOOM's 256 tiles: well inside EOX's daily budget, then never
 again); the sphere is written per anchor, in its frame (positions to ~1 m at the earth's scale, plenty from orbit)."""
 import logging
-import math
 import os
 import shutil
 

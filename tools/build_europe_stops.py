@@ -13,7 +13,6 @@ import sys
 import uuid
 import xml.etree.ElementTree as ET
 
-import numpy as np
 from PIL import Image
 
 from build_rail_crossing_props import Mesh, write_dae

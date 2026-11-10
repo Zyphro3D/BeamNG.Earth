@@ -11,7 +11,6 @@ point, and of a second anchor KM east: a rebase's), reports failures and checks:
 and prints the CPU of content, skins and the anchor tiles. Map data from ~/.cache/beamng-earth (downloads unless
 --offline). Run from the repository root."""
 import argparse
-import glob
 import json
 import logging
 import math

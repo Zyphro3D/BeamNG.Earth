@@ -8,7 +8,6 @@ import argparse
 import json
 import math
 from pathlib import Path
-import sys
 import uuid
 import numpy as np
 from PIL import Image

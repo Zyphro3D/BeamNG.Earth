@@ -120,7 +120,6 @@ class _CarriagewaysMixin:
         return got
 
     def _cw_region_calc(self, home, hk):
-        f64 = np.float64
         lon0, lat0, lon1, lat1 = (float(v) for v in home.bounds())
         ce, cn, _ = self.frame.geodetic_to_enu(np.array([lat0, lat0, lat1, lat1]), np.array([lon0, lon1, lon0, lon1]),
                                                0.0)
@@ -201,7 +200,6 @@ class _CarriagewaysMixin:
                       key=str)
         cs = [self._cell_enu(k) for k in keys]
         rails = [np.asarray(r, f64)[:, :2] for c in cs for r in c.get("rail_ground", ()) if len(r) >= 2]
-        fam_keys = {p_[0] for ch in chains for p_ in ch[0]}
         nonfam = []
         for c in cs:
             for line, bc in zip(c["bridges"], c.get("bridge_cls", [None] * len(c["bridges"]))):

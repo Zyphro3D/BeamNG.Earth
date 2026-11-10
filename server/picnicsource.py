@@ -14,7 +14,6 @@ import re
 import threading
 import time
 
-import numpy as np
 
 import mapgeom
 import overture
@@ -239,7 +238,7 @@ class Source:
         except Exception:
             for e in errors:
                 if isinstance(e, rangeread.Changed):
-                    raise e
+                    raise e from None       # (the source's own error, not DuckDB's wrapper of it)
             raise
         finally:
             con.close()

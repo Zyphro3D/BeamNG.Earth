@@ -124,7 +124,6 @@ def apply(is_small=None):
         dem.MEM_TILES = SMALL_DEM_TILES
         mapdata.MEM_MB = SMALL_MAPDATA_MB
         roadwidth.WALL_CELLS = SMALL_WALL_CELLS
-        import roads
         import roadbase
         roadbase.FACTS_MEM_KEPT = SMALL_FACTS_CELLS   # (~0.5 MB a city cell's facts, in each process)
         import imagery

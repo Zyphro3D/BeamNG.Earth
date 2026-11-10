@@ -21,7 +21,6 @@ Here the bridge and every road under it are decided together:
 The result is a pure function of the map and the elevation around the bridge, so every cell (and both the approach
 ramps and the underpass dips) gets the same answer. solve() is the arithmetic, unit-tested on its own.
 """
-import math
 import os
 
 import numpy as np

@@ -3,7 +3,6 @@
 This is a geometry/material preview, not a screenshot of an in-game test.
 """
 import json
-import math
 from pathlib import Path
 import sys
 

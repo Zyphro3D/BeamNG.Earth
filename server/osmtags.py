@@ -29,7 +29,6 @@ import time
 
 import numpy as np
 
-import netfetch
 import overture
 import rangeread
 import xproc
@@ -235,7 +234,7 @@ class OsmTags:
         except Exception as e:
             for err in errors:
                 if isinstance(err, rangeread.Changed):
-                    raise err
+                    raise err from None     # (the source's own error, not DuckDB's wrapper of it)
             log.warning('osmtags: highway geometry unavailable; keeping way tags: %s', e)
         finally:
             con.close()
@@ -433,7 +432,7 @@ class OsmTags:
         except Exception:
             for e in errors:
                 if isinstance(e, rangeread.Changed):
-                    raise e
+                    raise e from None       # (the source's own error, not DuckDB's wrapper of it)
             raise
         finally:
             con.close()

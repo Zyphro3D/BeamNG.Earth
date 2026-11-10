@@ -6,7 +6,7 @@ this excludes hiking/cycle guideposts from the road scene. Incomplete mappings
 are omitted. This is a subset of French directional signing, not a routing UI.
 """
 from functools import lru_cache
-import gzip,hashlib,json,math
+import gzip,hashlib,json
 from pathlib import Path
 import numpy as np
 from geotiles import box_owns

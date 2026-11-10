@@ -8,7 +8,6 @@ import hashlib
 import io
 import json
 from pathlib import Path
-import sys
 import os
 import subprocess
 import tempfile

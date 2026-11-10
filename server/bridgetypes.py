@@ -323,7 +323,6 @@ def chain_structures(frame, parts, wet_fn=None, infra=()):
     colour= its paint, the inventory's record inside it its span), else each notable inventory record on the decks
     (a circle round its point), else, outside the inventory, a run of WET_SPAN_M over water on a chain no longer
     than NETWORK_M or NETWORK_SHARE times that run: a through truss. wet_fn(xy) -> bool per point."""
-    from polygon import Path
     lines = [np.asarray(xy, np.float64) for xy, _, _ in parts if len(xy) >= 2]
     if not lines:
         return []
@@ -516,7 +515,6 @@ def _osm_outlines(frame, parts, feats_list):
     """[(tags dict, outline (k, 2) in the frame)] of the bridge outlines tagged bridge:structure (infrastructure, kind
     3) holding at least OSM_MIN_M of the chain's deck."""
     import json
-    from polygon import Path
     lines = [np.asarray(xy, np.float64) for xy, _, _ in parts if len(xy) >= 2]
     out, seen, groups = [], set(), {}
     for f in feats_list:

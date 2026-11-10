@@ -27,7 +27,6 @@ import fast
 import mapcells
 import roads
 import speedsigns
-import staging
 
 log = logging.getLogger("earthd.dirsigns")
 

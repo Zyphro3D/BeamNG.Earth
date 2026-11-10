@@ -1,4 +1,4 @@
-import json, sys, zipfile, os, math, numpy as np
+import sys, zipfile, os, numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import study as st
 root = sys.argv[1]

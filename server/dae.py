@@ -3,7 +3,6 @@
 BeamNG imports Collada with Z-up when <up_axis>Z_UP</up_axis> is set; the
 engine converts and caches it as .cdae next to the source.
 """
-import os
 
 import numpy as np
 import staging

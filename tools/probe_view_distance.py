@@ -16,7 +16,6 @@ Run only while the user is not playing (it takes the camera for ~10 minutes).
 import argparse
 import glob
 import json
-import math
 import os
 import shutil
 import subprocess

@@ -1,5 +1,5 @@
 """Fit the capture sun (azimuth, elevation) of a window: Lambert * (1 - cast shadow) vs luminance."""
-import sys, time, json
+import sys, time
 import numpy as np
 from lib import *
 

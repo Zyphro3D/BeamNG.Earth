@@ -121,7 +121,7 @@ def roof(m, spec, ze, mats):
     v = np.array([-u[1], u[0]])
     eave, tangent = style["eave"], math.tan(math.radians(spec.pitch))
     L, W, z = hl + eave, hw + eave, ze - eave * tangent
-    rise, top = W * tangent, ze + hw * tangent
+    top = ze + hw * tangent
     rm, wall = mats[spec.roof_mat], mats[style["wall"]]
     if style["family"] == "chalet":
         wall = mats[style["timber"]]

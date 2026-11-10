@@ -1,6 +1,6 @@
 """Fetch USGS z16 imagery + DEM for a window on the imagery's Web-Mercator pixel grid.
 Uses server/imagery.py and server/dem.py unmodified (their caches, their generic UA)."""
-import math, os, sys, time
+import os, sys, time
 import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "server"))
 import imagery as im

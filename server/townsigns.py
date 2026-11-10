@@ -5,7 +5,6 @@ entries at a sustained built-up transition, never at an administrative border.
 All dynamic faces share signmesh's alphabet; no file/material per settlement.
 """
 from functools import lru_cache
-import gzip
 import hashlib
 import json
 import math

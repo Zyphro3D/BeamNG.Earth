@@ -60,7 +60,7 @@ def read_routes(tags, remote, bounds, kind='demand'):
     except Exception:
         for err in errors:
             if isinstance(err, osmtags.rangeread.Changed):
-                raise err
+                raise err from None     # (the source's own error, not DuckDB's wrapper of it)
         raise
     finally:
         con.close()

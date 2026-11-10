@@ -58,94 +58,59 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 import argparse  # noqa: E402
 import asyncio  # noqa: E402
-import contextlib  # noqa: E402
 import errno  # noqa: E402
-import glob  # noqa: E402
-import functools  # noqa: E402
 import itertools  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
 import math  # noqa: E402
-import re  # noqa: E402
 import secrets  # noqa: E402
 import sys  # noqa: E402
-import shutil  # noqa: E402
 import collections  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 from collections import OrderedDict, deque  # noqa: E402
-import concurrent.futures  # noqa: E402
 import multiprocessing  # noqa: E402
 from runtimeprofiler import ThreadPoolExecutor  # noqa: E402
-from dataclasses import dataclass, field, replace  # noqa: E402
-import numpy as np  # noqa: E402
-from PIL import Image  # noqa: E402
 import blockworker  # noqa: E402
 import cache as cachemod  # noqa: E402
 import cdae  # noqa: E402
 import colormatch as colormatchmod  # noqa: E402
 import credits as creditsmod  # noqa: E402
-import secrossings  # noqa: E402
 import covermap as covermapmod  # noqa: E402
 import areas as areasmod  # noqa: E402
 import surface as surfacemod  # noqa: E402
 import navgraph as navgraphmod  # noqa: E402
 import distanttraffic          # noqa: E402
 import prewarm as prewarmmod  # noqa: E402
-import parking as parkingmod  # noqa: E402
-import gasstations as gasstationsmod  # noqa: E402
 import roads as roadsmod  # noqa: E402
 import privacyregion as privacyregionmod
 import perfstats  # noqa: E402
-import rails as railsmod  # noqa: E402
-import randomplace as randomplacemod  # noqa: E402
-import urgency as urgencymod  # noqa: E402
-import placepreview as placepreviewmod  # noqa: E402
-import placenames as placenamesmod  # noqa: E402
-import maplabels as maplabelsmod  # noqa: E402
 import runtimeprofiler
 import streamleases
 import pools as poolsmod  # noqa: E402
 import plancache as plancachemod  # noqa: E402
 import grading as gradingmod  # noqa: E402
-import roadmesh as roadmeshmod  # noqa: E402
 import roadwidth as roadwidthmod  # noqa: E402
 import revisit as revisitmod  # noqa: E402
 import signstream  # noqa: E402
-import dirsigns as dirsignsmod  # noqa: E402
 import mapdata as mapdatamod  # noqa: E402
 import dem as demmod  # noqa: E402
-import mapcells  # noqa: E402
 import pacer  # noqa: E402
 import peerwork as peerworkmod  # noqa: E402
 import deshadow as deshadowmod  # noqa: E402
 import farfield  # noqa: E402
-import bc7  # noqa: E402
-import terraincache  # noqa: E402
-import terrainpatch as terrainpatchmod  # noqa: E402
 import geodesy  # noqa: E402
 import gravity as gravitymod  # noqa: E402
 import airportgrade as airportgrademod  # noqa: E402
 import airports as airportsmod  # noqa: E402
 import seacarve as seacarvemod  # noqa: E402
-import seatiles as seatilesmod  # noqa: E402
 import vegetation as vegetationmod
 import buildings as buildingsmod  # noqa: E402
-import rockface as rockfacemod  # noqa: E402
-import geotiles as geotilesmod  # noqa: E402
-import riverlines as riverlinesmod  # noqa: E402
-import groundahead as groundaheadmod  # noqa: E402
-import routeahead as routeaheadmod  # noqa: E402
 import furniture as furnituremod  # noqa: E402
-import development as developmentmod  # noqa: E402
-import townentry as townentrymod  # noqa: E402     (PR #597's town entry and exit signs)
 import heightmap  # noqa: E402
-import staging  # noqa: E402
 import imagery as imagerymod  # noqa: E402
 import matslots as matslotsmod  # noqa: E402
 import maptiles as maptilesmod  # noqa: E402
-import geocode as geocodemod  # noqa: E402
-import routing as routingmod  # noqa: E402
 import updates as updatesmod  # noqa: E402
 import cpupin  # noqa: E402
 import netstate as netstatemod  # noqa: E402
@@ -2344,7 +2309,7 @@ def main():
         fast.require(fast.MIN_VERSION, "the world server")     # at start, not in the middle of a drive
     except fast.NativeMissing as ex:
         log.error("%s", ex)
-        raise SystemExit(str(ex))
+        raise SystemExit(str(ex)) from None       # (logged above: the message alone)
     import sampler
     sampler.maybe_start()           # BNGE_SAMPLE=<path>: a sampling profile of this process's threads (debugging)
     import budget

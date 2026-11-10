@@ -210,7 +210,7 @@ class _UnderpassMixin:
         gids = sorted(ground)
         lines = [ground[g][0] for g in gids]
         crs = roadsmod._crossings_by([b for b, _L, _f, _r in spans], lines)
-        ez, raised = {}, set()
+        ez = {}
 
         def deck_ends(j):           # (an overpass's abutments' ground, raised when it is: as high as its ramps could
             got = ez.get(j)         # take them; asked only for one a road crosses under: every span's took 2 s a

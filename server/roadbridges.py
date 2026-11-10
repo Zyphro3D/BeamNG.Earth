@@ -823,7 +823,7 @@ class BridgeProfiles:
     def parts(self, cells_feats, box):
         """[(fid, spec, xy, z, lon)] of the bridge parts in these cells that come near box."""
         x0, y0, x1, y1 = box
-        out, todo, queued = [], [], set()
+        todo, queued = [], set()
         for feats in cells_feats:
             if feats is None or len(feats) == 0:
                 continue

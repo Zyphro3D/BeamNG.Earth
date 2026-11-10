@@ -625,7 +625,6 @@ class Reader:
             if n + 8 > len(tail):
                 r.read(r.size - n - 8, r.size, kind)
         self._parallel([lambda r=files[p]: footer(r) for p in paths])
-        uris = ", ".join(f"'{proto}://{_q(p)}'" for p in paths)
         with self._lock:
             new = [p for p in paths if p not in self._meta]
         for p in list(new):             # parsed by another process or an earlier run (release files never change)

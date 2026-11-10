@@ -40,8 +40,8 @@ def lua_json(code):
     out = lua(code)
     try:
         return json.loads(out)
-    except json.JSONDecodeError:
-        raise RuntimeError('lua: ' + out[:300])
+    except json.JSONDecodeError as e:
+        raise RuntimeError('lua: ' + out[:300]) from e
 
 
 def shot(path):

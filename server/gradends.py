@@ -221,7 +221,7 @@ class _EndsMixin:
         rail, rail_g = [], []
         if f is not None and len(f) and f.attrs.get("subtype") is not None:
             import railways
-            sub, rcls = f.attrs["subtype"], f.attrs.get("class")
+            sub = f.attrs["subtype"]
             for i in range(len(f)):
                 got = railways.drawn(f, i, bridges=True) if str(sub[i]) == "rail" else None
                 if got is None:
@@ -485,7 +485,6 @@ class _EndsMixin:
         u0, u1 = xs.end_dirs(bridge)
         t_end = [xs.trusted_over(ends[0], u0, z_at), xs.trusted_over(ends[1], u1, z_at)]
         base = np.array([g if t is None else max(g, min(t, g + xs.FILL_MAX_M)) for g, t in zip(g_end, t_end)], f64)
-        s = np.r_[0.0, np.cumsum(np.hypot(*np.diff(bridge, axis=0).T))]
         clear = roadsmod.deck_road_clear(roadsmod.deck_depth(roadsmod.geom_span([bridge]))) + ROAD_LIFT
         low_ground = bool(np.min(base) < seatiles.SEA_E + xs.LOW_M)
         fixed = str(cls) in APPROACH_SKIP

@@ -260,7 +260,7 @@ def _clip_half(ring, p0, nrm, keep_ge):
     for k in range(len(pts)):
         a, b = pts[k], pts[(k + 1) % len(pts)]
         sa, sb = side[k], side[(k + 1) % len(pts)]
-        ina, inb = (sa >= 0) == keep_ge or sa == 0, (sb >= 0) == keep_ge or sb == 0
+        ina = (sa >= 0) == keep_ge or sa == 0
         if ina:
             out.append(a)
         if (sa > 0) != (sb > 0) and sa != 0 and sb != 0:

@@ -6,7 +6,6 @@ and sea, scored against published heights. Writes <out>/<case>.json, <out>/<case
 """
 import argparse
 import json
-import math
 import os
 import sys
 

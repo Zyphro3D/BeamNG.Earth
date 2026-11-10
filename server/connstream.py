@@ -951,7 +951,6 @@ class _StreamMixin:
         self.failed.clear()
 
     def _next_tile(self):
-        aid = self.active
         while self.qi < len(self.queue):
             t = self.queue[self.qi]
             self.qi += 1

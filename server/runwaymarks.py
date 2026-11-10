@@ -243,7 +243,6 @@ def markings(rw, style=None):
     want_tdz = mclass == "precision"
     cl_from = {}                                    # y (from the threshold) where the centreline may start
     for e in ends:
-        other = "he" if e.name == "le" else "le"
         y = st.thr_offset
         # displaced part: bar at the threshold, arrows along the centreline
         if disp[e.name] > 0:

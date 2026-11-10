@@ -2334,7 +2334,6 @@ def base_photo(lat, lon, x0, y0, size, px, tex, buildings, rock_zoom, path, cach
     import roads as roadsmod
     import rockface as rockfacemod
     import staging
-    from PIL import Image
     import buildings as buildingsmod
     im = _imagery(tex)
     frame = geodesy.EnuFrame(lat, lon)

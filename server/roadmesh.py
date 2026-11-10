@@ -93,7 +93,7 @@ def round_dirt_centerline(pts, half):
     c = np.nonzero(ok)[0]                                # corners kept (vertex c + 1)
     a, b, e = P[c], P[c + 1], P[c + 2]
     dc, rc, dl, la, lb = dd[c], r[c], delta[c], lab[c], lbc[c]
-    tc0, tc1 = t0[c], t1[c]
+    tc0 = t0[c]
     T0 = b[:, :2] - tc0 * dc[:, None]
     z0 = a[:, 2] + (b[:, 2] - a[:, 2]) * ((la - dc) / la)
     z1 = b[:, 2] + (e[:, 2] - b[:, 2]) * (dc / lb)
@@ -949,13 +949,11 @@ def build(frame, chunks, elev, origin, lift=0.0, clip=None, follow=False, q=None
             P.append(np.c_[xy, np.concatenate((zl, (1.0 - fu) * zl + fu * zr, fu * zl + (1.0 - fu) * zr, zr))])
             UV.append(np.column_stack((np.repeat(np.array([0.0, fu, 1.0 - fu, 1.0]) * tu, k), np.tile(v, 4))))
             tri = np.concatenate([_quads(nverts, k, row, row + 1) for row in range(3)])
-            nrows = 4
         else:
             xy = np.concatenate([left, right])[:, :2]
             P.append(np.c_[xy, z])
             UV.append(np.column_stack((np.concatenate((np.zeros(k), np.full(k, tu))), np.concatenate((v, v)))))
             tri = _quads(nverts, k, 0, 1)
-            nrows = 2
         # where a ribbon folds over itself (a mitred joint at a sharp merge pulls its edges across: the user saw
         # black triangles in President St, 2026-10-14) its triangles turn over: dropped, the neighbours cover it
         tri = _keep_up(tri, xy, nverts)
@@ -1190,7 +1188,6 @@ def barrier_solid(edge, inward, z, h, v=None, section=JERSEY):
     else:                                           # (a share of h)
         off2 = np.tile([q[0] for q in section], (k, 1)).astype(np.float64)
         up2 = h[:, None] * np.array([q[1] for q in section], np.float64)[None, :]
-    up = up2[0] / max(float(h[0]), 1e-9)
     xy = edge[:, None, :] + inward[:, None, :] * off2[:, :, None]
     zz = z[:, None] + up2
     R = np.concatenate([xy, zz[..., None]], axis=2)                # (k, n, 3): the section at each station

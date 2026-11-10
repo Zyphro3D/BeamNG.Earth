@@ -113,7 +113,7 @@ class OsmFuel(osmtags.OsmTags):
         except Exception:
             for e in errors:
                 if isinstance(e, rangeread.Changed):
-                    raise e
+                    raise e from None       # (the source's own error, not DuckDB's wrapper of it)
             raise
         finally:
             con.close()

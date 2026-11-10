@@ -46,8 +46,8 @@ def main():
     import duckdb
     import fsspec
     import lupa.luajit21
-    import lupa.lua53
-    import scipy.optimize       # test-only independent reference for the native carriageway QP
+    import lupa.lua53  # noqa: F401 (installed? fail before the tests rather than skip them)
+    import scipy.optimize  # noqa: F401 (the native carriageway QP's independent reference: installed?)
     fast.require(fast.MIN_VERSION, "quality gate")
     print(f"Python {sys.version.split()[0]}, earthfast {fast._ef.VERSION}, "
           f"DuckDB {duckdb.__version__}, fsspec {fsspec.__version__}", flush=True)

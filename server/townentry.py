@@ -1827,7 +1827,7 @@ def _face_de(name, group, local="", nxt="", km=0, sub="", **_):
     d.rounded_rectangle([0, 0, w - 1, h - 1], radius=round(37.5 * sy), fill=DE_YELLOW)
     d.rounded_rectangle([10 * sx, 10 * sy, w - 1 - 10 * sx, h - 1 - 10 * sy], radius=round(27.5 * sy),
                         outline=(0, 0, 0), width=max(2, round(15 * sy)))
-    pad_x, pad_y = 45 * sx, 40 * sy
+    pad_x = 45 * sx
 
     def fit(text, size, room_w):
         """(font, its size, box) of text at size or smaller, as wide as room_w at most."""

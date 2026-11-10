@@ -286,7 +286,7 @@ def decode(b):
         try:
             b = fast._ef.cdae_unpack(bytes(b))
         except ValueError as e:
-            raise CdaeError(f"compressed body: {e}")
+            raise CdaeError(f"compressed body: {e}") from e
         header, end = unpack_one(b, 8)
     if header.get("bodysize") != len(b) - end:
         raise CdaeError(f"body size {len(b) - end} != header bodysize {header.get('bodysize')}")

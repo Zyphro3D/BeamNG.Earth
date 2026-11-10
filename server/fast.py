@@ -6,7 +6,6 @@ twins of the kernels are gone (the user, 2026-10-21: "we dont need 2 versions of
 what is missing when it cannot be loaded.
 """
 import os
-import sys
 
 import numpy as np
 

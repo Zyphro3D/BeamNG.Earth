@@ -3,7 +3,7 @@
   python3 tools/make_level_assets.py mod/beamng_earth/levels/beamng_earth
 """
 import json, os, sys
-from PIL import Image, ImageDraw
+from PIL import Image
 
 L = sys.argv[1]  # .../mod/beamng_earth/levels/beamng_earth
 T = os.path.join(L, "art/terrains")

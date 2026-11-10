@@ -25,7 +25,6 @@ Layout's `block`), defaulting to SIZE; nothing reads a module setting at call ti
 """
 from runtimeprofiler import step as profile_step
 import math
-import os
 import struct
 import threading
 from collections import OrderedDict

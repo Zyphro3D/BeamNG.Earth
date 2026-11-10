@@ -59,7 +59,6 @@ def tile_props(frame, tx, ty, md, elev):
     """(rows, barn ids) of road tile (tx, ty). barn ids are the footprints replaced by the stock barn
     (buildings.road_tile_items skip). elev(lat, lon) is the ground. md None, or a cell that cannot be
     read, yields nothing of that layer."""
-    import buildings
     import roads
     if md is None:
         return [], set()

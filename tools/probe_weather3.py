@@ -7,14 +7,13 @@ The user's vehicle is teleported here, frozen during the test car runs, and tele
 """
 import argparse
 import json
-import math
 import os
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from probe_weather import lua, shot, perf, cloud_fraction, SETUP, RESTORE   # noqa: E402
-from probe_weather2 import cam, set_clouds                                  # noqa: E402
+from probe_weather import lua, shot, cloud_fraction, SETUP, RESTORE   # noqa: E402
+from probe_weather2 import cam                                  # noqa: E402
 
 SITE = (35.40, -119.20)
 
