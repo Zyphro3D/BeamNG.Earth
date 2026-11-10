@@ -914,7 +914,11 @@ class DdsTest(unittest.TestCase):
         rgb = np.asarray(Image.fromarray(low, "RGB").resize((n, n), Image.BICUBIC))
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "t.dds")
-            size = imagery.write_dds(path, rgb)
+            # the CPU's BC1 encoder: compared byte for byte below (a GPU's, where there is one, differs in ~1 block in
+            # 1000: imagery.encode_dds; the test failed on machines with one)
+            from unittest import mock
+            with mock.patch.object(imagery.fast, "gpu", return_value=None):
+                size = imagery.write_dds(path, rgb)
             data = Path(path).read_bytes()
             self.assertEqual(size, len(data))
             w, h, mips, fourcc, sizes = imagery.read_dds_info(data)
@@ -967,7 +971,9 @@ class NetworkImageryTest(unittest.TestCase):
 
     def test_open_ocean(self):
         rgb, used = self.render(30.0, -140.0, size=4096.0)
-        self.assertEqual(set(used), {"eox2016"})       # uniform deep blue from both EOX layers
+        # uniform deep blue from EOX: the 2016 layer where the 2023 one has no tile (it answered 404 out at sea until
+        # EOX filled it in, 2026: the test pinned the third party's coverage, not this code's choice)
+        self.assertTrue(set(used) and set(used) <= {"eox2023", "eox2016"}, used)
         self.assertLess(rgb.reshape(-1, 3).std(0).max(), 2)
         self.assertGreater(int(rgb[..., 2].mean()), int(rgb[..., 0].mean()))
 
