@@ -13,7 +13,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 
 IS_WIN = os.name == "nt"
 APP_SETTINGS = "app.json"       # in data_dir(): the launcher's own remembered choices
