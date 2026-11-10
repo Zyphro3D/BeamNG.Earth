@@ -49,7 +49,7 @@ def _digest(path):
     return hashlib.sha256(data).hexdigest()
 
 
-def build_place(lat, lon, tiles, blocks, cache_dir):
+def build_place(lat, lon, tiles, blocks, cache_dir, online=False):
     """{relative file path: sha256} of everything built at (lat, lon), and {job: error type} of the jobs that failed."""
     import blockworker
     import dem as demmod
@@ -66,7 +66,7 @@ def build_place(lat, lon, tiles, blocks, cache_dir):
             errors[name] = type(e).__name__
             print(f"{name}: {type(e).__name__}: {e}\n{traceback.format_exc()}", file=sys.stderr, flush=True)
     try:
-        blockworker.init(cache_dir, True, True, True, True, True, queue.Queue(), 30, True, True)
+        blockworker.init(cache_dir, not online, True, True, True, True, queue.Queue(), 30, True, True)
         zoom = demmod.zoom_for(lat, 2.5)
         for tx in range(-tiles, tiles + 1):
             for ty in range(-tiles, tiles + 1):
@@ -89,7 +89,7 @@ def build_place(lat, lon, tiles, blocks, cache_dir):
         shutil.rmtree(out_dir, ignore_errors=True)
 
 
-def run(places, tiles, blocks, cache_dir):
+def run(places, tiles, blocks, cache_dir, online=False):
     """Each place built in a process of its own: the server's in-memory caches (far tiles, plans) would otherwise
     skip a second build's files; and with the revisit cache off (BNE_REVISIT, the plans' too), so that everything is
     built from the map data again rather than read back from an earlier run."""
@@ -97,7 +97,7 @@ def run(places, tiles, blocks, cache_dir):
     for lat, lon in places:
         t0 = time.perf_counter()
         got = subprocess.run([sys.executable, os.path.abspath(__file__), "--one", f"{lat},{lon}", "--tiles", str(tiles),
-                              "--blocks", str(blocks), "--cache-dir", cache_dir],
+                              "--blocks", str(blocks), "--cache-dir", cache_dir] + (["--online"] if online else []),
                              stdout=subprocess.PIPE, check=True, env=dict(os.environ, BNE_REVISIT="off")).stdout
         files, errors = json.loads(got.decode().strip().splitlines()[-1])
         total = hashlib.sha256(json.dumps([files, errors], sort_keys=True).encode()).hexdigest()
@@ -135,14 +135,15 @@ def main():
     ap.add_argument("--out", help="write the fingerprints here (JSON)")
     ap.add_argument("--compare", help="a reference run's JSON: list the differences, exit 1 if any")
     ap.add_argument("--twice", action="store_true", help="build twice and compare (the build must be deterministic)")
+    ap.add_argument("--online", action="store_true", help="fetch what the cache lacks (a first run at new places)")
     ap.add_argument("--one", help=argparse.SUPPRESS)       # (internal: one place, its JSON on stdout)
     a = ap.parse_args()
     if a.one:
         lat, lon = (float(v) for v in a.one.split(","))
-        print(json.dumps(build_place(lat, lon, a.tiles, a.blocks, a.cache_dir)))
+        print(json.dumps(build_place(lat, lon, a.tiles, a.blocks, a.cache_dir, a.online)))
         return
     places = [tuple(float(v) for v in p.split(",")) for p in a.places.split(";") if p.strip()]
-    got = run(places, a.tiles, a.blocks, a.cache_dir)
+    got = run(places, a.tiles, a.blocks, a.cache_dir, a.online)
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(got, f, indent=1, sort_keys=True)
     ref = None
