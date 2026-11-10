@@ -750,7 +750,7 @@ ROUTE_NEAR_M = 40.0         # m: the player this near the route's line ...
 ROUTE_ALIGN = 0.7           # ... and heading along it (cos of the angle) is on it
 ROUTE_STEP_M = 16.0         # m between the route points the mod's follow rule is tried at
 ROUTE_AHEAD_S = 20.0        # s of driving along the route looked at, at most ...
-ROUTE_AHEAD_MAX_M = 3000.0  # ... and this far
+ROUTE_PREDICT_MAX_M = 3000.0    # ... and this far
 
 
 def predict_route_chain(xy, px, py, vx, vy, cx, cy, rule, n, at=None):
@@ -770,7 +770,7 @@ def predict_route_chain(xy, px, py, vx, vy, cx, cy, rule, n, at=None):
     seg = float(np.sqrt(ln2[j]))
     if dist[j] > ROUTE_NEAR_M or ((d[j, 0] * vx + d[j, 1] * vy) / (seg * sp)) < ROUTE_ALIGN:
         return None
-    reach = min(ROUTE_AHEAD_MAX_M, sp * ROUTE_AHEAD_S)
+    reach = min(ROUTE_PREDICT_MAX_M, sp * ROUTE_AHEAD_S)
     out, gone, x, y, k = [], 0.0, float(q[j, 0]), float(q[j, 1]), j
     while gone < reach and k < len(d) and len(out) < n:
         ux, uy = d[k, 0] / math.sqrt(ln2[k]), d[k, 1] / math.sqrt(ln2[k])

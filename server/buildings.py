@@ -2125,7 +2125,7 @@ def _clip_half(ring, p0, nrm, keep_ge):
 
 
 DECK_STAND_M = 2.0      # m: a deck this far over the ground under a footprint is what the building stands on ...
-DECK_LANE_M = 1.0       # ... and it is left out where it reaches this far inside the deck's road (its width / 2) ...
+DECK_INSIDE_M = 1.0     # ... and it is left out where it reaches this far inside the deck's road (its width / 2) ...
 DECK_REACH_M = 6.0      # m past the road's edge a footprint's centre still counts as on its deck
 DECK_SEA_M = 0.5        # ... only over ground this low: water, a beach (a building on dry land under a viaduct stays)
 
@@ -2135,7 +2135,7 @@ def on_deck(ring, decks, ground):
     width m)], the same frame) standing DECK_STAND_M or more over ground (m, its highest ground, DECK_SEA_M at most:
     over water), else None. A building
     on the old Sunshine Skyway span kept as a fishing pier (its bait shop) was raised from the seabed: its top 0.5 m
-    stood over the deck (2026-10-27). Over the lanes: a corner more than DECK_LANE_M inside the road's edge. Pure."""
+    stood over the deck (2026-10-27). Over the lanes: a corner more than DECK_INSIDE_M inside the road's edge. Pure."""
     r = np.asarray(ring, np.float64)[:, :2]
     c = r.mean(0)
     best = None
@@ -2160,7 +2160,7 @@ def on_deck(ring, decks, ground):
         return None
     _, zd, p, u, w = best
     off = (r - p) @ np.array([-u[1], u[0]])            # (signed: a footprint across the lanes has corners both sides)
-    inner = w / 2 - DECK_LANE_M
+    inner = w / 2 - DECK_INSIDE_M
     return bool(off.min() < inner and off.max() > -inner), zd
 
 

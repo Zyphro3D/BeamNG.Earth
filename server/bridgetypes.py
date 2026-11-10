@@ -1248,12 +1248,12 @@ def movable_members(parts, info, ground_fn, wet_fn=None, road_lines=()):
     return beams, piers
 
 
-HEADROOM_M = 5.0        # _clear_of_decks: a member this little over a carriageway is in the traffic's way
+CLEAR_OF_DECKS_M = 5.0  # _clear_of_decks: a member this little over a carriageway is in the traffic's way
 HEADROOM_STEP_M = 2.0
 
 
 def _clear_of_decks(beams, P):
-    """The members [(p, q, w, h, ...)] that keep HEADROOM_M over every deck of P (xy, z, width) they pass over: a stay
+    """The members [(p, q, w, h, ...)] that keep CLEAR_OF_DECKS_M over every deck of P (xy, z, width) they pass over: a stay
     whose fan reached over the other carriageway where the two part on a curve came down to car height across its
     lanes (an autodrive hit one at 49 mph on the Port Mann Bridge's south approach, GitHub #65). Members beside the
     decks or under them stay. Pure."""
@@ -1281,7 +1281,7 @@ def _clear_of_decks(beams, P):
         t = np.clip(((pts[:, None, :2] - a[None]) * ab[None]).sum(2) / l2[None], 0.0, 1.0)
         d = np.hypot(*(pts[:, None, :2] - (a[None] + t[..., None] * ab[None])).transpose(2, 0, 1))
         dz = pts[:, 2:3] - (ZA[near][None] + (ZB[near] - ZA[near])[None] * t)
-        over = (d < HW[near][None] - 0.3) & (dz > -0.5) & (dz < HEADROOM_M)
+        over = (d < HW[near][None] - 0.3) & (dz > -0.5) & (dz < CLEAR_OF_DECKS_M)
         if not over.any():
             out.append(b)
     return out
