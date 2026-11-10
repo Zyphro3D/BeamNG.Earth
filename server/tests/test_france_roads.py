@@ -24,7 +24,7 @@ import regionaltraffic
 import roadmesh
 import roads
 import build_french_traffic as assets
-from test_roads import features
+from test_roads import features, rules
 
 
 def spec(width=6., cls="secondary", **kw):
@@ -65,6 +65,20 @@ class WidthTest(FrenchTest):
         self.assertEqual(roads.lane_layout(ss[1])[1], 3)
         self.assertEqual(ss[2].width, 6.)      # two lanes of at least franceroads.LANE_MIN_M
         self.assertEqual(roads.lane_layout(ss[2])[1], 2)
+
+    def test_motorway_carriageway_french_width(self):
+        # 3.5 m lanes, a 3 m hard shoulder and a 1 m left strip: 14.5 m for three lanes, 11 m for two (the US default
+        # gave 18 and 14, #2374); a mapped width stands
+        f = french_features([[(0, 0), (300, 0)], [(0, 200), (300, 200)], [(0, 400), (300, 400)]], ["motorway"] * 3)
+        f.attrs["osm_lanes"] = np.array([3, None, 2], object)
+        f.rules["oneway"] = rules([(0, 1.0), (1, 1.0), (2, 1.0)], "float")
+        f.attrs["osm_width"] = np.array([None, "16", None], object)
+        ss = roads.road_specs(f)
+        self.assertAlmostEqual(ss[0].width, 14.5)
+        self.assertGreater(ss[1].width, 14.5, "a mapped width stands")
+        self.assertAlmostEqual(ss[2].width, 11.0)
+        with patch.object(fr, "ON", False):
+            self.assertAlmostEqual(roads.road_specs(f)[0].width, 18.0, msg="elsewhere the class's default")
 
     def test_measured_width_is_not_replaced_by_fallback(self):
         f = french_features([[(0, 0), (200, 0)]], ["tertiary"])

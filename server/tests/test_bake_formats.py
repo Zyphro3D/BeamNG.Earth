@@ -48,13 +48,16 @@ FR_FRAME = geodesy.EnuFrame(49.02127, 7.80967)      # (rural Alsace, tests/test_
 
 
 def french_fixture():
-    """fixture()'s roads in France (FR_FRAME): in town north of FR_FRAME's origin (fr_urban), in the country south."""
+    """fixture()'s roads in France (FR_FRAME), its motorways one-way: in town north of FR_FRAME's origin (fr_urban), in
+    the country south."""
     f = fixture()
     from test_roads import LAT, LON, M_LAT, M_LON      # (features() put them round LAT, LON at M_LAT, M_LON m/degree)
     e = (f.lonlat[:, 0] - LON) * M_LON
     n = (f.lonlat[:, 1] - LAT) * M_LAT
     la, lo, _ = FR_FRAME.enu_to_geodetic(e, n, 0.0)
     f.lonlat[:] = np.c_[lo, la]
+    from test_roads import rules
+    f.rules["oneway"] = rules([(2, 1.0), (4, 1.0)], "float")      # (its motorways one-way: the carriageways' rules)
     return f
 
 

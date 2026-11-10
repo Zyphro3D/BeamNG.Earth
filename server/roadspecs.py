@@ -1481,8 +1481,10 @@ def dual_carriageways(feats, specs, left_hand=False):
         nm = str(names[i] or "").strip()
         if nm and nm != "None":
             groups.setdefault((nm, sp.cls), []).append(i)
-        elif sp.oneway and not sp.link and sp.cls != "motorway":
-            groups.setdefault(("", sp.cls), []).append(i)   # (a numbered road has no name: Sweden's 2+1 roads, below)
+        elif sp.oneway and not sp.link:
+            # (a numbered road has no name: Sweden's 2+1 roads, below; and most motorways: a French city's ring road, two
+            # carriageways 18 and 14 m wide 10.4 m apart, overlapped 5.6 m, no room for its median barrier, #2374)
+            groups.setdefault(("", sp.cls), []).append(i)
     out = list(specs)
     for (group_name, _), idx in groups.items():
         if len(idx) < 2:
@@ -2428,6 +2430,11 @@ def _bridge_specs(feats, want="bridge"):
             # the user 2026-10-31: "bridge widths dont always match the road widths")
             w = sp.width if free[i] else carriageway(sp.cls, sp.kind, False, None, True, sp.lanes, link=sp.link)
             out[i] = sp._replace(oneway=True, dir=g.dir, median=g.median, width=dual_cap(g.median, w))
+        elif (g is not None and sp is not None and g.oneway and sp.oneway and not sp.link
+              and sp.cls in ("motorway", "trunk") and g.width < sp.width):
+            # a one-way motorway carriageway with no median read (a nameless one, capped against the other only where
+            # they overlap, or narrowed by the country's rules: franceroads): its deck as wide as its road
+            out[i] = sp._replace(width=g.width)
     return out
 
 
