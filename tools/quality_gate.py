@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Bounded foundation regression gate. Uses synthetic data, not a gameplay benchmark.
 
-Run after installing server/requirements.txt, lupa and scipy and building tools/build_native.py.
-The existing full server suite remains available through tools/run_tests.py.
+Run after installing server/requirements-ci.lock and building tools/build_native.py. Every server test module runs but
+the few in SLOW; the tests on real map data skip themselves (server/tests/realdata.py). The full server suite, SLOW
+included, is tools/run_tests.py.
 """
 import argparse
 import os
@@ -11,31 +12,34 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = (
-    "test_protocol", "test_protocol_agreement", "test_geodesy", "test_cache",
-    "test_budget", "test_install", "test_updates", "test_selfupdate", "test_bmplaunch",
-    "test_launcher_linux", "test_launcher_lifecycle", "test_process_lifecycle",
-    "test_connection_cleanup", "test_initial_loading", "test_tile_ownership", "test_matslots", "test_stream_reconnect",
-    "test_netfetch", "test_mapdata", "test_rangeread", "test_grading", "test_roadz", "test_roadz_inputs",
-    "test_road_seams", "test_roadgeo", "test_fast", "test_restart",
-    "test_revisit", "test_plancache", "test_chunkcache", "test_pools",
-    "test_prefetch_chain", "test_demand", "test_roadwidth", "test_roadcorners",
-    "test_sketchfab_assets", "test_subsea_tunnels", "test_tunnels",
-    "test_worldbundle", "test_world_cache", "test_peerwork",
-    "test_host_package", "test_carriageway_solver",
-    "test_portugal_imagery",
-)
+# Every server test module runs, but these: too long for the gate's budget (each several minutes alone), or a drive
+# that outlasts it; tools/run_tests.py runs them, as it runs everything. A new test module is in the gate by default.
+SLOW = {
+    "test_otto_bridge",         # ~13 min: real bridge profiles end to end
+    "test_e2e",                 # ~6 min: a whole session through the launcher
+    "test_credits",             # ~6 min: sessions with credits throttling
+    "test_colormatch",          # ~5 min: imagery colour fields over many tiles
+    "test_integration_drive",   # drives for 15 min and more
+}
+
+
+def modules():
+    """The server's test modules the gate runs: all of server/tests/test_*.py but SLOW."""
+    found = sorted(p.stem for p in (ROOT / "server" / "tests").glob("test_*.py"))
+    return [m for m in found if m not in SLOW]
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--par", type=int, default=3)
-    ap.add_argument("--timeout", type=int, default=600, help="seconds per Python test module")
+    ap.add_argument("--timeout", type=int, default=900, help="seconds per Python test module")
     args = ap.parse_args()
     if args.par < 1 or args.timeout < 1:
         ap.error("--par and --timeout must be positive")
     # Optional cached-world tests must not silently change the CI workload on a developer's machine.
-    os.environ["BNGE_ROADGEO_REAL"] = "0"
+    # (the tests on real map data off whatever the environment says: they download, server/tests/realdata.py)
+    for switch in ("BNGE_REAL_TESTS", "BNGE_FARGEO_REAL", "BNGE_ROADGEO_REAL", "BNGE_GAS_REAL", "BNGE_GRAVITY_REAL"):
+        os.environ[switch] = "0"
     # Fail before tests instead of accepting skipped native/data-provider coverage.
     sys.path.insert(0, str(ROOT / "server"))
     import fast
@@ -48,7 +52,7 @@ def main():
     print(f"Python {sys.version.split()[0]}, earthfast {fast._ef.VERSION}, "
           f"DuckDB {duckdb.__version__}, fsspec {fsspec.__version__}", flush=True)
     commands = [
-        [sys.executable, "tools/run_tests.py", *MODULES, "--par", str(args.par),
+        [sys.executable, "tools/run_tests.py", *modules(), "--par", str(args.par),
          "--timeout", str(args.timeout), "--logs", "build/quality-tests"],
         [sys.executable, "tools/run_lua_tests.py"],
         ["node", "--test", "mod/tests/test_mapmath.mjs", "server/tests/test_mapmath.mjs"],
