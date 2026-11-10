@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dem as demmod  # noqa: E402
 import earthd  # noqa: E402
+from patching import patch_all  # noqa: E402
 import farfield as ff  # noqa: E402
 import gravity  # noqa: E402
 import netfetch as nf  # noqa: E402
@@ -994,7 +995,7 @@ class OfflineTest(unittest.TestCase):
         got = []
         with mock.patch.object(sys, "argv", ["earthd.py", "--offline", "--nice", "0"]), \
                 mock.patch.object(earthd.logging, "basicConfig"), \
-                mock.patch.object(earthd, "main_async", lambda args: got.append(args)), \
+                patch_all(earthd, "main_async", lambda args: got.append(args)), \
                 mock.patch.object(earthd.asyncio, "run", lambda coro: None):
             earthd.main()
             sys.argv[1:] = ["--nice", "0"]

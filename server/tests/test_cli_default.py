@@ -28,6 +28,7 @@ from pathlib import Path
 from unittest import mock
 
 import numpy as np
+from patching import patch_all  # noqa: E402
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "m1_cli_golden.json"
 LAT0, LON0 = 36.5785, -118.2923
@@ -176,7 +177,7 @@ def compute(server_dir):
             if getattr(s, "horizon_pool", None) is not None:
                 s.horizon_pool.shutdown(wait=True)
 
-    with tempfile.TemporaryDirectory() as tmp, mock.patch.object(earthd, "time", clock):
+    with tempfile.TemporaryDirectory() as tmp, patch_all(earthd, "time", clock):
         asyncio.run(run(tmp))
     return out
 

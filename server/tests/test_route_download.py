@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import earthd  # noqa: E402
+import earthbase  # noqa: E402
 import routeahead  # noqa: E402
 
 
@@ -125,7 +126,7 @@ class RouteDownloadTest(unittest.TestCase):
         """The corridor's high-resolution photo tiles are fetched after the heights and map cells, counted in the bar;
         a deferred one asked again; cached ones skipped (GitHub #755: a pre-cached drive still stopped to download)."""
         img = FakeImagery()
-        keys = img.route_keys(*zip(*routeahead.arc_length_points(ROUTE, earthd.ROUTE_AHEAD_MAX_M)), 0, 1)
+        keys = img.route_keys(*zip(*routeahead.arc_length_points(ROUTE, earthbase.ROUTE_AHEAD_MAX_M)), 0, 1)
         img.cached.add(keys[0])
         img.defer.add(keys[1])
         dem, mapdata = FakeDem(), FakeMapdata()
@@ -157,7 +158,7 @@ class RouteDownloadTest(unittest.TestCase):
         dem, mapdata = FakeDem(), FakeMapdata()
         # a dry run first, to know every key this route needs, then mark them all cached
         c, _ = connection(dem, mapdata)
-        pts = routeahead.arc_length_points(ROUTE, earthd.ROUTE_AHEAD_MAX_M)
+        pts = routeahead.arc_length_points(ROUTE, earthbase.ROUTE_AHEAD_MAX_M)
         reach = 1024 * 2.0 / 2 + earthd.AHEAD_MARGIN_M
         dem_keys, cell_layer_pairs = routeahead.need(dem, mapdata, pts, reach, 15, earthd.AHEAD_LAYERS)
         dem.cached.update(dem_keys)

@@ -1,6 +1,6 @@
 """Test helper: patch a name of a split module everywhere it is bound.
 
-roads.py, grading.py and buildings.py were split into layers (roadbase, roadspecs ..., gradbase, gradchains ...,
+roads.py, grading.py, buildings.py and earthd.py were split into layers (roadbase, roadspecs ..., gradbase, gradchains ...,
 bldbase ...): a setting defined in a base module is imported by name into the modules that read it, so patching it on
 one module leaves the others' copies as they were. patch_all patches it on every loaded module of the family that holds
 the same object, and puts them all back after. Used like mock.patch.object: a with block, a decorator, or
@@ -13,7 +13,8 @@ import contextlib
 import sys
 from unittest import mock
 
-FAMILIES = {"roads": ("road",), "grading": ("grad",), "buildings": ("bld", "buildings")}
+FAMILIES = {"roads": ("road",), "grading": ("grad",), "buildings": ("bld", "buildings"),
+            "earthd": ("earth", "srv", "conn")}
 
 
 class patch_all(contextlib.ContextDecorator):    # noqa: N801 (named like the mock.patch it stands for)

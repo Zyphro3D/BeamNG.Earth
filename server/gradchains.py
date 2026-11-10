@@ -4,318 +4,35 @@ the stronger of two answers, observed lifts and the coarse elevation's easing.
 import numpy as np
 import mapcells
 import roads as roadsmod
-from gradbase import (  # (re-exported: callers use grading.<name>)
-    ABUT_FAR_M,  # noqa: F401
-    ABUT_FILL_ON,  # noqa: F401
-    ABUT_MAX_M,  # noqa: F401
-    ABUT_MIN_M,  # noqa: F401
-    ABUT_NEAR_M,  # noqa: F401
-    ABUT_STEEP,  # noqa: F401
-    ABUT_UNDER_GRADE,  # noqa: F401
-    APPROACH_CAP_GRADE,  # noqa: F401
-    APPROACH_CELL_M,  # noqa: F401
-    APPROACH_FLAT_M,  # noqa: F401
-    APPROACH_GAP_M,  # noqa: F401
-    APPROACH_GRADE,  # noqa: F401
-    APPROACH_LIDAR_ON,  # noqa: F401
-    APPROACH_MARGIN_M,  # noqa: F401
-    APPROACH_MAX_LIFT,  # noqa: F401
-    APPROACH_MAX_RUN,  # noqa: F401
-    APPROACH_MIN_CROSS_M,  # noqa: F401
-    APPROACH_MIN_LIFT,  # noqa: F401
-    APPROACH_MIN_RUN,  # noqa: F401
-    APPROACH_ON,  # noqa: F401
-    APPROACH_SKIP,  # noqa: F401
-    APPROACH_TOUCH_M,  # noqa: F401
-    BANK_DESIGN,  # noqa: F401
-    BANK_E_MAX,  # noqa: F401
-    BANK_FADE_M,  # noqa: F401
-    BANK_LINK,  # noqa: F401
-    BANK_ON,  # noqa: F401
-    BANK_RUNOFF_M,  # noqa: F401
-    BANK_SIGMA_M,  # noqa: F401
-    BANK_STENCIL_M,  # noqa: F401
-    BLEND_R,  # noqa: F401
-    BUCKET,  # noqa: F401
-    CHAIN_JOIN_M,  # noqa: F401
-    CHAIN_LOOK_M,  # noqa: F401
-    CHAIN_ON,  # noqa: F401
-    CHAIN_TURN_DEG,  # noqa: F401
-    CLASS_SIGMA_M,  # noqa: F401
-    CLIP_MARGIN_M,  # noqa: F401
-    COARSE_EASE_ON,  # noqa: F401
-    COARSE_MAX_SLOPE,  # noqa: F401
-    COARSE_MAX_STEP_M,  # noqa: F401
-    COARSE_REACH_M,  # noqa: F401
-    COARSE_SIDE_M,  # noqa: F401
-    COARSE_SIGMA_M,  # noqa: F401
-    CORE_FADE_M,  # noqa: F401
-    CORNERS_ON,  # noqa: F401
-    CW_CLUSTER_M,  # noqa: F401
-    CW_HEADROOM_M,  # noqa: F401
-    CW_MARGIN_M,  # noqa: F401
-    CW_MAX_DIG_M,  # noqa: F401
-    CW_MAX_M,  # noqa: F401
-    CW_MIN_SIN,  # noqa: F401
-    CW_NONFAM_HI,  # noqa: F401
-    CW_ON,  # noqa: F401
-    CW_OVERLAP_MAX_M,  # noqa: F401
-    CW_OVERLAP_STEP_M,  # noqa: F401
-    CW_STACK_SIN,  # noqa: F401
-    CW_UNDER_M,  # noqa: F401
-    DIRT_BANK_EDGE_M,  # noqa: F401
-    DIRT_BANK_M,  # noqa: F401
-    DIRT_BANK_WAVES,  # noqa: F401
-    DIRT_BASE_M,  # noqa: F401
-    DIRT_DEPTH_MAX_M,  # noqa: F401
-    DIRT_MAJOR_SHARE,  # noqa: F401
-    DIRT_MEDIAN_M,  # noqa: F401
-    DIRT_PATCH_D_M,  # noqa: F401
-    DIRT_PATCH_EVERY_M,  # noqa: F401
-    DIRT_PATCH_W_M,  # noqa: F401
-    DIRT_PIT_D_M,  # noqa: F401
-    DIRT_PIT_EVERY_M,  # noqa: F401
-    DIRT_PIT_W_M,  # noqa: F401
-    DIRT_POTHOLE_D_M,  # noqa: F401
-    DIRT_POTHOLE_EVERY_M,  # noqa: F401
-    DIRT_POTHOLE_W_M,  # noqa: F401
-    DIRT_RISE_MAX_M,  # noqa: F401
-    DIRT_ROUGH,  # noqa: F401
-    DIRT_SIGMA_COARSE_M,  # noqa: F401
-    DIRT_SIGMA_M,  # noqa: F401
-    DIRT_SIGMA_MINOR_M,  # noqa: F401
-    DIRT_SOFT_CLASSES,  # noqa: F401
-    DIRT_STEP_MAX_M,  # noqa: F401
-    DIRT_TAPER_M,  # noqa: F401
-    DIRT_TRACK_SHARE,  # noqa: F401
-    DIRT_TRACK_WAVE_SHARE,  # noqa: F401
-    DIRT_UNDULATION_M,  # noqa: F401
-    DIRT_UNDULATION_WAVES,  # noqa: F401
-    DIRT_VERTEX_STEP,  # noqa: F401
-    DUPE_XY_M,  # noqa: F401
-    ENU_CACHE_MAX,  # noqa: F401
-    EXTRAP_M,  # noqa: F401
-    HAIRPIN_FOLD_RATIO,  # noqa: F401
-    HAIRPIN_PAD_M,  # noqa: F401
-    HAIRPIN_SPAN_M,  # noqa: F401
-    HAIRPIN_TURN_DEG,  # noqa: F401
-    JUNCTION_EASE_GRADE,  # noqa: F401
-    JUNCTION_EASE_MINOR_GRADE,  # noqa: F401
-    JUNCTION_EASE_MINOR_MIN_M,  # noqa: F401
-    JUNCTION_EASE_MIN_M,  # noqa: F401
-    JUNCTION_END_M,  # noqa: F401
-    JUNCTION_HOLD_GRADE,  # noqa: F401
-    JUNCTION_HOLD_PAD_M,  # noqa: F401
-    JUNCTION_MAX_M,  # noqa: F401
-    JUNCTION_RANK,  # noqa: F401
-    JUNCTION_REACH_M,  # noqa: F401
-    JUNCTION_SNAP_ON,  # noqa: F401
-    JUNCTION_TAPER_M,  # noqa: F401
-    LEG_RID_SHIFT,  # noqa: F401
-    LINK_TURN_DEG,  # noqa: F401
-    LL_GRID_M,  # noqa: F401
-    LONG_PART_M,  # noqa: F401
-    MAJOR_CLASSES,  # noqa: F401
-    MAPPED_MAX,  # noqa: F401
-    MEASURED_SIDE_RUN,  # noqa: F401
-    MEDIAN_M,  # noqa: F401
-    MOUNTAIN_SHOULDER_M,  # noqa: F401
-    MOUTH_PLAN_M,  # noqa: F401
-    NEIGHBOUR_FULL_M,  # noqa: F401
-    NEIGHBOUR_GAP_M,  # noqa: F401
-    NEIGHBOUR_MAX_M,  # noqa: F401
-    NEIGHBOUR_ON,  # noqa: F401
-    NEIGHBOUR_PARALLEL_DEG,  # noqa: F401
-    NEIGHBOUR_SMOOTH_M,  # noqa: F401
-    NEIGHBOUR_TREND_SIGMA_M,  # noqa: F401
-    OBS_END_M,  # noqa: F401
-    OBS_HALF_M,  # noqa: F401
-    OVER_TUNNEL_SMALL_M,  # noqa: F401
-    PAD_BANK_TAPER_M,  # noqa: F401
-    PAD_CLASS_W,  # noqa: F401
-    PAD_CROSS_MAX_M,  # noqa: F401
-    PAD_FACE_DEG,  # noqa: F401
-    PAD_FIT_POW,  # noqa: F401
-    PAD_FLAT_W,  # noqa: F401
-    PAD_GAMMA,  # noqa: F401
-    PAD_GRADE_M,  # noqa: F401
-    PAD_GRID_M,  # noqa: F401
-    PAD_LANDING_M,  # noqa: F401
-    PAD_LANDING_MINOR_M,  # noqa: F401
-    PAD_LANDING_MIN_W,  # noqa: F401
-    PAD_LINK_F,  # noqa: F401
-    PAD_MAX_TILT,  # noqa: F401
-    PAD_MIN,  # noqa: F401
-    PAD_MIN_DELTA_M,  # noqa: F401
-    PAD_MIN_PART_M,  # noqa: F401
-    PAD_MIN_SIN,  # noqa: F401
-    PAD_ON,  # noqa: F401
-    PAD_OTHER_W,  # noqa: F401
-    PAD_REACH_F,  # noqa: F401
-    PAD_RIDGE,  # noqa: F401
-    PAD_SINK_M,  # noqa: F401
-    PAD_STEM_F,  # noqa: F401
-    PAD_TAPERS_M,  # noqa: F401
-    PAD_UNBUILT_F,  # noqa: F401
-    PLANNERS_KEPT,  # noqa: F401
-    PLAN_SETS_MAX,  # noqa: F401
-    PLAN_SLOW_S,  # noqa: F401
-    PLAN_THREADS,  # noqa: F401
-    PROFILE_STEP,  # noqa: F401
-    PROFILE_ZOOM,  # noqa: F401
-    Plan,  # noqa: F401
-    PlanPack,  # noqa: F401
-    RACEWAY_ACROSS_M,  # noqa: F401
-    RACEWAY_EXTEND,  # noqa: F401
-    RACEWAY_SIGMA_M,  # noqa: F401
-    RACEWAY_SMOOTH_ON,  # noqa: F401
-    RACEWAY_STEP_M,  # noqa: F401
-    RAIL_GRADE_ON,  # noqa: F401
-    RAIL_TAG,  # noqa: F401
-    RETRY_S,  # noqa: F401
-    RING_LEVEL_ON,  # noqa: F401
-    ROAD_LIFT,  # noqa: F401
-    SEP_FROM_M,  # noqa: F401
-    SEP_FULL_M,  # noqa: F401
-    SEP_ON,  # noqa: F401
-    SHARP_GRADE,  # noqa: F401
-    SHARP_LONE_MIN_M,  # noqa: F401
-    SHARP_MIN_M,  # noqa: F401
-    SHARP_ON,  # noqa: F401
-    SHARP_REACH_M,  # noqa: F401
-    SHARP_RUN_N,  # noqa: F401
-    SHARP_STEP_M,  # noqa: F401
-    SHOULDER_M,  # noqa: F401
-    SIDEWALK_MARGIN_M,  # noqa: F401
-    SIDE_FADE_M,  # noqa: F401
-    SIGMA_M,  # noqa: F401
-    SIGMA_MAJOR_M,  # noqa: F401
-    SLOPE_RUN,  # noqa: F401
-    SPREAD_CELLS,  # noqa: F401
-    STEEP_RUN,  # noqa: F401
-    STEEP_T_MIN,  # noqa: F401
-    TERRAIN_BUMPS_ON,  # noqa: F401
-    TERRAIN_ROUGH_M,  # noqa: F401
-    TERRAIN_ROUGH_WAVES,  # noqa: F401
-    TUNNEL_KEEP_IN_M,  # noqa: F401
-    TUNNEL_KEEP_M,  # noqa: F401
-    TUNNEL_TAG,  # noqa: F401
-    TWIN_M,  # noqa: F401
-    TWIN_ON,  # noqa: F401
-    TWIN_SHARE,  # noqa: F401
-    T_MAX,  # noqa: F401
-    T_MIN,  # noqa: F401
-    UNDER_ANY_ON,  # noqa: F401
-    UNDER_CHAIN_JOIN_M,  # noqa: F401
-    UNDER_CHAIN_MAX_M,  # noqa: F401
-    UNDER_CHAIN_ON,  # noqa: F401
-    UNDER_CLEAR_M,  # noqa: F401
-    UNDER_DECK_MAX_M,  # noqa: F401
-    UNDER_DECK_ON,  # noqa: F401
-    UNDER_DECK_PAD_M,  # noqa: F401
-    UNDER_DECK_SIDE_M,  # noqa: F401
-    UNDER_FLAT_M,  # noqa: F401
-    UNDER_GRADE,  # noqa: F401
-    UNDER_JOINT_FADE_M,  # noqa: F401
-    UNDER_JOINT_FLAT_M,  # noqa: F401
-    UNDER_LIDAR_DECK_M,  # noqa: F401
-    UNDER_LIDAR_ON,  # noqa: F401
-    UNDER_MAX_BRIDGE_M,  # noqa: F401
-    UNDER_MAX_DROP_M,  # noqa: F401
-    UNDER_MAX_GRADE,  # noqa: F401
-    UNDER_NEAR_M,  # noqa: F401
-    UNDER_NODE_M,  # noqa: F401
-    UNDER_ON,  # noqa: F401
-    UNDER_POLDER_M,  # noqa: F401
-    UNDER_REACH_M,  # noqa: F401
-    UNDER_RUN_MIN_M,  # noqa: F401
-    UNDER_RUN_ON,  # noqa: F401
-    UNDER_SEA_M,  # noqa: F401
-    UNDER_SEA_ON,  # noqa: F401
-    UNDER_STUB_M,  # noqa: F401
-    UNGRADED,  # noqa: F401
-    UNGRADED_MARGIN_M,  # noqa: F401
-    VERSION,  # noqa: F401
-    VERTEX_STEP,  # noqa: F401
-    WALK_SPAN_CLASSES,  # noqa: F401
-    WALK_SPAN_HALF_M,  # noqa: F401
-    WALL_AHEAD_M,  # noqa: F401
-    WALL_CUT_M,  # noqa: F401
-    WALL_FLAT_M,  # noqa: F401
-    WALL_MAX_H_CITY_M,  # noqa: F401
-    WALL_MAX_H_M,  # noqa: F401
-    WALL_T_M,  # noqa: F401
-    WATER_CURVE_M,  # noqa: F401
-    WATER_LIFT_ON,  # noqa: F401
-    WATER_MAX_LIFT,  # noqa: F401
-    XS_FIXED_GRADE,  # noqa: F401
-    XS_FLOOR_M,  # noqa: F401
-    XS_ON,  # noqa: F401
-    YIELD_RAMP_M,  # noqa: F401
-    _Decks,  # noqa: F401
-    _Junctions,  # noqa: F401
-    _STENCILS,  # noqa: F401
-    _UNSET,  # noqa: F401
-    _add_cuts,  # noqa: F401
-    _arcs,  # noqa: F401
-    _cw_half,  # noqa: F401
-    _cw_level,  # noqa: F401
-    _dedupe_plan,  # noqa: F401
-    _hash01,  # noqa: F401
-    _hold_junction_corridors,  # noqa: F401
-    _is_link,  # noqa: F401
-    _merge_span_chains,  # noqa: F401
-    _nearest_on,  # noqa: F401
-    _never_raised,  # noqa: F401
-    _normals,  # noqa: F401
-    _pad_nodes,  # noqa: F401
-    _plan,  # noqa: F401
-    _point_along,  # noqa: F401
-    _road_fids,  # noqa: F401
-    _seg_dist,  # noqa: F401
-    _stencil,  # noqa: F401
-    _twin_trimmed,  # noqa: F401
-    approach_add,  # noqa: F401
-    bank,  # noqa: F401
-    bend_zone,  # noqa: F401
-    bridge_chain,  # noqa: F401
-    bridge_chain_ends_free,  # noqa: F401
-    bridge_lifts,  # noqa: F401
-    clip_polyline,  # noqa: F401
-    couple_neighbours,  # noqa: F401
-    deck_capped,  # noqa: F401
-    dirt_bank,  # noqa: F401
-    dirt_bumps,  # noqa: F401
-    dirt_taper,  # noqa: F401
-    ease_length,  # noqa: F401
-    enu_to_ll_dense,  # noqa: F401
-    field_heights,  # noqa: F401
-    fill_abutment,  # noqa: F401
-    grade_points,  # noqa: F401
-    hairpin_cores,  # noqa: F401
-    junction_pads,  # noqa: F401
-    log,  # noqa: F401
-    median_profile,  # noqa: F401
-    pad_authority,  # noqa: F401
-    pad_class_w,  # noqa: F401
-    pad_plane,  # noqa: F401
-    plan_road,  # noqa: F401
-    plan_roads,  # noqa: F401
-    profile_sigma,  # noqa: F401
-    raceway_ground,  # noqa: F401
-    raceway_surface,  # noqa: F401
-    resample,  # noqa: F401
-    road_id,  # noqa: F401
-    road_rank,  # noqa: F401
-    set_widen,  # noqa: F401
-    shoulder,  # noqa: F401
-    smooth_profile,  # noqa: F401
-    snap_junctions,  # noqa: F401
-    street_runs,  # noqa: F401
-    terrain_bumps,  # noqa: F401
-    under_dip,  # noqa: F401
-    underpass_offsets,  # noqa: F401
-    wall_max_h,  # noqa: F401
+from gradbase import (
+    APPROACH_LIDAR_ON,
+    APPROACH_TOUCH_M,
+    BANK_DESIGN,
+    BANK_ON,
+    BANK_RUNOFF_M,
+    BANK_SIGMA_M,
+    BANK_STENCIL_M,
+    CHAIN_JOIN_M,
+    CHAIN_LOOK_M,
+    CHAIN_TURN_DEG,
+    CLIP_MARGIN_M,
+    COARSE_EASE_ON,
+    COARSE_MAX_SLOPE,
+    COARSE_MAX_STEP_M,
+    COARSE_REACH_M,
+    COARSE_SIGMA_M,
+    LONG_PART_M,
+    OBS_END_M,
+    OBS_HALF_M,
+    PROFILE_STEP,
+    UNGRADED,
+    _point_along,
+    clip_polyline,
+    log,
+    plan_roads,
+    profile_sigma,
+    road_id,
+    road_rank,
 )
 
 

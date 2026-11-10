@@ -28,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cdae  # noqa: E402
 import earthd  # noqa: E402
+from patching import patch_all  # noqa: E402
+import earthbase  # noqa: E402
 import farfield as ff  # noqa: E402
 import geodesy  # noqa: E402
 import heightmap  # noqa: E402
@@ -512,7 +514,7 @@ class ServerTest(ServerHarness):
             return self.conn().focus
         self.assertEqual(asyncio.run_coroutine_threadsafe(commit(), self.loop).result(10), (12288.0, -4096.0))
 
-    @mock.patch.object(earthd, "HM_CACHE", 6)     # (the eviction rule, at the cache size it was written for)
+    @patch_all(earthd, "HM_CACHE", 6)     # (the eviction rule, at the cache size it was written for)
     def test_fresh_terrain_survives_eviction_after_rebase(self):
         """Regression (integration drive, 2026-10-10): after a rebase the protected heightmaps (the
         last three committed, the last two sent, every recent anchor's first terrain) outnumbered
@@ -552,7 +554,7 @@ class ServerTest(ServerHarness):
         def make(*a, **kw):
             time.sleep(0.5)
             return slow(*a, **kw)
-        with mock.patch.object(earthd, "TERRAIN_STUCK_S", 0.2), mock.patch.object(self.server, "make_heightmap", make), \
+        with patch_all(earthd, "TERRAIN_STUCK_S", 0.2), mock.patch.object(self.server, "make_heightmap", make), \
                 self.assertLogs("earthd", "WARNING") as logs:
             c.send({"type": "prepare_terrain", "requestId": 3, "anchorId": aid, "cx": 512, "cy": 0})
             tr, _ = c.until(lambda m: m["type"] == "terrain_ready", timeout=60)
@@ -615,7 +617,7 @@ class ServerTest(ServerHarness):
                    and not os.path.exists(os.path.join(self.server.out_dir, os.path.basename(m["shape"])))]
         self.assertEqual(missing, [])
 
-    @mock.patch.object(earthd, "HM_CACHE", 6)     # (the eviction rule, at the cache size it was written for)
+    @patch_all(earthd, "HM_CACHE", 6)     # (the eviction rule, at the cache size it was written for)
     def test_heightmap_cleanup_and_errors(self):
         c = self.c
         self.hello()
@@ -1233,7 +1235,7 @@ class GeoFilesTest(unittest.TestCase):
         self.assertEqual(s.geo_files("veg", "g15_2_3"), [])
 
     def setUp(self):
-        p = mock.patch.object(earthd, "GEO_LIST_BATCH_S", 0.01)      # (the tests' short graces)
+        p = patch_all(earthd, "GEO_LIST_BATCH_S", 0.01)      # (the tests' short graces)
         p.start()
         self.addCleanup(p.stop)
 
@@ -1454,7 +1456,7 @@ class MachineProfileTest(unittest.TestCase):
 
     def test_small(self):
         import budget
-        old = earthd.FAST_BASE_V
+        old = earthbase.FAST_BASE_V      # (main / machine_profile set it there)
         try:
             a = self._args()
             with mock.patch.dict(os.environ, {}, clear=False):
@@ -1464,9 +1466,9 @@ class MachineProfileTest(unittest.TestCase):
             self.assertEqual(a.workers, budget.SMALL_FAR_WORKERS)
             if budget.SMALL_ANALYSES_OFF:
                 self.assertEqual((a.deshadow, a.colormatch), ("off", "off"))
-            self.assertEqual(earthd.FAST_BASE_V, earthd.SMALL_FAST_BASE_V)
+            self.assertEqual(earthbase.FAST_BASE_V, earthd.SMALL_FAST_BASE_V)
         finally:
-            earthd.FAST_BASE_V = old
+            earthbase.FAST_BASE_V = old
 
     def test_desktop(self):
         import budget

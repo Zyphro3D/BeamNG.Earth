@@ -15,6 +15,8 @@ from PIL import Image
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import bc7  # noqa: E402
 import earthd  # noqa: E402
+import earthbase  # noqa: E402
+from patching import patch_all  # noqa: E402
 EXT = earthd.terraincache.PHOTO_EXT  # noqa: E305 (the base photos: .jpg, terraincache.stored_photo)
 import terraincache  # noqa: E402
 import farfield as ff  # noqa: E402
@@ -74,7 +76,7 @@ class DetailServerTest(ServerHarness):
         self.assertTrue(under)
         self.assertEqual({t.level for t in under}, {-1}, "only L-1 tiles under the drawn block")
         # and in a DETAIL_RING_M ring around it (the block's own 2 m lattice meets its neighbours)
-        g = earthd.DETAIL_RING_M
+        g = earthbase.DETAIL_RING_M
         ring = (block[0] - g, block[1] - g, block[2] + g, block[3] + g)
         near = [ff.tile_of(k) for k in keys if ff.overlaps(ff.tile_of(k).bbox, ring)]
         self.assertEqual({t.level for t in near}, {-1}, "only L-1 tiles in the ring around the block")
@@ -107,12 +109,8 @@ class DetailServerTest(ServerHarness):
         # evicted with its heightmap
         key = (aid, 128.0, -128.0)
         self.server.hm_committed.clear(); self.server.hm_sent.clear()
-        old_cache = earthd.HM_CACHE
-        earthd.HM_CACHE = 0
-        try:
+        with patch_all(earthd, "HM_CACHE", 0):
             self.server.evict_heightmaps()
-        finally:
-            earthd.HM_CACHE = old_cache
         self.assertFalse(os.path.exists(path), "base photo removed with its heightmap")
         self.assertFalse(os.path.exists(cache), "and its terrain cache entry")
 

@@ -41,6 +41,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import earthd  # noqa: E402
+from patching import patch_all  # noqa: E402
 import geodesy  # noqa: E402
 import modsim  # noqa: E402
 import test_server  # noqa: E402
@@ -91,10 +92,9 @@ class SessionAdoptionTest(unittest.TestCase):
         self.stale = make_session(self.root, "20260101-000000-aaaa", earthd.SESSION_STALE_S + 600)
         self.a = make_session(self.root, "20261010-120000-bbbb", 300)
         self.b = make_session(self.root, "20261010-120500-cccc", 120)
-        running = earthd.game_running
-        self._real_game_running = running
-        earthd.game_running = lambda: True          # (a game runs: the younger sessions wait for its claim)
-        self.addCleanup(setattr, earthd, "game_running", running)
+        self._real_game_running = earthd.game_running
+        # (a game runs: the younger sessions wait for its claim; in every module of the split server, restored after)
+        self.enterContext(patch_all(earthd, "game_running", lambda: True))
         self.s = earthd.Server(self.root, os.path.join(self.root, "cache"), imagery=None)
         self.addCleanup(self.s.tile_pool.shutdown)
         self.addCleanup(self.s.hm_pool.shutdown)
@@ -234,7 +234,7 @@ class SessionAdoptionTest(unittest.TestCase):
         """No game running at the start (the launcher starts the server first): every earlier session goes now, moved
         out of the user folder at once (no file watcher sees it), deleted by the trash thread; none kept as an orphan."""
         a = make_session(self.root, "20261011-080000-dddd", 300)
-        earthd.game_running = lambda: False
+        self.enterContext(patch_all(earthd, "game_running", lambda: False))
         s = earthd.Server(self.root, os.path.join(self.root, "cache"), imagery=None)
         self.addCleanup(s.tile_pool.shutdown)
         self.addCleanup(s.hm_pool.shutdown)
@@ -339,9 +339,7 @@ class RestartDriveTest(unittest.TestCase):
     def setUp(self):
         # (the game outlives the killed server: a game runs whatever this machine runs, so the dead session waits for
         # its claim; with no game the start moves earlier sessions out at once, _scan_sessions)
-        running = earthd.game_running
-        earthd.game_running = lambda: True
-        self.addCleanup(setattr, earthd, "game_running", running)
+        self.enterContext(patch_all(earthd, "game_running", lambda: True))
 
     def test_kill_and_restart_mid_drive(self):
         """The mod's anchor 2: none of the new server's anchor ids is the mod's until it rebases."""
@@ -666,7 +664,7 @@ class LeakedPacksTest(unittest.TestCase):
 
     def test_a_photo_goes_with_its_pack(self):
         import terraincache
-        with tempfile.TemporaryDirectory() as root, mock.patch.object(earthd, "game_running", lambda: True):
+        with tempfile.TemporaryDirectory() as root, patch_all(earthd, "game_running", lambda: True):
             s = self.server(root)
             name = "hm_1_0_0_base_q.png"
             open(os.path.join(s.out_dir, name), "w").close()
@@ -684,8 +682,8 @@ class LeakedPacksTest(unittest.TestCase):
         # a refreshed block's old photo (its stand-in) may still be on screen (the refresh deferred at speed): its
         # pack stays until the block is evicted (deleted at the refresh, the game packed it again: ~0.75 s frames)
         import terraincache
-        with tempfile.TemporaryDirectory() as root, mock.patch.object(earthd, "game_running", lambda: True), \
-                mock.patch.object(earthd, "HM_CACHE", 0):
+        with tempfile.TemporaryDirectory() as root, patch_all(earthd, "game_running", lambda: True), \
+                patch_all(earthd, "HM_CACHE", 0):
             s = self.server(root)
             key = (1, 0.0, 0.0)
             names = [s.base_name(key), s.quick_base_name(key), s.base_name(key, 2)]
@@ -703,7 +701,7 @@ class LeakedPacksTest(unittest.TestCase):
 
     def test_leaked_packs_wiped_once_with_no_game(self):
         import terraincache
-        with tempfile.TemporaryDirectory() as root, mock.patch.object(earthd, "game_running", lambda: False), \
+        with tempfile.TemporaryDirectory() as root, patch_all(earthd, "game_running", lambda: False), \
                 mock.patch.object(earthd.Server, "PACK_WIPE_MIN_BYTES", 10):
             cdir = terraincache.cache_dir(root)
             os.makedirs(cdir)
@@ -719,7 +717,7 @@ class LeakedPacksTest(unittest.TestCase):
 
     def test_a_small_cache_is_kept(self):
         import terraincache
-        with tempfile.TemporaryDirectory() as root, mock.patch.object(earthd, "game_running", lambda: False):
+        with tempfile.TemporaryDirectory() as root, patch_all(earthd, "game_running", lambda: False):
             cdir = terraincache.cache_dir(root)
             os.makedirs(cdir)
             open(os.path.join(cdir, "cccccccccccccccc.dds"), "w").close()

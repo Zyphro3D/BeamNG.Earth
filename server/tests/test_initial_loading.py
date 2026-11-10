@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import earthd
 import launcher
+from patching import patch_all  # noqa: E402
 import pacer
 from test_server import ServerHarness
 
@@ -51,7 +52,7 @@ class InitialAnchorErrorsTest(ServerHarness):
         self.server.terrain = terrain
         self.hello()
         self.conn().terrain_msg = lambda *_args: {"size": 1024}
-        with patch.object(earthd, "ANCHOR_PROGRESS_S", .01):
+        with patch_all(earthd, "ANCHOR_PROGRESS_S", .01):
             self.c.send({"type": "prepare_anchor", "requestId": 72, "lat": 36., "lon": 6., "purpose": "teleport"})
             m, seen = self.c.until(lambda m: m["type"] == "anchor_ready", timeout=3)
             progress = [x for x in seen if x["type"] == "anchor_progress"]
@@ -67,7 +68,7 @@ class InitialAnchorErrorsTest(ServerHarness):
             await asyncio.sleep(100)
         self.server.terrain = slow
         self.hello()
-        with patch.object(earthd, "ANCHOR_PROGRESS_S", .01), \
+        with patch_all(earthd, "ANCHOR_PROGRESS_S", .01), \
                 patch.object(pacer, "foreground_begin", wraps=pacer.foreground_begin) as begin, \
                 patch.object(pacer, "foreground_end", wraps=pacer.foreground_end) as end:
             self.c.send({"type": "prepare_anchor", "requestId": 73, "lat": 36., "lon": 6., "purpose": "teleport"})
