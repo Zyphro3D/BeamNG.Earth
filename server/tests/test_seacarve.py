@@ -387,7 +387,7 @@ class LandLookupTest(unittest.TestCase):
             self.assertFalse(sc._land, "the whole raster replaced the one without bathymetry")
             self.assertEqual(md.calls, calls, "built with the bathymetry from the first build's state, not again")
             # (the carvers' mapped rasters let go before the folders go: Windows cannot delete a file still mapped)
-            del sc, ref, out, outs
+            sc = ref = out = outs = None     # (not del: the lambdas above close over them)
             import gc
             gc.collect()
 

@@ -15,10 +15,10 @@ from PIL import Image
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import bc7  # noqa: E402
 import earthd  # noqa: E402
+import terraincache  # noqa: E402
 import earthbase  # noqa: E402
 from patching import patch_all  # noqa: E402
-EXT = earthd.terraincache.PHOTO_EXT  # noqa: E305 (the base photos: .jpg, terraincache.stored_photo)
-import terraincache  # noqa: E402
+EXT = terraincache.PHOTO_EXT  # noqa: E305 (the base photos: .jpg, terraincache.stored_photo)
 import farfield as ff  # noqa: E402
 import geodesy  # noqa: E402
 import test_server  # noqa: E402

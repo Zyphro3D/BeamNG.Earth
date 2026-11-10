@@ -130,10 +130,10 @@ class GpuDefaultTest(unittest.TestCase):
         # the GPU wherever there is one, Windows too (the user, 2026-11-01); BNGE_GPU=0 turns it off everywhere
         import fast
         for plat in ("win32", "linux"):
-            with mock.patch.object(fast.sys, "platform", plat), mock.patch.object(fast, "_GPU", None), \
+            with mock.patch.object(sys, "platform", plat), mock.patch.object(fast, "_GPU", None), \
                     mock.patch.dict(fast.os.environ, {"BNGE_GPU": "0"}, clear=False):
                 self.assertIsNone(fast.gpu(), plat)
-            with mock.patch.object(fast.sys, "platform", plat), mock.patch.object(fast, "_GPU", None), \
+            with mock.patch.object(sys, "platform", plat), mock.patch.object(fast, "_GPU", None), \
                     mock.patch.object(fast._ef, "gpu_name", lambda: "Test GPU (Vulkan)"), \
                     mock.patch.dict(fast.os.environ, {}, clear=False):
                 fast.os.environ.pop("BNGE_GPU", None)

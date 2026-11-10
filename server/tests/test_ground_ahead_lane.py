@@ -13,6 +13,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import earthd  # noqa: E402
+import groundahead  # noqa: E402
 import pacer  # noqa: E402
 
 
@@ -48,7 +49,7 @@ class GroundAheadLaneTest(unittest.TestCase):
             pacer.foreground_end()
             await asyncio.wait_for(tasks[0], 5.0)
             return dt
-        with mock.patch.object(earthd.groundaheadmod, "highest", lambda *a: 123.4):
+        with mock.patch.object(groundahead, "highest", lambda *a: 123.4):
             dt = asyncio.run(go())
         self.assertLess(dt, 0.5)
         self.assertIn({"type": "ground_ahead", "anchorId": 1, "z": 123.4}, self.sent)

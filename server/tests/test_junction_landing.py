@@ -90,7 +90,6 @@ class LandingTest(unittest.TestCase):
         self.assertLessEqual(c.xy[flat.max(), 1], 0.25 * 18 + 1e-6)
 
     def test_off_as_before(self):
-        from unittest import mock
         with patch_all(grading, "PAD_ON", False):
             a, b, c = self.t_junction()
         self.assertAlmostEqual(c.z[0], 10.0, places=6)

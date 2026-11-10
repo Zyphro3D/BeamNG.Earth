@@ -124,7 +124,7 @@ class AskPathTest(unittest.TestCase):
         said = []
         got = apppaths.ask_path("Where?", "folder", lambda p: p if p.endswith("ok") else None,
                                 ask=self.answers("/nope", "/x/ok"), say=said.append)
-        self.assertEqual(got, "/x/ok")
+        self.assertEqual(got, apppaths.clean("/x/ok"))     # (ask_path cleans the answer: absolute on Windows)
         self.assertTrue(any("Not found" in s for s in said))
 
     def test_window_then_text_when_there_is_none(self):
@@ -135,7 +135,7 @@ class AskPathTest(unittest.TestCase):
     def test_window_choice(self):
         with mock.patch.object(apppaths, "pick", return_value=("ok", "/picked")):
             self.assertEqual(apppaths.ask_path("Where?", "file", lambda p: p, ask=self.answers(""), say=lambda m: None),
-                             "/picked")
+                             apppaths.clean("/picked"))
 
     def test_skip(self):
         self.assertIsNone(apppaths.ask_path("Where?", "folder", lambda p: p, ask=self.answers("s"), say=lambda m: None))

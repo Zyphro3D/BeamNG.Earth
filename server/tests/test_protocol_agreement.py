@@ -971,14 +971,14 @@ class ServerMessagesTest(test_server.ServerHarness):
         spec = SERVER_TO_MOD[kind]
         fields = set(m) - {"type"}
         self.assertLessEqual(fields, set(spec), m)
-        for f, (types, flags) in spec.items():
+        for f, (allowed, flags) in spec.items():
             if f not in m:
                 self.assertTrue(OPT in flags, (f, m))
                 continue
             if m[f] is None:
                 self.assertIn(NULL, flags, (f, m))
                 continue
-            self.assertIsInstance(m[f], types, (f, m))
+            self.assertIsInstance(m[f], allowed, (f, m))
             if isinstance(m[f], float):
                 self.assertTrue(math.isfinite(m[f]), (f, m))
         if kind == "far_tile":
