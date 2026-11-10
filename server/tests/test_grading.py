@@ -14,6 +14,7 @@ import geodesy  # noqa: E402
 import grading  # noqa: E402
 from patching import patch_all  # noqa: E402
 import mapcells  # noqa: E402
+import seatiles  # noqa: E402
 import roads  # noqa: E402
 from test_roads import features, rules, LAT, LON, FRAME  # noqa: E402
 
@@ -574,7 +575,7 @@ class DirtTest(unittest.TestCase):
         ground = 100.0 + 0.12 * xy[:, 0]
         damage = np.zeros(len(xy))
         damage[100] = -0.8
-        with unittest.mock.patch.object(grading, "dirt_bumps", return_value=damage):
+        with patch_all(grading, "dirt_bumps", return_value=damage):
             plan = grading._plan(xy, ground, roads.Spec(3.5, "dirt", False, "track"))
         residual = plan.z - ground
         self.assertGreater(abs(float(residual[100])), 0.1, "the hole remains")
@@ -981,7 +982,7 @@ class UnderpassTest(unittest.TestCase):
         """Low ground by the sea (Perth's freeways by the Swan River, GitHub #515, #518): the dip stops
         UNDER_SEA_M over the sea's surface, whose water tiles flood any ground under it; higher up it is as deep as
         before, and ground already under the sea (a polder) is dug as before."""
-        floor = grading.seatiles.SEA_E + grading.UNDER_SEA_M
+        floor = seatiles.SEA_E + grading.UNDER_SEA_M
         self.assertGreater(min(grading.UNDER_CLEAR_M, grading.UNDER_MAX_DROP_M), 3.0 - floor, "(the case digs)")
         self.assertAlmostEqual(self._dip_at(3.0), floor, delta=0.1, msg="by the sea: dug to the floor, not under it")
         self.assertLess(self._dip_at(3.0), 3.0 - 1.0, "still dug where there is room")
@@ -990,7 +991,7 @@ class UnderpassTest(unittest.TestCase):
         polder = -4.0 - min(grading.UNDER_CLEAR_M, grading.UNDER_MAX_DROP_M)
         self.assertAlmostEqual(self._dip_at(-4.0), polder, delta=0.3, msg="a polder: as before")
         with patch_all(grading, "UNDER_SEA_ON", False):
-            self.assertLess(self._dip_at(3.0), grading.seatiles.SEA_E, "(off: under the sea, the reported bug)")
+            self.assertLess(self._dip_at(3.0), seatiles.SEA_E, "(off: under the sea, the reported bug)")
 
     def test_dip_from_a_low_bank_stays_above_the_sea_beside_it(self):
         """The crossing on a river bank under the floor (#515's interchange by the Swan River): its dip's flat and
@@ -1004,12 +1005,12 @@ class UnderpassTest(unittest.TestCase):
         xs = np.arange(-120.0, 120.1, 2.0)
         la, lo, _ = FRAME.enu_to_geodetic(xs, np.zeros(len(xs)), 0.0)
         base = elev(la, lo)
-        floor = grading.seatiles.SEA_E + grading.UNDER_SEA_M
+        floor = seatiles.SEA_E + grading.UNDER_SEA_M
         z = grading.Grader(FRAME, FakeMD(f), elev).apply(la, lo, base)
         self.assertGreaterEqual(float((z - np.minimum(base, floor)).min()), -0.1, "nowhere under the floor")
         with patch_all(grading, "UNDER_SEA_ON", False):
             z = grading.Grader(FRAME, FakeMD(f), elev).apply(la, lo, base)
-        self.assertLess(float(z[np.abs(xs) >= 30].min()), grading.seatiles.SEA_E, "(off: the dry ground under the sea)")
+        self.assertLess(float(z[np.abs(xs) >= 30].min()), seatiles.SEA_E, "(off: the dry ground under the sea)")
 
 
 class UnderDipTest(unittest.TestCase):
