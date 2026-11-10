@@ -9,6 +9,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import grading  # noqa: E402
+from patching import patch_all  # noqa: E402
 import roads  # noqa: E402
 
 PRIMARY = roads.Spec(10.0, "paved", True, "primary", False)
@@ -29,7 +30,7 @@ def line(x0, y0, x1, y1, step=4.0):
 
 class LandingTest(unittest.TestCase):
     def setUp(self):              # (opt-in since 2026-11-03: on for these tests)
-        patcher = mock.patch.object(grading, "PAD_ON", True)
+        patcher = patch_all(grading, "PAD_ON", True)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -90,7 +91,7 @@ class LandingTest(unittest.TestCase):
 
     def test_off_as_before(self):
         from unittest import mock
-        with mock.patch.object(grading, "PAD_ON", False):
+        with patch_all(grading, "PAD_ON", False):
             a, b, c = self.t_junction()
         self.assertAlmostEqual(c.z[0], 10.0, places=6)
         self.assertGreater(c.z[1], 10.05, "snap_junctions alone: climbing from the main road's centre")
@@ -98,7 +99,7 @@ class LandingTest(unittest.TestCase):
 
 class NeighbourTest(unittest.TestCase):
     def setUp(self):              # (opt-in since 2026-11-03: on for these tests)
-        patcher = mock.patch.object(grading, "NEIGHBOUR_ON", True)
+        patcher = patch_all(grading, "NEIGHBOUR_ON", True)
         patcher.start()
         self.addCleanup(patcher.stop)
 

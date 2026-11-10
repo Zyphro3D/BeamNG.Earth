@@ -9,6 +9,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import grading  # noqa: E402
+from patching import patch_all  # noqa: E402
 import roads  # noqa: E402
 
 PRIMARY = roads.Spec(14.0, "paved", True, "primary", False)
@@ -39,7 +40,7 @@ def graded(plans, pts):
 
 class AuthorityTest(unittest.TestCase):
     def setUp(self):              # (opt-in since 2026-11-03: on for these tests)
-        patcher = mock.patch.object(grading, "PAD_ON", True)
+        patcher = patch_all(grading, "PAD_ON", True)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -69,7 +70,7 @@ class AuthorityTest(unittest.TestCase):
 
 class PadTest(unittest.TestCase):
     def setUp(self):              # (opt-in since 2026-11-03: on for these tests)
-        patcher = mock.patch.object(grading, "PAD_ON", True)
+        patcher = patch_all(grading, "PAD_ON", True)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -110,7 +111,7 @@ class PadTest(unittest.TestCase):
     def test_off_as_before(self):
         ps, sp = self.crossing(True)
         z = [p.z.copy() for p in ps]
-        with mock.patch.object(grading, "PAD_ON", False):
+        with patch_all(grading, "PAD_ON", False):
             grading.junction_pads(ps, sp)
         for p, zz in zip(ps, z):
             np.testing.assert_array_equal(p.z, zz)
@@ -126,7 +127,7 @@ class PadTest(unittest.TestCase):
 
 class SteepTrackTest(unittest.TestCase):
     def setUp(self):              # (opt-in since 2026-11-03: on for these tests)
-        patcher = mock.patch.object(grading, "PAD_ON", True)
+        patcher = patch_all(grading, "PAD_ON", True)
         patcher.start()
         self.addCleanup(patcher.stop)
 

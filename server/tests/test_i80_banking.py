@@ -18,6 +18,7 @@ import cdae
 import geodesy
 import grading
 import heightmap
+from patching import patch_all  # noqa: E402
 import roadmesh
 import roads
 import terrainpatch
@@ -38,7 +39,7 @@ class WyomingBankingTest(unittest.TestCase):
             sp = roads.Spec(**json.loads(str(cls.data[f"spec{k}"])))
             cls.parts.append((np.c_[lo, la], sp))
         cls.plans = grading.plan_roads(cls.frame, cls.parts, cls.raw, cuts=False)
-        with mock.patch.object(grading, "BANK_ON", False):
+        with patch_all(grading, "BANK_ON", False):
             cls.level = grading.plan_roads(cls.frame, cls.parts, cls.raw, cuts=False)
 
     @classmethod

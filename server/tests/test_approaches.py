@@ -10,6 +10,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import grading  # noqa: E402
+from patching import patch_all  # noqa: E402
 import roads  # noqa: E402
 from test_roads import features, FRAME  # noqa: E402
 from test_grading import FakeMD  # noqa: E402
@@ -136,9 +137,7 @@ class ApproachAddTest(unittest.TestCase):
 
 class OverpassIntegrationTest(unittest.TestCase):
     def deck_over_lanes(self, on):
-        old = grading.APPROACH_ON
-        grading.APPROACH_ON = on
-        try:
+        with patch_all(grading, "APPROACH_ON", on):
             f = overpass()
             g = grading.Grader(FRAME, FakeMD(f), flat_elev)
 
@@ -155,8 +154,6 @@ class OverpassIntegrationTest(unittest.TestCase):
             ramp = elev(*FRAME.enu_to_geodetic(np.array([-135.0, -137.0]), np.array([0.0, 0.0]), 0.0)[:2])
             self.lanes = lanes - 10.0
             return np.interp(at, s, z) - lanes, abs(ramp[1] - ramp[0]) / 2.0
-        finally:
-            grading.APPROACH_ON = old
 
     def test_deck_clears_the_lanes(self):
         before, _ = self.deck_over_lanes(False)

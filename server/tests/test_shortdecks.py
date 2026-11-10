@@ -9,6 +9,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import grading  # noqa: E402
+from patching import patch_all  # noqa: E402
 import roadmesh  # noqa: E402
 import roads  # noqa: E402
 from test_approaches import overpass, flat_elev, FLAT  # noqa: E402
@@ -109,9 +110,7 @@ class FlushTest(unittest.TestCase):
     def test_approach_meets_deck_across_its_width(self):
         # the graded approach road at each abutment of a raised overpass: within 0.1 m of the deck's end height
         # from one edge of the road to the other
-        old = grading.APPROACH_ON
-        grading.APPROACH_ON = True
-        try:
+        with patch_all(grading, "APPROACH_ON", True):
             f = overpass()
             g = grading.Grader(FRAME, FakeMD(f), flat_elev)
 
@@ -129,8 +128,6 @@ class FlushTest(unittest.TestCase):
                 la, lo, _ = FRAME.enu_to_geodetic(pts[:, 0], pts[:, 1], 0.0)
                 road = FRAME.geodetic_to_enu(la, lo, np.asarray(elev(la, lo)))[2]
                 self.assertLess(float(np.max(np.abs(road - z[e]))), 0.1, (road, z[e]))
-        finally:
-            grading.APPROACH_ON = old
 
 
 if __name__ == "__main__":

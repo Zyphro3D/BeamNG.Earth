@@ -12,6 +12,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import geodesy  # noqa: E402
 import grading  # noqa: E402
+from patching import patch_all  # noqa: E402
 import mapcells  # noqa: E402
 import roads  # noqa: E402
 from test_roads import features, rules, LAT, LON, FRAME  # noqa: E402
@@ -117,7 +118,7 @@ class BankTest(unittest.TestCase):
             return float(z[1] - z[0])           # outer edge minus inner, 8 m apart
         self.assertGreater(ring_z(""), 0.4, "(a trunk's curve: banked into it)")
         self.assertAlmostEqual(ring_z("roundabout"), 0.0, delta=0.05, msg="the roundabout level across")
-        with unittest.mock.patch.object(grading, "RING_LEVEL_ON", False):
+        with patch_all(grading, "RING_LEVEL_ON", False):
             self.assertGreater(ring_z("roundabout"), 0.4, "(BNE_RING_LEVEL=off: banked as before)")
 
     def test_straight_and_city_streets_level(self):
@@ -287,7 +288,7 @@ class AbutmentTest(unittest.TestCase):
         out = grading.grade_points(px, py, base, [approach, lower])
         self.assertTrue(np.allclose(out, 372.9, atol=0.25), out)     # (the segments along it still blend a little)
         plain = grading.Plan(xy, np.full(21, 372.9), 6.9)     # (not onto a bridge, nor SEP_ON: ...)
-        with unittest.mock.patch.object(grading, "SEP_ON", False):
+        with patch_all(grading, "SEP_ON", False):
             # ... the lower road's verge still gives way to the approach's carriageway, 8 m over it (grade_points' rh)
             self.assertGreater(grading.grade_points(px, py, base, [plain, lower])[0], 372.5)
 
@@ -308,7 +309,7 @@ class AbutmentEndTest(unittest.TestCase):
         self.assertAlmostEqual(out[4], 82.0, delta=0.05, msg="the approach")
         for x, z in zip(px[1:4], out[1:4]):
             self.assertLessEqual(z, 82.0 + x * grading.ABUT_UNDER_GRADE + 0.05, f"past the end by {-x} m")
-        with unittest.mock.patch.object(grading, "ABUT_UNDER_GRADE", 0.0):
+        with patch_all(grading, "ABUT_UNDER_GRADE", 0.0):
             old = grading.grade_points(px, py, base, [approach])
         self.assertGreater(old[2], 81.9, "before: held at the end's height 6 m back over the deck")
         plain = grading.Plan(xy, np.full(21, 82.0), 9.0)    # an ordinary road end (no bridge): its round end as before
@@ -336,7 +337,7 @@ class SeparationTest(unittest.TestCase):
     def test_the_street_stays_flat_across_its_core(self):
         out = grading.grade_points(self.px, self.py, self.base, [self.street, self.bank])
         self.assertLess(np.ptp(out), 0.3, out)
-        with unittest.mock.patch.object(grading, "SEP_ON", False):
+        with patch_all(grading, "SEP_ON", False):
             # (the bank pulled its edge up before SEP; the carriageway rule keeps it flat too: the bank's verge
             # gives way to the street's carriageway, 7.5 m under it)
             old = grading.grade_points(self.px, self.py, self.base, [self.street, self.bank])
@@ -601,7 +602,7 @@ class DirtTest(unittest.TestCase):
 
     def test_overlapping_damage_has_bounded_height(self):
         sp = roads.Spec(3.5, "dirt", False, "track")
-        with unittest.mock.patch.object(grading, "DIRT_ROUGH", 1.0):
+        with patch_all(grading, "DIRT_ROUGH", 1.0):
             for offset in (0.0, 100.0, 500.0):
                 b = grading.dirt_bumps(self.xy() + [offset, 0.0], sp, 400)
                 self.assertGreaterEqual(float(b.min()), -0.08 - 1e-9, "overlapping pits do not become a trench")
@@ -712,7 +713,7 @@ class GraderTest(unittest.TestCase):
         b = g.plans(la2, lo2)
         self.assertEqual([id(p) for p in a], [id(p) for p in b])
 
-    @unittest.mock.patch.object(grading, "SHARP_ON", False)        # (the profile's samples alone counted)
+    @patch_all(grading, "SHARP_ON", False)        # (the profile's samples alone counted)
     def test_long_parts_planned_near_the_cell_only(self):
         # a 30 km straight track (one segment): its plan in a cell covers the cell and CLIP_MARGIN_M round it, not
         # its whole length (each cell sampled the ground to both ends: thousands of DEM tiles, 2026-10-20), with the
@@ -741,7 +742,7 @@ class GraderTest(unittest.TestCase):
         lat, lon, _ = FRAME.enu_to_geodetic(e, np.full(len(e), y), 0.0)
         out = g.apply(lat, lon, np.zeros(len(e)))
         whole = grading.Grader(FRAME, FakeMD(f), elev)
-        with unittest.mock.patch.object(grading, "LONG_PART_M", 1e9):
+        with patch_all(grading, "LONG_PART_M", 1e9):
             want = whole.apply(lat, lon, np.zeros(len(e)))
         np.testing.assert_allclose(out, want, atol=1e-3)
         self.assertGreater(float(out.min()), 9.0, "graded to the track")
@@ -767,7 +768,7 @@ class ChainTest(unittest.TestCase):
     def plans(self, on):
         # A ends at the junction (0, 0) where B goes on straight and C branches off 31 degrees to the left
         f = features([[(-300, 0), (0, 0)], [(0, 0), (300, 0)], [(0, 0), (200, 120)]], ["primary"] * 3)
-        with unittest.mock.patch.object(grading, "CHAIN_ON", on):
+        with patch_all(grading, "CHAIN_ON", on):
             g = grading.Grader(FRAME, FakeMD(f), self.hill)
             return {fid: p for fid, p in g._cell_plans(mapcells.cell_of(LAT, LON))}
 
@@ -837,7 +838,7 @@ class MajorRoadTest(unittest.TestCase):
         xs = np.arange(-200.0, 201.0, 2.0)
         la, lo, _ = FRAME.enu_to_geodetic(xs, np.zeros(len(xs)), 0.0)
         part = [(np.c_[lo, la], spec)]
-        with unittest.mock.patch.object(grading, "DIRT_ROUGH", 0.0):     # (the profile alone, not the potholes)
+        with patch_all(grading, "DIRT_ROUGH", 0.0):     # (the profile alone, not the potholes)
             fine = grading.plan_roads(FRAME, part, noisy, cuts=False)[0]
             rough = grading.plan_roads(FRAME, part, noisy, cuts=False, coarse=True)[0]
 
@@ -932,7 +933,7 @@ class UnderpassTest(unittest.TestCase):
         for name, lines in (("two halves", halves), ("a fork at its end", fork)):
             with self.subTest(name):
                 self.assertAlmostEqual(self._split_dip(lines, len(lines)), deep, delta=0.3)
-                with unittest.mock.patch.object(grading, "UNDER_CHAIN_ON", False):
+                with patch_all(grading, "UNDER_CHAIN_ON", False):
                     self.assertAlmostEqual(self._split_dip(lines, len(lines)), 10.0, delta=0.1, msg="(off: no dip)")
 
     def test_a_road_ending_short_of_the_junction_dips_with_it(self):
@@ -951,7 +952,7 @@ class UnderpassTest(unittest.TestCase):
         steep, z0 = grade()
         self.assertLess(z0, 10.0 - 1.5, "(the case: the junction dug)")
         self.assertLessEqual(steep, grading.UNDER_MAX_GRADE + 0.01)
-        with unittest.mock.patch.object(grading, "UNDER_NODE_M", 0.5):
+        with patch_all(grading, "UNDER_NODE_M", 0.5):
             self.assertGreater(grade()[0], 0.3, "(0.5 m: a step, the bug)")
 
     def test_merge_span_chains(self):
@@ -988,7 +989,7 @@ class UnderpassTest(unittest.TestCase):
         self.assertAlmostEqual(self._dip_at(30.0), deep, delta=0.3, msg="high ground: as deep as before")
         polder = -4.0 - min(grading.UNDER_CLEAR_M, grading.UNDER_MAX_DROP_M)
         self.assertAlmostEqual(self._dip_at(-4.0), polder, delta=0.3, msg="a polder: as before")
-        with unittest.mock.patch.object(grading, "UNDER_SEA_ON", False):
+        with patch_all(grading, "UNDER_SEA_ON", False):
             self.assertLess(self._dip_at(3.0), grading.seatiles.SEA_E, "(off: under the sea, the reported bug)")
 
     def test_dip_from_a_low_bank_stays_above_the_sea_beside_it(self):
@@ -1006,7 +1007,7 @@ class UnderpassTest(unittest.TestCase):
         floor = grading.seatiles.SEA_E + grading.UNDER_SEA_M
         z = grading.Grader(FRAME, FakeMD(f), elev).apply(la, lo, base)
         self.assertGreaterEqual(float((z - np.minimum(base, floor)).min()), -0.1, "nowhere under the floor")
-        with unittest.mock.patch.object(grading, "UNDER_SEA_ON", False):
+        with patch_all(grading, "UNDER_SEA_ON", False):
             z = grading.Grader(FRAME, FakeMD(f), elev).apply(la, lo, base)
         self.assertLess(float(z[np.abs(xs) >= 30].min()), grading.seatiles.SEA_E, "(off: the dry ground under the sea)")
 
@@ -1047,7 +1048,7 @@ class UnderpassShortfallTest(unittest.TestCase):
                                                                "residential", "residential"])
         self.assertLess(float(held[0]), 10.0 - 0.6 * grading.UNDER_CLEAR_M, "ramps held down: the motorway dips")
         self.assertAlmostEqual(float(held[1]), 10.0, delta=0.1, msg="back up past its ramp")
-        with unittest.mock.patch.object(grading, "UNDER_ANY_ON", False):
+        with patch_all(grading, "UNDER_ANY_ON", False):
             off = motorway_z([mway, bridge] + ramps + frontage, ["motorway", "tertiary", "tertiary", "tertiary",
                                                                   "residential", "residential"])
         self.assertAlmostEqual(float(off[0]), 10.0, delta=0.3, msg="BNE_UNDERPASS_ANY=off: as before")
@@ -1116,7 +1117,7 @@ class UnderpassShortfallTest(unittest.TestCase):
         depth = roads.deck_depth(56.0)
         self.assertGreater(deck_end - 10.0, roads.deck_road_clear(depth) + grading.ROAD_LIFT, "(room enough)")
         self.assertAlmostEqual(under, 10.0, delta=0.3, msg="the road under keeps its ground")
-        with unittest.mock.patch.object(grading, "ABUT_FILL_ON", False):
+        with patch_all(grading, "ABUT_FILL_ON", False):
             self.assertLess(float(z_at([0.0], [0.0])[0]), 10.0 - 2.0, "(BNE_ABUT_FILL=off: dug as before)")
 
 
@@ -1180,7 +1181,7 @@ class CoarseUnderpassTest(unittest.TestCase):
         lidar = heights(False)
         self.assertLess(float(lidar[0]), float(z[0]) - 1.0, "lidar: the deck's whole clearance")
         self.assertLess(float(lidar[5]), 9.5, "lidar: the dip spreads along the side streets")
-        with unittest.mock.patch.object(grading, "UNDER_RUN_ON", False):
+        with patch_all(grading, "UNDER_RUN_ON", False):
             off = heights(True)
         np.testing.assert_allclose(off, lidar, atol=1e-9, err_msg="BNE_UNDERPASS_RUN=off: as before")
 
@@ -1221,7 +1222,7 @@ class RacewayKeepTest(unittest.TestCase):
         out = g.apply(la, lo, base)
         self.assertGreater(float(np.abs(base - smooth).max()), 0.14)
         np.testing.assert_allclose(out, smooth, atol=0.04, err_msg="the bumps gone, banking and crest kept")
-        with unittest.mock.patch.object(grading, "RACEWAY_SMOOTH_ON", False):
+        with patch_all(grading, "RACEWAY_SMOOTH_ON", False):
             off = grading.Grader(FRAME, FakeMD(f), elev).apply(la, lo, base)
         np.testing.assert_allclose(off, base, atol=1e-9, err_msg="BNE_RACEWAY_SMOOTH=off: the ground as it is")
 
@@ -1272,7 +1273,7 @@ class JunctionTest(unittest.TestCase):
         the coarse easing: BNE_COARSE_EASE=1.)"""
         import roads
         from unittest import mock
-        patcher = mock.patch.object(grading, "COARSE_EASE_ON", True)
+        patcher = patch_all(grading, "COARSE_EASE_ON", True)
         patcher.start()
         self.addCleanup(patcher.stop)
         x = np.arange(-200, 201, 4.0)
