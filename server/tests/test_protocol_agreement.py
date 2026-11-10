@@ -496,12 +496,12 @@ def top_keys(table):
 
 
 def mod_sends():
-    """{type: (keys, nested)} of every net.send({...}) in core.lua, places.lua (the level select's pictures) and
-    mpsession.lua (require('beamngEarth/net').send), and every send({...}) in terrainpatch.lua and spaceclouds.lua
-    (core hands them net.send)."""
+    """{type: (keys, nested)} of every net.send({...}) in core.lua and coreperf.lua (its performance lines), places.lua
+    (the level select's pictures) and mpsession.lua (require('beamngEarth/net').send), and every send({...}) in
+    terrainpatch.lua and spaceclouds.lua (core hands them net.send)."""
     out = {}
-    for names, pattern in ((("core.lua", "places.lua", "mpsession.lua", "serverlist.lua", "trafficvisuals.lua", "map3d.lua",
-                              "addons.lua"), r"net(?:'\))?\.send\(\{"),
+    for names, pattern in ((("core.lua", "coreperf.lua", "places.lua", "mpsession.lua", "serverlist.lua",
+                              "trafficvisuals.lua", "map3d.lua", "addons.lua"), r"net(?:'\))?\.send\(\{"),
                            (("terrainpatch.lua", "spaceclouds.lua", "globe.lua"), r"\bsend\(\{"),
                            (("profiler.lua",), r"\b(?:send|lastSend)\(\{")):
         text = code_only("\n".join((LUA / n).read_text(encoding="utf-8") for n in names), "--")

@@ -1195,7 +1195,7 @@ function M.update(anchorId, player, view, frameMs)
     clock = stopwatch.new() } or nil
   local budget = M.PER_FRAME * M.EVERY_N
   local limit, elapsed = frameMs or M.FRAME_MS, M.clock()
-  -- the previous pass's work, for a hitch's context (core.perfContext: the engine's tick pays for a pass's Forest
+  -- the previous pass's work, for a hitch's context (coreperf.lua perfContext: the engine's tick pays for a pass's Forest
   -- changes, 0.5 us an item of every shape touched; a repeatable 136-612 ms tick beside a Manhattan park, 2026-11-08)
   local w = frameWork[2]
   frameWork[2], frameWork[1] = frameWork[1], w
