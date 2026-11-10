@@ -1,5 +1,4 @@
 """Offline regression tests for range-cache races and byte-offset integrity."""
-import os
 from pathlib import Path
 import sys
 import tempfile

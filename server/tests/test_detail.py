@@ -107,7 +107,6 @@ class DetailServerTest(ServerHarness):
         self.assertTrue((np.abs(px[..., 3].astype(int) - earthd.BASE_AO) <= 1).all(), "alpha = the flat AO")
         self.assertLess(np.abs(px[..., :3].astype(int) - np.asarray(im)).mean(), 4.0)
         # evicted with its heightmap
-        key = (aid, 128.0, -128.0)
         self.server.hm_committed.clear(); self.server.hm_sent.clear()
         with patch_all(earthd, "HM_CACHE", 0):
             self.server.evict_heightmaps()

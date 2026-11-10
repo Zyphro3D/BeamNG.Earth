@@ -1573,7 +1573,7 @@ def beammp_wait_seconds(value):
     try:
         seconds = float(value)
     except (TypeError, ValueError):
-        raise argparse.ArgumentTypeError("BeamMP wait must be seconds greater than 0 and at most 600")
+        raise argparse.ArgumentTypeError("BeamMP wait must be seconds greater than 0 and at most 600") from None
     if not math.isfinite(seconds) or not 0 < seconds <= 600:
         raise argparse.ArgumentTypeError("BeamMP wait must be seconds greater than 0 and at most 600")
     return seconds

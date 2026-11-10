@@ -1,8 +1,6 @@
 import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-import json
-import math
 import struct
 import tempfile
 import unittest
@@ -14,7 +12,6 @@ import numpy as np
 import routerepeaters as repeat
 import routemarkers
 import roads
-import routeindex
 from test_roads import FRAME, flat
 from test_highway_signs import fixture
 

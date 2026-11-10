@@ -49,7 +49,6 @@ def report(rows, out):
         return
     frames = sum((r.get("perf") or {}).get("frames") or 0 for r in rows)
     secs = len(rows)
-    fps = [((r.get("perf") or {}).get("frames") or 0) / POLL_S for r in rows]
     p99 = sorted((r.get("perf") or {}).get("p99") or 0 for r in rows)
     lines += [f"{secs} s sampled, {frames} frames, average {frames / max(1, secs):.0f} fps, "
               f"median of the per-second p99 frame {p99[len(p99) // 2]:.1f} ms, worst second's p99 {p99[-1]:.1f} ms.", ""]

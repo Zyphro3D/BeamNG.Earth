@@ -1,7 +1,6 @@
 """KyzoFox 1.5.4: overpass approach ramps (grading.bridge_lifts / approach_add / Grader._lift_approaches): a
 short bridge over an interstate on flat ground gets its approach roads graded up so its deck clears the lanes (trucks
 hit the I-20 overpass near Temple, GA: ~2.5 m over the lanes, 2026-10-19)."""
-import math
 import os
 import sys
 import unittest

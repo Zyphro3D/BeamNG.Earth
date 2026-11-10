@@ -12,9 +12,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import earthd  # noqa: E402
-import heightmap  # noqa: E402
 import mapcells  # noqa: E402
-import maprasters  # noqa: E402
 import surface as sf  # noqa: E402
 
 LAT, LON = 36.5785, -118.2923

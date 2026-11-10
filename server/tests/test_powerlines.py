@@ -28,7 +28,8 @@ def layout(lines, stop=None):
                                       powerlines.END_MERGE_M, powerlines.GANTRY_FRONT, BOX)
 
 
-def yard(rings, anchors=np.zeros((0, 3))):
+def yard(rings, anchors=None):
+    anchors = np.zeros((0, 3)) if anchors is None else anchors     # (not one array shared by every call)
     pts = np.ascontiguousarray(np.concatenate(rings), np.float64)
     ro = np.cumsum([0] + [len(r) for r in rings]).astype(np.int64)
     groups = sorted(powerlines.PARTS)

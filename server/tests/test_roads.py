@@ -555,7 +555,6 @@ class BuildTileTest(unittest.TestCase):
                 self.assertEqual(cap, not roads._on_box(end, (x0, y0, x1, y1)))
         dr = [c for c in chunks if c["m"] == roads.DRAIN["m"]]
         self.assertTrue(dr, "storm drains at the corners")
-        sec_w = roads.carriageway("secondary", "paved", True)
         curbs = [sidewalks.run_geometry(w["pts"], w["side"], roads.SIDEWALK["w"]) for w in walks]
         for c in dr:              # in the gutter: GUTTER w / 2 from a curb, on the road's side of it
             p = np.mean(np.array(c["n"])[:, :2], axis=0)

@@ -11,7 +11,7 @@ import roadmarkings
 from patching import patch_all  # noqa: E402
 import rampmerges
 import geodesy
-from test_roads import features, rules, FRAME, LAT, LON
+from test_roads import features, rules, LAT, LON
 
 def interchange(entrance=False, reverse=False):
     ramp = [(300, 100), (200, 80), (150, 20), (-20, 10)] if entrance else [

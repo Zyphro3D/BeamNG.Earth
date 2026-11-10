@@ -203,7 +203,7 @@ class ReleasesTest(unittest.TestCase):
     def test_assets_only_from_the_repo_with_a_digest(self):
         r = dict(REL2, assets=[asset("b", SHA2, 5, url="https://evil.example/some-mod.zip"),
                                dict(asset("b", SHA2, 5), digest=""), asset("b", SHA2, 5, name="other.zip"),
-                               asset("b", SHA2, 5, url=f"https://github.com/other/repo/releases/download/b/some-mod.zip")])
+                               asset("b", SHA2, 5, url="https://github.com/other/repo/releases/download/b/some-mod.zip")])
         self.assertIsNone(addons.releases(self.e, json.dumps([r]))[0]["asset"])
         got = addons.releases(self.e, json.dumps([REL2]))[0]["asset"]
         self.assertEqual((got["sha256"], got["size"]), (SHA2, len(ZIP2)))

@@ -234,7 +234,7 @@ class ReconnectTest(unittest.IsolatedAsyncioTestCase):
         name = self.s.matslots.take(ck)
         self.s.matslots.take(idle)
         n = self.s.matslots.number(name)
-        c.slot_holds[n] = serial = next(self.s.slot_serial)
+        c.slot_holds[n] = next(self.s.slot_serial)
         c.active = 1
         self.assertIn(ck, self.s.in_use())
         self.assertNotIn(idle, self.s.in_use(), "active anchor must not pin every cached tile")

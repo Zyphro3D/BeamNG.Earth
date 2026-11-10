@@ -103,7 +103,7 @@ class RespawnTest(unittest.TestCase):
         import time
         p = pools.RespawningPool("test", 2, mp_context=SPAWN)
         try:
-            busy = [p.submit(time.sleep, 1.0) for _ in range(4)]
+            _busy = [p.submit(time.sleep, 1.0) for _ in range(4)]     # (the four workers held)
             low = [p.submit_low(abs, -i) for i in range(1, 4)]
             time.sleep(0.3)
             self.assertEqual(sum(f.running() or f.done() for f in low), 1)     # (one beside them)

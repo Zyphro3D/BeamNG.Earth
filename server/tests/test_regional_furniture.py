@@ -20,7 +20,7 @@ import signmesh
 import townsigns
 import directionsigns
 import build_french_furniture as assets
-from test_regional_poles import road,wire_rows
+from test_regional_poles import road
 
 
 class FurnitureTest(unittest.TestCase):

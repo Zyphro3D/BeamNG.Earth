@@ -16,7 +16,6 @@ import blockworker
 import highwaysigns
 import medianbarriers
 import roads
-import signstream
 import geodesy
 import milemarkers
 import railtags

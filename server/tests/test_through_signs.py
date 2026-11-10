@@ -215,7 +215,6 @@ class PipelineTest(unittest.TestCase):
     def test_overhead_mesh_is_identical_in_server_and_worker_and_has_no_collision(self):
         import blockworker
         import earthd
-        import roads
         import threading
         from test_highway_signs import FakeTags, fixture as pipeline_fixture, server
         from test_blockworker import FakeDem

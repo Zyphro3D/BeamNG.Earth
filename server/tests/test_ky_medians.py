@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import geodesy
 import medianbarriers as barriers
 import milemarkers
-import roadmesh
 import roads
 import signroads
 

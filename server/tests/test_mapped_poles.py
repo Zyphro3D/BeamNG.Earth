@@ -4,7 +4,6 @@ os.environ.setdefault("BNE_REGIONAL_DIR", os.path.join(os.path.dirname(os.path.a
 import json
 from pathlib import Path
 import sys
-from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 

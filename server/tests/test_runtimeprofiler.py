@@ -4,7 +4,6 @@ import asyncio
 from pathlib import Path
 import queue
 import sys
-import threading
 import time
 import unittest
 from unittest.mock import patch

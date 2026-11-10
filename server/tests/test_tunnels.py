@@ -122,7 +122,7 @@ class Mesh(unittest.TestCase):
 
 class OpenUnderpass(unittest.TestCase):
     def chunks(self, elev):
-        from test_roads import features, FRAME, M_LAT
+        from test_roads import features, FRAME
         f = features([[(-100, 0), (100, 0)]], ["residential"], flags=[(0, "is_tunnel")])
         tp = roads.TunnelProfiles(FRAME, lambda key: f, elev)
         return roads._tunnel_chunks(tp, [f], (-128.0, -128.0, 128.0, 128.0))

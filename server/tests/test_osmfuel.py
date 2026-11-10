@@ -127,7 +127,7 @@ class OsmFuelReadTest(unittest.TestCase):
         try:
             import duckdb
         except ImportError:
-            raise unittest.SkipTest("no duckdb")
+            raise unittest.SkipTest("no duckdb") from None
         cls.dir = tempfile.mkdtemp()
         p = os.path.join(cls.dir, "pois.parquet").replace("\\", "/")
         con = duckdb.connect()

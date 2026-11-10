@@ -377,7 +377,7 @@ class VegGeoTilesTest(unittest.TestCase):
     def test_tracker_keeps_tiles_across_a_rebase(self):
         """A scripted rebase: the geo tracker builds nothing again; the anchor tracker builds every tile again."""
         import vegetation
-        from concurrent.futures import ThreadPoolExecutor, wait
+        from concurrent.futures import wait
 
         class Loop:
             def __init__(self):

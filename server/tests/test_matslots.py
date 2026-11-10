@@ -6,7 +6,6 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import earthd  # noqa: E402
-import farfield as ff  # noqa: E402
 import matslots  # noqa: E402
 
 

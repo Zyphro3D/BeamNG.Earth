@@ -3,7 +3,6 @@ rank and by whether a branch faces it; the strongest road keeps its profile."""
 import os
 import sys
 import unittest
-from unittest import mock
 
 import numpy as np
 

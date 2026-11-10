@@ -3,11 +3,9 @@ reported for which tiles (imagery per texture, the DEM provider per footprint, w
 far split around the player, the wording against the sources' own credits, change-only sending with
 the one-per-second throttle, the re-send on hello, and the default server without any of it. No
 network: synthetic DEM and imagery, fake weather fetches."""
-import asyncio
 import gc
 import io
 import json
-import math
 import os
 import sys
 import tempfile

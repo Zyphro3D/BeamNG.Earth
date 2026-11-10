@@ -1,5 +1,5 @@
 """Fixed camera; step the car until a terrain-follow commit happens; screenshot before/after."""
-import json, subprocess, time, shutil, os, sys
+import json, subprocess, time, shutil, os
 OUT = 'docs/research/v13_investigation'
 def mcp(*a): return subprocess.run(['python3', 'tools/mcp.py', *a], capture_output=True, text=True).stdout.strip()
 def status(): return json.loads(mcp('lua', 'return jsonEncode(loadstring("return "..beamngEarth_core.status())())'))

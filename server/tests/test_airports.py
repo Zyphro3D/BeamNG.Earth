@@ -448,7 +448,6 @@ class BandTest(unittest.TestCase):
         rng = np.random.default_rng(7)
         lat = rng.uniform(-85, 85, 20000)
         lon = rng.uniform(-180, 180, 20000)
-        order = np.argsort(lat, kind="stable")
         for _ in range(300):
             qlat, qlon = rng.uniform(-88, 88), rng.uniform(-180, 180)
             r = rng.choice([1e3, 2e4, 2e5, 1e6])

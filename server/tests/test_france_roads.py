@@ -2,7 +2,6 @@
 import os
 os.environ.setdefault("BNE_REGIONAL_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "regional"))  # (PR #505's data: the tests' slice)
 import json
-import math
 import os
 from pathlib import Path
 import pickle
@@ -20,14 +19,12 @@ sys.path[:0] = [str(ROOT / "server"), str(ROOT / "tools"), str(Path(__file__).pa
 import franceroads as fr
 import furniture
 import geodesy
-import mapgeom
-import markings
 import poleprofiles
 import regionaltraffic
 import roadmesh
 import roads
 import build_french_traffic as assets
-from test_roads import features, rules
+from test_roads import features
 
 
 def spec(width=6., cls="secondary", **kw):

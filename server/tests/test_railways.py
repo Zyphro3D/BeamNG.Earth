@@ -304,7 +304,6 @@ class RailwayTest(unittest.TestCase):
         s = np.arange(0.0, 400.0, railways.STEP_M)
         z = 0.05 * s + 0.4 * np.sin(s / 3.0)
         zb = railways.bed_heights(z)
-        mid = slice(20, -20)
         self.assertLess(np.abs(zb - 0.05 * s)[20:-20].max(), 0.1, "the bumps gone")
         self.assertLess(np.abs(zb - 0.05 * s).max(), 0.3, "the grade kept to the ends")
 

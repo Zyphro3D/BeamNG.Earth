@@ -30,7 +30,7 @@ class NetStateTest(unittest.TestCase):
         if not netstate.init():
             self.skipTest("no shared memory here")
         ctx = multiprocessing.get_context("spawn")
-        q, back = ctx.Queue(), ctx.Queue()
+        q = ctx.Queue()
         p = ctx.Process(target=_worker, args=(q,))
         p.start()
         try:

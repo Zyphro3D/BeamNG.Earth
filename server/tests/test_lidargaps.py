@@ -13,7 +13,6 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import fast  # noqa: E402
-import mapcells  # noqa: E402
 import revisit  # noqa: E402
 import roads  # noqa: E402
 from patching import patch_all  # noqa: E402
@@ -192,7 +191,6 @@ class CellFactsTest(unittest.TestCase):
         return RangesTest.feats(self)
 
     def test_made_once(self):
-        from unittest import mock
         first = [roads.level_ranges(self.feats(), i) for i in range(2)]
         self.assertTrue(os.path.isdir(os.path.join(self.tmp, "plans", "test_run", "facts")), "kept for the run")
         with patch_all(roads, "_level_ranges", side_effect=AssertionError("made again")):

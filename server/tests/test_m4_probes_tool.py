@@ -4,7 +4,6 @@ block, so the same heights), maxHeight from the block's own samples, the Lua cal
 pass criteria applied to the probe chunk's answers under luajit with a fake engine
 (mod/tests/test_m4_probes.lua --json). Nothing here talks to the game."""
 import json
-import os
 import shutil
 import subprocess
 import sys

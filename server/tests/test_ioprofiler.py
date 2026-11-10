@@ -163,7 +163,7 @@ class IOTest(unittest.TestCase):
             server.shutdown();server.server_close();thread.join(2)
 
     def test_live_transfer_bytes_are_not_double_counted_at_completion(self):
-        with io.Request('tcp://helper.example:1234') as r:
+        with io.Request('tcp://helper.example:1234'):
             io.peer_sent(12);io.peer_received(20);io.peer_headers()
             snapshot=self.view()['services'][0]
             self.assertEqual(snapshot['receivedBytes'],20)

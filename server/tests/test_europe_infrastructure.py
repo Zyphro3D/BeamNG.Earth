@@ -5,14 +5,12 @@ an in-game Windows check of lighting, BeamNG importing and driving performance.
 """
 import os
 os.environ.setdefault("BNE_REGIONAL_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "regional"))  # (PR #505's data: the tests' slice)
-import hashlib
 import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
-from unittest import mock
 import numpy as np
 
 ROOT=Path(__file__).resolve().parents[2]

@@ -6,7 +6,6 @@ KHR_mesh_quantization, non-finite vertices) - no model from the library is shipp
 
 import inspect
 import json
-import logging
 import math
 import os
 import struct
@@ -23,7 +22,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import blockworker  # noqa: E402
 import cdae  # noqa: E402
 import revisit  # noqa: E402
-import staging  # noqa: E402
 import threedmr  # noqa: E402
 
 

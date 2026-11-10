@@ -1,9 +1,7 @@
 """Direction signs (dirsigns.py, earthfast dirsign_place / dirsign_face / dirsign_mesh): where the boards stand, what
 they name, how a face is drawn."""
-import json
 import os
 import shutil
-import struct
 import sys
 import tempfile
 import unittest

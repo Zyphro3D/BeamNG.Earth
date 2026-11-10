@@ -398,7 +398,6 @@ class MapMathTest(unittest.TestCase):
 
 class PruneTest(unittest.TestCase):
     def test_oldest_go_down_to_keep_and_empty_folders(self):
-        import time as _t
         with tempfile.TemporaryDirectory() as root:
             paths = []
             for k in range(10):

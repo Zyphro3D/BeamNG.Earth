@@ -46,7 +46,7 @@ class PlaceTest(unittest.TestCase):
 
     def feats(self, items):
         """items: (id, kind, rings of xy, class, tags). Rings are lists of [x, y]."""
-        ids, kinds, parts, coords = [], [], [], []
+        ids, kinds, parts = [], [], []
         classes, subtypes, tags = [], [], []
         for fid, kind, rings, cls, tag in items:
             ids.append(fid)

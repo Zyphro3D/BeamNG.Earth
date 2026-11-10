@@ -20,13 +20,11 @@ import earthd
 import geotiles
 import highwaysigns
 import milemarkers
-import railtags
-import signshards
 import roads
 import revisit
 import signstream
 from test_blockworker import FakeDem, FakeMapData
-from test_roads import FRAME, LAT, LON, FakeConn, features, rules
+from test_roads import FRAME, LAT, LON, features, rules
 
 
 class FakeTags:

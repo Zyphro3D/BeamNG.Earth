@@ -134,7 +134,7 @@ class ParapetTest(unittest.TestCase):
         chunks = [{"n": pts, "w": 10.0, "m": "asphalt", "fixed": True, "deck": True, "fid": "a",
                    "abut": roads._abutments(pts, lambda xy: np.zeros(len(xy)))}]
         got = roadmesh.deck(chunks, (0.0, 0.0, 0.0))
-        P, T = got[0], got[1]
+        P = got[0]
         half = max(float(c["w"]) for c in chunks if c.get("deck")) / 2
         self.assertLessEqual(np.abs(P[:, 1]).max(), half + roadmesh.PARAPET_W + 1e-6)   # nothing past the slab's edge
         top = P[np.abs(P[:, 1]) > half]                              # the parapets (and slab edge)

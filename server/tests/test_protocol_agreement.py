@@ -49,7 +49,6 @@ import struct
 import re
 import shutil
 import subprocess
-import zipfile
 import sys
 import time
 import types

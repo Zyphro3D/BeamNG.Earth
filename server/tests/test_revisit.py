@@ -58,7 +58,6 @@ class RevisitTest(unittest.TestCase):
                 a = roads.road_specs(cell())
                 ra = [roads.level_ranges(cell(), i) for i in range(2)]
                 b_feats = cell()            # (another process: its own decoded cell)
-                from unittest import mock
                 with patch_all(roads, "_road_specs", side_effect=AssertionError("made again")), \
                         patch_all(roads, "_level_ranges", side_effect=AssertionError("made again")):
                     self.assertEqual(roads.road_specs(b_feats), a)

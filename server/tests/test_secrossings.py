@@ -3,7 +3,6 @@ import json
 import sys
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 
@@ -11,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import secrossings  # noqa: E402
 import furniture  # noqa: E402
-import junctions  # noqa: E402
 import markings  # noqa: E402
 import roads  # noqa: E402
 

@@ -4,7 +4,6 @@ import sys
 import unittest
 
 import numpy as np
-from numpy.lib.stride_tricks import sliding_window_view
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import dsmground as g  # noqa: E402

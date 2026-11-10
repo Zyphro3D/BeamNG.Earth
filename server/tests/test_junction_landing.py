@@ -3,7 +3,6 @@ land, and roads side by side on coarse elevation are coupled (grading.couple_nei
 import os
 import sys
 import unittest
-from unittest import mock
 
 import numpy as np
 

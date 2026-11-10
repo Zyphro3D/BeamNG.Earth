@@ -106,7 +106,6 @@ class StackTest(unittest.TestCase):
     what is below it, the level-4 ramp over the level-1 one however the heights would have ordered them."""
 
     def _z(self, g, f, i, pts):
-        import geodesy
         line = np.asarray(f.parts(i)[0][0], np.float64)
         la, lo = line[:, 1], line[:, 0]
         pl = g.store.planners_of(la[len(la) // 2:len(la) // 2 + 1], lo[len(lo) // 2:len(lo) // 2 + 1])[0][0]

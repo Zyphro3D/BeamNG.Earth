@@ -544,7 +544,6 @@ class DeckRulesTest(unittest.TestCase):
 
 class BridgeProfilesTest(unittest.TestCase):
     def test_chain_across_cells_and_clearance(self):
-        import mapcells
         import roads
         from test_roads import features
         # a bridge in two parts (two features) over a street at x = 0; the ground is flat at 10 m

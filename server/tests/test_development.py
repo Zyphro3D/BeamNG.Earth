@@ -3,7 +3,6 @@ import os
 import json
 from pathlib import Path
 import sys
-import tempfile
 import threading
 import unittest
 
@@ -12,7 +11,6 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import development  # noqa: E402
 import geodesy  # noqa: E402
-import mapcells  # noqa: E402
 import mapgeom  # noqa: E402
 
 

@@ -12,7 +12,7 @@ import grading  # noqa: E402
 from patching import patch_all  # noqa: E402
 import roadmesh  # noqa: E402
 import roads  # noqa: E402
-from test_approaches import overpass, flat_elev, FLAT  # noqa: E402
+from test_approaches import overpass, flat_elev  # noqa: E402
 from test_roads import FRAME  # noqa: E402
 from test_grading import FakeMD  # noqa: E402
 

@@ -13,7 +13,6 @@ rebases.
   far tiles, none of a road geotile's in another key's far tile, and the mod's rule (a far tile hidden once its road
   geotile shows its own) shows each building of a square once, whichever road geotiles are in.
 """
-import hashlib
 import math
 import os
 import re

@@ -12,7 +12,6 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import geodesy  # noqa: E402
-import mapcells  # noqa: E402
 import seacarve  # noqa: E402
 
 LAT0, LON0 = 39.28, -76.59

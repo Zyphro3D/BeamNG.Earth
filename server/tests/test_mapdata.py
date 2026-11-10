@@ -391,9 +391,11 @@ class RangeTest(SmallBlocks, unittest.TestCase):
             self.assertEqual(r2.size, len(self.data))
         rangeread.clear_memory()
         n = self.t.count()
-        r3 = self.remote(size=None)                                      # a new session, all on disk
+        r3 = self.remote(size=None)                                      # a new session, its size on disk
         self.assertEqual(r3.read(48000, 50000), self.data[48000:])
         self.assertEqual(r3.size, len(self.data))
+        # (its size from the disk: one request, for the blocks it lacked, and no probe for the size first)
+        self.assertEqual(self.t.count(), n + 1)
 
     def test_mirrors_take_turns(self):
         # Overture's AWS and Azure copies: reads spread over both (twice the connections), the same bytes

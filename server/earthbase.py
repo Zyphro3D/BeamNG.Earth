@@ -911,7 +911,7 @@ def prune_own_caches(cache_dir, started=None):
                            ("peercache", peerworkmod.CACHE_BYTES / 1e6, None),
                            ("roadwidth", roadwidthmod.STORE_MB, lambda n: n.endswith(".npy")),
                            (revisitmod.SUBDIR, revisitmod.MAX_MB,       # (the zips and the files kept beside them)
-                            lambda n, kept=areasmod.pinned_world(cache_dir): (n.endswith(".zip") or
+                            lambda n, kept=areasmod.pinned_world(cache_dir): (n.endswith(".zip") or  # noqa: B008 (read once per pass, on purpose)
                                                                               n.endswith(revisitmod.SIDE_SUFFIXES))
                             and n.split(".", 1)[0] not in kept)):
         try:

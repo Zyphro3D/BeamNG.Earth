@@ -10,7 +10,6 @@ import unittest.mock
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-import geodesy  # noqa: E402
 import grading  # noqa: E402
 from patching import patch_all  # noqa: E402
 import mapcells  # noqa: E402
@@ -1273,7 +1272,6 @@ class JunctionTest(unittest.TestCase):
         it; it takes the primary's height at the crossing, eased in either side; the primary keeps its own. (Opt-in with
         the coarse easing: BNE_COARSE_EASE=1.)"""
         import roads
-        from unittest import mock
         patcher = patch_all(grading, "COARSE_EASE_ON", True)
         patcher.start()
         self.addCleanup(patcher.stop)
