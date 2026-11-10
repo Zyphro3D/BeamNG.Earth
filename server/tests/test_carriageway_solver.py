@@ -8,9 +8,9 @@ from unittest import mock
 
 import numpy as np
 
-# run_tests runs modules in separate processes: exercise carriageways even when the product default is off.
-os.environ["BNE_INTERCHANGE"] = "1"
-os.environ["BNE_CARRIAGEWAYS"] = "on"
+# (the carriageways are off by default in the product: GradingConsumerTest switches them on for itself, patched and
+# restored; setting BNE_INTERCHANGE in the environment here switched them on for every module imported after it in the
+# same process, and test_grading's results changed when it ran after this one)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import carriageways as cw
 import fast
@@ -163,6 +163,16 @@ class NativeProfilesTest(unittest.TestCase):
 
 
 class GradingConsumerTest(legacy.StackTest):
+    def setUp(self):
+        super().setUp()
+        import crossings
+        import roadbase
+        from patching import patch_all
+        self.enterContext(mock.patch.object(crossings, "ON", True))
+        self.enterContext(patch_all(grading, "XS_ON", True))
+        self.enterContext(patch_all(grading, "CW_ON", True))
+        self.enterContext(mock.patch.object(roadbase, "DECK_Z_HOOK", grading._deck_z_hook))
+
     def test_failed_region_is_not_persisted(self):
         f = test_roads.features([[(-200., 0.), (200., 0.)]], ["motorway"])
         g = grading.Grader(test_roads.FRAME, test_grading.FakeMD(f), lambda la, lo: np.full(np.shape(la), 10.))
