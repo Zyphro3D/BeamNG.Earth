@@ -655,3 +655,13 @@ class ArmJoinTest(unittest.TestCase):
         sizes = sorted(len(v) for v in j.values())
         self.assertEqual(sizes[-1], 3)
         self.assertTrue(any({a[0] for a in v} == {"r1", "r2", "ap"} for v in j.values()))
+
+class PavementLinesTest(unittest.TestCase):
+    def test_a_deck_with_a_width_per_segment(self):
+        """roads._deck_clearance gives a varying deck a half width per segment: its widest is kept, not a TypeError
+        (a whole road tile failed at a French interchange, 2026-11-10)."""
+        line = np.array([[0.0, 0.0, 5.0], [10.0, 0.0, 5.0], [20.0, 0.0, 5.0]])
+        got = furniture._pavement_lines([(3.0, np.array([[0.0, 5.0], [9.0, 5.0]]))],
+                                        [(line, np.array([4.0, 6.5])), (line, 5.0), (line[:1], 9.0)])
+        self.assertEqual([h for h, _ in got], [3.0, 6.5, 5.0])
+        self.assertEqual(got[1][1].shape, (3, 2))
