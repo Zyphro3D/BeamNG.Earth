@@ -148,6 +148,9 @@ Baden-Wurttemberg (`owsproxy.lgl-bw.de`), Lower Saxony (`opendata.lgln.niedersac
   The file retains the source credits, snapshot hashes and calibrated 0.2-mile stations. It identifies
   the custom median treatments; placement uses the currently generated pavement.
 
+- **French toll lanes** (`server/data/fr_toll_lanes.json.gz`): OpenStreetMap contributors (ODbL), barrier=toll_booth
+  nodes in France, exported once (`tools/build_fr_tolls.py`).
+
 ## Never contacted
 
 The server never asks OpenStreetMap's own servers (the Overpass API, OSM's vector tiles) or Protomaps at runtime: they

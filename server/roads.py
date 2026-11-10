@@ -12252,6 +12252,11 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
             kit_town_boards(meshed, roads, own_box, signs, props, ground, left_hand, sign_records)
             if sign_mesh is None and signs:     # (the deferred roadside signs, finish_roadside, add to the same mesh)
                 sign_mesh, sign_records = signs[0]
+    if props is not None and walks is not None:     # French toll plazas: islands and barriers (frtolls.py)
+        import franceroads
+        if franceroads.in_france(frame.lat0, frame.lon0):
+            import frtolls
+            props.extend(frtolls.rows(frame, roads, own_box))
     aisles = {fid for fid, (f, i, sp) in seen.items()
               if sp.kind == "paved" and _rule_value(f.rules.get("subclass"), i) == "parking_aisle"}
     if (park is not None and walks is not None) or (marks is not None and aisles):
