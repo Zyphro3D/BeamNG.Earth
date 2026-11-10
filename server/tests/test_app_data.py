@@ -18,8 +18,10 @@ NOT_DATA = {"server/README.md", "server/requirements.txt", "server/earthfast.abi
 
 class AppDataTest(unittest.TestCase):
     def test_every_tracked_server_data_file_is_bundled(self):
-        files = subprocess.run(["git", "ls-files", "server"], cwd=ROOT, capture_output=True, text=True,
-                               check=True).stdout.split()
+        got = subprocess.run(["git", "ls-files", "server"], cwd=ROOT, capture_output=True, text=True)
+        if got.returncode != 0:         # (a copy of the tree without its .git: an archive, a release's sources)
+            self.skipTest(f"not a git checkout: {got.stderr.strip()[:80]}")
+        files = got.stdout.split()
         data = [f for f in files if not f.endswith(".py") and not f.startswith("server/tests/")
                 and "/__" not in f and f not in NOT_DATA]
         self.assertTrue(data)
