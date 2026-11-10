@@ -1152,6 +1152,26 @@ def _stoop(m, spec, ring, gmin, base, mat_idx):
 MARBLE_LOOK = "bne_marble"
 
 
+CANOPY_POSTS_MAX_M = 8.0    # m: a canopy's underside up to this high stands on posts (higher: mapped on its own
+CANOPY_POST_STEP_M = 8.0    # parts, a toll plaza's or a station's); posts this far apart along its length, ...
+CANOPY_POST_HALF_M = 0.09   # ... this thick, set in this far from its edge
+CANOPY_POST_INSET_M = 0.4
+
+
+def _canopy_posts(m, spec, gmin, z_under, mat):
+    """Steel posts under a carport's roof (OPEN_CANOPY_CLASSES) along its length, from its lowest ground to its
+    underside: one row down its middle, two along the edges of one over 12 m wide."""
+    c, u, hl, hw = oriented_box(spec.ring)
+    v = np.array([-u[1], u[0]])
+    n = max(2, int(round(2 * hl / CANOPY_POST_STEP_M)) + 1)
+    along = np.linspace(-hl + CANOPY_POST_INSET_M, hl - CANOPY_POST_INSET_M, n)
+    # a solar car park's canopy over one or two rows of bays stands on one row of posts down its middle
+    rows = (0.0,) if hw <= 6.0 else (-(hw - CANOPY_POST_INSET_M), hw - CANOPY_POST_INSET_M)
+    for a in along:
+        for b in rows:
+            _box(m, c + u * a + v * b, u, CANOPY_POST_HALF_M, CANOPY_POST_HALF_M, gmin - 0.3, z_under, mat)
+
+
 def _box_tiled(m, c, u, hx, hy, z0, z1, mat, tile=1.0):
     """_box with the material tiled at `tile` m per repeat (a stone texture, not the facade sheets' colour patches)."""
     v = np.array([-u[1], u[0]])
@@ -1723,6 +1743,8 @@ def build(specs_and_ground, lite=False):
         _walls(m, spec, ring, z0, z_eave, mat_idx, lite)
         if mh > 0.5:                                  # a part standing on another / over a street: its underside
             m.poly([(p[0], p[1], z0) for p in ring[::-1]], [(0.002, 0.995)] * len(ring), mat_idx[spec.facade])
+        if spec.cls in OPEN_CANOPY_CLASSES and 0.5 < mh <= CANOPY_POSTS_MAX_M:
+            _canopy_posts(m, spec, gmin, z0, mat_idx[spec.facade])
         _roof(m, spec, ring, z_eave, mat_idx, lite)
         if spec.roof == "flat" and not spec.plain and spec.floors <= 6 and not lite:
             _cornice(m, spec, ring, z_eave, mat_idx)
@@ -1860,6 +1882,9 @@ def _part_heights(a, i):
     return float(top) - mh, mh
 
 
+OPEN_CANOPY_CLASSES = {"carport", "roof"}     # OSM building=carport / roof: a roof on posts, open under it
+CANOPY_CLEAR_M = 2.6        # m: its underside (a car park canopy's clearance) when its height is not mapped ...
+CANOPY_SLAB_M = 0.4         # ... and the roof slab's thickness
 ROAD_THROUGH_M = 15.0       # a footprint that public roads run through this far is a structure over them
 OVER_ROAD_CLEAR_M = 5.5     # ... lifted this high (an expressway's or a station's slab over the streets: Baltimore's
                             # 17,500 m2 one by I-83, the AI drove into its wall at 35 mph, 2026-10-14)
@@ -2762,6 +2787,12 @@ def tile_buildings(frame, x0, y0, x1, y1, layers, elev, water=None, part_layers=
                 h = at.get("height")
                 if h is None or not np.isfinite(h) or h < mh + 3.0:
                     at = dict(at, height=mh + 3.0)      # keeps its top; at least a slab's worth over the clearance
+            if mh <= 0.5 and str(at.get("class") or "").lower() in OPEN_CANOPY_CLASSES:
+                # a carport's or a canopy's roof on its posts, open under it (a nightclub's solar parking canopies
+                # stood as closed sheds over the bays, the user's report 2026-11-10)
+                h = at.get("height")
+                mh = max(CANOPY_CLEAR_M, float(h) - CANOPY_SLAB_M) if h is not None and np.isfinite(h) else CANOPY_CLEAR_M
+                at = dict(at, height=mh + CANOPY_SLAB_M, roof_shape="flat", _canopy=True)
             if mh < OVER_TUNNEL_CLEAR_M and tunnels_xy and road_through(ring, tunnels_xy) >= TUNNEL_THROUGH_M:
                 # over a tunnel: its floor OVER_TUNNEL_CLEAR_M over the road at the mouth near it (the lowest ground
                 # along the tunnel's line round it), from its own lowest ground (base_z); none where its ground is
@@ -2853,7 +2884,9 @@ def tile_buildings(frame, x0, y0, x1, y1, layers, elev, water=None, part_layers=
         house_res = house_land.at_many(np.add.reduceat(la_all, starts) / cnt, np.add.reduceat(lo_all, starts) / cnt) \
             if len(la_all) else np.zeros(len(rings), bool)
     for k, (ring, at, sh, look, mh) in enumerate(zip(rings, attrs, shared, looks, mins)):
-        if mh > 0.5 and at.get("height") is not None and np.isfinite(at["height"]) and look is None:
+        if at.get("_canopy"):
+            at = dict(at, height=CANOPY_SLAB_M)                         # the roof slab alone, over its clearance
+        elif mh > 0.5 and at.get("height") is not None and np.isfinite(at["height"]) and look is None:
             at = dict(at, height=max(2.5, float(at["height"]) - mh))     # a building's own height range
         i0, i1 = (ends[k - 1] if k else 0), ends[k]
         if francehouses.ON:

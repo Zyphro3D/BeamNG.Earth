@@ -682,6 +682,22 @@ class OverRoadTest(unittest.TestCase):
         self.assertEqual(min_h(np.nan, [corner]), 0.0, "no level: a road at its edge is no road through it")
         self.assertEqual(min_h(1.0, [np.array([[0.0, 200.0], [256.0, 200.0]])]), 0.0, "no road in it")
 
+    def test_a_carport_is_a_roof_on_its_posts(self):
+        # a nightclub's solar parking canopies (OSM building=carport, the user's report 2026-11-10) stood as closed
+        # sheds over the bays: a roof slab over a car's clearance, open under it; a mapped height keeps its top
+        b = Feats(["C", "R", "H"], [self.ll(10, 10, 40, 5), self.ll(10, 30, 40, 12), self.ll(100, 100, 12, 10)],
+                  **{"class": ["carport", "roof", "house"], "height": [np.nan, 7.0, 6.0]})
+        items = bld.tile_buildings(self.f, 0, 0, 256, 256, [b], lambda la, lo: np.zeros(np.shape(la)))
+        by = {s.cls: s for s, _, _ in items}
+        self.assertEqual(by["carport"].min_h, bld.CANOPY_CLEAR_M)
+        self.assertAlmostEqual(by["carport"].height, bld.CANOPY_SLAB_M)
+        self.assertEqual(by["carport"].roof, "flat")
+        self.assertAlmostEqual(by["roof"].min_h + by["roof"].height, 7.0, delta=0.01, msg="its top where it was")
+        self.assertEqual(by["house"].min_h, 0.0)
+        P = bld.build([it for it in items if it[0].cls == "carport"])[0]
+        self.assertLess(P[:, 2].min(), 0.01, "posts down to the ground")
+        self.assertAlmostEqual(P[:, 2].max(), bld.CANOPY_CLEAR_M + bld.CANOPY_SLAB_M, delta=0.05)
+
     def test_a_huge_footprint_with_streets_in_it_is_a_site_left_out(self):
         # OSM's 1.35 km2 "Blueberry Commons" by I-94 (Huntley MT, 2026-11-05): a planned development tagged building,
         # its streets inside, lifted over them as a 15 m wall over the prairie. A footprint over SITE_M2 that public

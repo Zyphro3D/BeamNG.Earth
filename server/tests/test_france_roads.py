@@ -66,7 +66,7 @@ class WidthTest(FrenchTest):
         self.assertAlmostEqual(ss[0].width, 7.2, places=4)
         self.assertEqual(ss[1].width, 9.)
         self.assertEqual(roads.lane_layout(ss[1])[1], 3)
-        self.assertEqual(ss[2].width, 5.)
+        self.assertEqual(ss[2].width, 6.)      # two lanes of at least franceroads.LANE_MIN_M
         self.assertEqual(roads.lane_layout(ss[2])[1], 2)
 
     def test_measured_width_is_not_replaced_by_fallback(self):
