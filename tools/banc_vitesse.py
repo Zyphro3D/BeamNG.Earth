@@ -40,6 +40,8 @@ def args_parse(argv=None):
     ap.add_argument("--speed", type=float, default=69.4, help="m/s (69.4: 250 km/h)")
     ap.add_argument("--heading", type=float, default=0.0, help="degrees from east, counterclockwise (90: north)")
     ap.add_argument("--km", type=float, default=10.0)
+    ap.add_argument("--wait", type=float, default=0.0,
+                    help="s standing after the first block before driving off (a longer loading screen)")
     ap.add_argument("--accel", type=float, default=0.0,
                     help="m/s/s from standing to --speed (0: at --speed from the start; ~3: a quick car's full throttle)")
     ap.add_argument("--out", required=True)
@@ -63,7 +65,8 @@ def main(argv=None):
     user = tempfile.mkdtemp(prefix="banc_vitesse_")
     log = open(out_dir / "server.log", "w", encoding="utf-8")
     cmd = [sys.executable, str(SERVER / "earthd.py"), "--port", "0", "--user-dir", user,
-           *([] if a.cache is None else ["--cache-dir", a.cache]), *launcher.RECOMMENDED]
+           # (a cache given: never trimmed, it may link to the player's downloads)
+           *([] if a.cache is None else ["--cache-dir", a.cache, "--cache-cap", "0"]), *launcher.RECOMMENDED]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=log, text=True, env=env, cwd=str(SERVER))
     result = {"lat": a.lat, "lon": a.lon, "speed": a.speed, "heading": a.heading, "km": a.km,
               "cache": a.cache or "player's"}
@@ -163,7 +166,9 @@ def drive(client, frame, aid, ready, size, a, modsim, REBASE, cheb):
             out["paused_s"] += dur
             out["longest_pause_s"] = max(out["longest_pause_s"], dur)
             paused_since = None
-        if paused_since is None:
+        if clock < a.wait:                      # (still standing: a longer loading screen)
+            pass
+        elif paused_since is None:
             if v < a.speed:
                 k = min(a.speed, v + a.accel * DT) / v
                 v, vx, vy = v * k, vx * k, vy * k
@@ -172,7 +177,7 @@ def drive(client, frame, aid, ready, size, a, modsim, REBASE, cheb):
         e = min(x - box[0], box[2] - x, y - box[1], box[3] - y)
         if e < out["edge_min"]:
             out["edge_min"], out["edge_at"] = e, (round(clock, 2), round(driven))
-        speed_now = 0.0 if paused_since is not None else v
+        speed_now = 0.0 if paused_since is not None or clock < a.wait else v
         # origin rebase first (core.lua updateWorld)
         p = st["pending"]
         stale = edge = None
@@ -226,7 +231,7 @@ def drive(client, frame, aid, ready, size, a, modsim, REBASE, cheb):
             client.send({"type": "pose", "anchorId": aid, "x": x, "y": y, "z": 0.0,
                          "vx": vx if speed_now else 0.0, "vy": vy if speed_now else 0.0,
                          "lat": float(lat), "lon": float(lon), "speed": speed_now})
-        if clock > 3 * a.km * 1000.0 / a.speed + 600:      # (stuck: a wall-time bound)
+        if clock > 3 * a.km * 1000.0 / a.speed + 600 + a.wait:      # (stuck: a wall-time bound)
             out["errors"].append("timeout")
             break
     if paused_since is not None:
