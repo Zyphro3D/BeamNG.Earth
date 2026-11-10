@@ -1112,15 +1112,19 @@ class TrackerTest(unittest.TestCase):
             tr = make()
             cam = (5000.0, 0.0)
 
-            async def go(view, n=60):
+            async def go(view, n=60, until=None):
+                # (until: poses go on until it holds, at most 10 s: 60 in 0.6 s left a slow Windows runner's tiles
+                # unbuilt, 2026-11-10)
                 loop = asyncio.get_running_loop()
-                for _ in range(n):
+                for i in range(1000 if until else n):
+                    if until and i >= n and until():
+                        break
                     tr.on_pose(conn, 1, 0.0, 0.0, loop, lambda aid, tx, ty: (built.append((tx, ty)), (f"/p/{tx}_{ty}", 1))[1],
                                view=view)
                     await asyncio.sleep(0.01)
             send = roads.SEND_M if kind == "roads" else vegetation.SEND_M
             car, seen = set(roads.tiles_near(0, 0, send)), set(roads.tiles_near(*cam, send))
-            asyncio.run(go(cam))
+            asyncio.run(go(cam, until=lambda: set(built) >= car | seen))
             self.assertEqual(set(built), car | seen, kind)
             # (the car's tiles start first; the last ones build beside the first others: their threads end in any order)
             self.assertLessEqual(set(built[:len(car) - 8]), car, f"{kind}: the car's tiles first")
