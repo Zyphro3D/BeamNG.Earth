@@ -115,6 +115,9 @@ class AdvanceLayoutTest(unittest.TestCase):
 
     def test_atlas_is_the_bundled_font_regenerated_and_licensed(self):
         """tools/build_sign_glyphs.py from tools/fonts/RG2014EEM.ttf gives the committed metrics and atlas."""
+        import importlib.util
+        if importlib.util.find_spec('fontTools') is None:
+            self.skipTest('regenerating the atlas needs fonttools (server/requirements-ci.lock)')
         root=Path(__file__).resolve().parents[2]
         sys.path.insert(0,str(root/'tools'))
         import build_sign_glyphs
