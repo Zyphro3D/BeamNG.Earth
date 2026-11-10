@@ -133,7 +133,12 @@ class LayoutTest(unittest.TestCase):
 class AssetsTest(unittest.TestCase):
     def test_french_faces_use_unmodified_typoroute_l1_with_native_spacing(self):
         path=ROOT/'tools/fonts/town/Typoroute2002-L1_100.ttf'
-        source=ImageFont.truetype(str(path),96)
+        # (the atlas's advances are RAQM's, the font's own kerning: AV tighter; Pillow without libraqm, as on Windows,
+        # lays out with the basic engine, 531 px for MARCENAT against 545.4, and the comparison means nothing there)
+        from PIL import features
+        if not features.check('raqm'):
+            self.skipTest('needs Pillow with libraqm (the atlas was measured with its layout)')
+        source=ImageFont.truetype(str(path),96,layout_engine=ImageFont.Layout.RAQM)
         cap=source.getbbox('H',anchor='ls')[3]-source.getbbox('H',anchor='ls')[1]
         face=sm.face_font('l1')
         self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),'225b8b8eed0f0a6b59ad1ba836f2e9394ca1297386aec79709f5c0fa47057291')
