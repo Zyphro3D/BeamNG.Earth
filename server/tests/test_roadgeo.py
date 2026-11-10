@@ -36,7 +36,8 @@ import roads  # noqa: E402
 
 LAT, LON = 39.2834, -76.5934
 CACHE = os.path.expanduser("~/.cache/beamng-earth")
-HAVE_DATA = os.path.isdir(os.path.join(CACHE, "mapdata")) and os.environ.get("BNGE_ROADGEO_REAL", "1") != "0"
+from realdata import wanted as _real_wanted  # noqa: E402
+HAVE_DATA = os.path.isdir(os.path.join(CACHE, "mapdata")) and _real_wanted("BNGE_ROADGEO_REAL")
 
 
 def east(lat, lon, km):
@@ -262,7 +263,7 @@ class GeoTrackerRebaseTest(unittest.TestCase):
               f"{len(content_after)}, skins after {len(skins_after)}, parts back to base {sum(len(m['parts']) for m in base)}")
 
 
-@unittest.skipUnless(HAVE_DATA, "the map data cache (~/.cache/beamng-earth)")
+@unittest.skipUnless(HAVE_DATA, "the map data cache (~/.cache/beamng-earth) and " + __import__("realdata").REASON)
 class RealDataTest(unittest.TestCase):
     def test_content_identical_from_two_anchors(self):
         """The geotile under Fells Point built after a session's anchor tile there, once for an anchor at the place

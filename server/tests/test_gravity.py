@@ -35,7 +35,8 @@ import test_server  # noqa: E402
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "egm2008_n36.npz"
 MGAL = 1e-5
-REAL = os.environ.get("BNGE_GRAVITY_REAL") == "1"
+from realdata import wanted as _real_wanted  # noqa: E402
+REAL = _real_wanted("BNGE_GRAVITY_REAL")
 
 # GeographicLib GeoidEval (egm2008-1 grid of NGA's EGM2008 geoid), queried 2026-10-10
 PUBLISHED_GEOID = [

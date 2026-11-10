@@ -12,7 +12,8 @@
 Prints a line for every test that fails, errors, is skipped or takes over 5 s, a status line every 30 s (modules
 done, the ETA, what is running and its current test) and a summary per module. The ETA comes from the earlier runs'
 times (build/test_times.json); the longest modules start first. Exit status 1 when a module did not pass.
-BNGE_SKIP_DRIVE=1 skips the drive test, as with unittest discover.
+BNGE_SKIP_DRIVE=1 skips the drive test, as with unittest discover. The tests on real map data (downloads, the network)
+run only with --real (BNGE_REAL_TESTS=1, server/tests/realdata.py).
 """
 import argparse
 import concurrent.futures as cf
@@ -187,7 +188,11 @@ def main():
     ap.add_argument("--par", type=int, default=6)
     ap.add_argument("--timeout", type=int, default=1500)
     ap.add_argument("--logs", default=os.path.join(BUILD, "test-logs"))
+    ap.add_argument("--real", action="store_true",
+                    help="also the tests on real map data (downloads; server/tests/realdata.py: BNGE_REAL_TESTS=1)")
     a = ap.parse_args()
+    if a.real:
+        os.environ["BNGE_REAL_TESTS"] = "1"         # (inherited by every module's process)
     mods = [m[:-3] if m.endswith(".py") else m for m in a.modules] or \
         sorted(os.path.basename(p)[:-3] for p in glob.glob(os.path.join(TESTS, "test_*.py")))
     os.makedirs(a.logs, exist_ok=True)

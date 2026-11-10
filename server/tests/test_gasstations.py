@@ -1555,7 +1555,7 @@ class SwitchTest(unittest.TestCase):
         self.assertFalse(sur.gas_pads)
 
 
-REAL = __import__("os").environ.get("BNGE_GAS_REAL") == "1"
+REAL = __import__("realdata").wanted("BNGE_GAS_REAL")
 
 
 @unittest.skipUnless(REAL, "set BNGE_GAS_REAL=1 to lay out real stations (Pittsburgh area, Nagambie, Tokyo) from the Overture data")

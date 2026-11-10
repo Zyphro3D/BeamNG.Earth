@@ -35,7 +35,8 @@ import geotiles  # noqa: E402
 LAT, LON = 39.2834, -76.5934
 BRIDGE_LAT, BRIDGE_LON = 39.2617, -76.611        # (Baltimore's Hanover Street bridge: a square with far bridge pieces)
 CACHE = os.path.expanduser("~/.cache/beamng-earth")
-HAVE_DATA = os.path.isdir(os.path.join(CACHE, "mapdata")) and os.environ.get("BNGE_FARGEO_REAL", "1") != "0"
+from realdata import wanted as _real_wanted  # noqa: E402
+HAVE_DATA = os.path.isdir(os.path.join(CACHE, "mapdata")) and _real_wanted("BNGE_FARGEO_REAL")
 ROADS_LUA = Path(__file__).resolve().parents[2] / "mod/beamng_earth/lua/ge/extensions/beamngEarth/roads.lua"
 
 
@@ -197,7 +198,7 @@ class AgreementTest(unittest.TestCase):
         self.assertEqual(geotiles.FAR_Z, geotiles.Z, "far buildings in the road geotiles' own grid")
 
 
-@unittest.skipUnless(HAVE_DATA, "the map data cache (~/.cache/beamng-earth)")
+@unittest.skipUnless(HAVE_DATA, "the map data cache (~/.cache/beamng-earth) and " + __import__("realdata").REASON)
 class RealDataTest(unittest.TestCase):
     def test_content_identical_from_two_anchors(self):
         """The far geotiles at Fells Point (far buildings, skyline) and at the Hanover Street bridge (far bridges), each
