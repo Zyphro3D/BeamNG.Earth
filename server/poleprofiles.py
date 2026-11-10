@@ -86,9 +86,11 @@ def geographic_profile(mode):
         if euguardrails.enabled():
             import frlocaldirections
             import frmotorwaymarkers
+            import frspeedcams
             import roadphones
             fingerprint += ':'.join(('', euguardrails.VERSION, roadphones.signature(), directionsigns.ROAD_DATA_SHA256,
-                                     frlocaldirections.SIGNATURE, frmotorwaymarkers.SIGNATURE))
+                                     frlocaldirections.SIGNATURE, frmotorwaymarkers.SIGNATURE,
+                                     frspeedcams.SIGNATURE))
         if mode=='europe':
             import regionalstops
             import delineatorprofiles

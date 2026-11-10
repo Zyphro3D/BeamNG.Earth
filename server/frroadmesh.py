@@ -83,6 +83,32 @@ def motorway_marker(mesh, position, travel, route, pr, bottom, width):
         lettering(mesh, pr, bottom + .166, .168, width - .055)
 
 
+def _pane(mesh, x0, x1, z0, z1, y):
+    """A dark window on a face seen from -Y."""
+    mesh.face(sm.BLACK, [(x1, y, z0), (x1, y, z1), (x0, y, z1), (x0, y, z0)])
+
+
+def speed_camera(mesh, position, travel, tower=False):
+    """A French fixed speed camera: a grey cabin on a post (or a tall column, a "tourelle"), its dark camera and
+    flash windows facing the traffic that comes towards it (local -Y, against travel). Proportions from roadside
+    photographs: a cabin about 0.65 x 0.55 x 0.9 m, its windows about 2.2 m above the ground."""
+    mesh.transform(position, travel)
+    if tower:
+        mesh.box(sm.METAL, (0., 0., 2.0), (.24, .24, 2.0))
+        mesh.box(sm.METAL, (0., 0., 4.05), (.27, .27, .05))
+        for facing in (travel, -np.asarray(travel)):     # a column watches both ways
+            mesh.transform(position, facing)
+            _pane(mesh, -.16, .16, 3.15, 3.6, -.244)
+            _pane(mesh, -.10, .10, 2.7, 2.95, -.244)
+        return
+    post = 1.75
+    mesh.box(sm.METAL, (0., 0., post / 2), (.06, .06, post / 2))
+    mesh.box(sm.METAL, (0., 0., post + .45), (.32, .27, .45))
+    mesh.box(sm.METAL, (0., 0., post + .93), (.36, .31, .03))
+    _pane(mesh, -.24, .04, post + .40, post + .72, -.274)
+    _pane(mesh, .10, .25, post + .48, post + .68, -.274)
+
+
 def arrow(mesh,x,z,height=.65,exit=False,side=1):
     """Concave arrow built from separate convex shaft and head."""
     y=-.038

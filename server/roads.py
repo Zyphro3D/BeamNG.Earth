@@ -9577,6 +9577,16 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
                             frame, roads, own_box, poleprofiles.kit_selector(pole_profile, frame), mesh,
                             pavement, obstacles, frlocaldirections.barrier_context(guardrail_rows),
                             guardrails_rows=guardrail_rows, decks=[*sign_decks, *extra_pavement], data=markers))
+                import frspeedcams
+                cameras = frspeedcams.nearby(frame, own_box)
+                if cameras:                     # fixed speed cameras (OSM), beside the road or in its median
+                    import signplacement
+                    pavement = signplacement.pavement([(sp.width / 2, line) for _, sp, line, _ in roads]
+                                                     + [(half, line) for line, half in [*sign_decks, *extra_pavement]])
+                    obstacles = sign_obstacles if sign_obstacles is not None else signplacement.Context(ground=ground)
+                    added.extend(frspeedcams.add(
+                        frame, roads, own_box, poleprofiles.kit_selector(pole_profile, frame), mesh, pavement,
+                        obstacles, frlocaldirections.barrier_context(guardrail_rows), data=cameras))
                 sign_records.extend(added)
                 if sign_mesh is None and added:
                     signs.append((mesh, sign_records))
@@ -9592,6 +9602,11 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
                           {fid for fid, (f, i, sp) in seen.items() if is_ring(f, i)})
         props[:] = townentry.clear_around(props, town_rows)
         props.extend(s for s in town_rows if x0 <= s[1] < x1 and y0 <= s[2] < y1)
+    if props is not None and walks is not None:     # French toll plazas: islands and barriers (frtolls.py)
+        import franceroads
+        if franceroads.in_france(frame.lat0, frame.lon0):
+            import frtolls
+            props.extend(frtolls.rows(frame, roads, own_box))
     aisles = {fid for fid, (f, i, sp) in seen.items()
               if sp.kind == "paved" and _rule_value(f.rules.get("subclass"), i) == "parking_aisle"}
     if (park is not None and walks is not None) or (marks is not None and aisles):

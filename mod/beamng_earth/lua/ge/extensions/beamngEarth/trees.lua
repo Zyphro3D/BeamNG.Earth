@@ -86,7 +86,7 @@ M.SHAPE_VARIANTS = 4
 -- fences and lamps keep their variants (their populations reach thousands).
 M.ONE_SPELLING = { door = true, hydrant = true, bin = true, bench = true, busshelter = true, billboard = true,
   barn = true, celltower = true, container = true, gantry = true, giveway = true, stop = true, signal = true,
-  picnicgrill = true, picnictable = true, pylon = true, hvpole = true, tollbooth = true, watertower = true, cable = true,
+  picnicgrill = true, picnictable = true, pylon = true, hvpole = true, tollbooth = true, tollgate = true, watertower = true, cable = true,
   rrcross = true, rrcross_eu = true, rrflash = true, rrflash_eu = true, rrgate = true, rrgate_eu = true,
   rrgate_eu_l = true, rrgate_l = true, sub_breaker = true, sub_fence = true, sub_mast = true, sub_support = true,
   sub_transformer = true, wallsign_lemon = true, wallsign_logistics = true, wallsign_rentabox = true,
@@ -189,6 +189,7 @@ M.CATALOG = {
   -- a toll plaza's island with its booth (server buildings.toll_booth_rows; the user, 2026-10-21: "west coast has one,
   -- reference that"): 22 m along its local y, 1.6 m wide
   tollbooth = { { WCA .. 'objects/s_toll_booth_center', 4.96 } },
+  tollgate = { { '/levels/italy/art/shapes/buildings/italy_bld_boomgate_4.5m', 5.89 } },     -- arm raised (server frtolls.py)
   bench = { { ECA .. 'clutter/clutter_city_bench_wood', 0.9 } },
   bin = { { '/art/shapes/garage_and_dealership/Clutter/clutter_city_bin_round', 1.1 }, { WCA .. 'objects/garbage_bin_a', 1.1 } },
   polelamp = { { ECA .. 'buildings/electrical_pole_lamp', 1.1 } },
