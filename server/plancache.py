@@ -66,12 +66,37 @@ def start_run(cache_dir):
 # The plans' output format: their key in the revisit cache (kept across updates) and in baked packs (bakepack.py), in
 # place of the code hash. Bump it whenever a change makes other plans (grading, its inputs' rules), or players keep the
 # old ones; tests/test_bake_formats.py fails until it is bumped (its fixture's digest is stored with the number).
-PLANS_FORMAT = 28     # 28: a divided road's mapped width capped at its carriageways' gap and no inner sidewalk on touching ones (roads._dual_width, walk_sides); 27: company wall signs only in North America (buildings.Spec.us_signs); 26: France: lanes given their room, one width per street (franceroads.py); 25: France: town street defaults (franceroads.py); 24: France: wider through roads (ign_largeur.py floors); 23: a joint of a measured deck stays within reach of the unmeasured part after it (roads._observed); 22: overpasses mapped in parts are one span and road ends within 2 m one dip node (#973, #983; still the same release as 21); 21: one bump for the 2026-11-08 PR batch: abandoned railways not graded (#953, #706), dirt roads on the coarse global elevation smoothed over DIRT_SIGMA_COARSE_M (#951, #835), rail viaduct decks' heights capped (#949), worn railway lines cut at motorways (#946, #918); 18: cutting probes located through grading.enu_to_ll_dense (heights moved < 0.1 mm); 17: PR #843 (restored highway and ramp shoulder widths); 16: walkway bridge spans cap the road under them (PR #842) and OSM busways graded (PR #836); 15: continuous subsea tunnel profiles and their approaches (PR #822, #792); 14: past an abutment end the ground falls away under a still-climbing deck (ABUT_UNDER_GRADE)
-                      # 13: centimetre-scale dirt wear and bounded edge displacement from random banking
-                      # 12: dirt roads toned down (#783, #784; dev); PR #811's own 12: bounded, local dirt damage, independent of real
-                      #     grades and DEM extensions
-                      # 11: pass roads with two lanes graded as mountain roads again (the Stelvio); 10: worn dirt roads (PR #677: damage, lean, 2 m vertices, 2.5 m smoothing of minor dirt); 9: roundabout rings level across (RING_LEVEL_ON); 8: PR #753 (a deck end's approaches rise with it, slip roads tied to their overpass road); 7: PR #471 and #686 lanes (wider / narrower roads graded); 6: the dip under a deck takes its ends on their embankments (#684's fill); 5: one half width a bridge (each was appended twice: under-deck ground and carriageways read the wrong bridge's); 4: junction pads, steep side-road ramps, rail bridges the DEM predates (PR #482/#671); 3:
-                      # bridge ends on embankments (#694), the ground under decks (#698), junction corridors (#682)
+# Its history:
+#   28: a divided road's mapped width capped at its carriageways' gap and no inner sidewalk on touching ones
+#       (roads._dual_width, walk_sides)
+#   27: company wall signs only in North America (buildings.Spec.us_signs)
+#   26: France: lanes given their room, one width per street (franceroads.py)
+#   25: France: town street defaults (franceroads.py)
+#   24: France: wider through roads (ign_largeur.py floors)
+#   23: a joint of a measured deck stays within reach of the unmeasured part after it (roads._observed)
+#   22: overpasses mapped in parts are one span and road ends within 2 m one dip node (#973, #983; still the same
+#       release as 21)
+#   21: one bump for the 2026-11-08 PR batch: abandoned railways not graded (#953, #706), dirt roads on the coarse
+#       global elevation smoothed over DIRT_SIGMA_COARSE_M (#951, #835), rail viaduct decks' heights capped (#949), worn
+#       railway lines cut at motorways (#946, #918)
+#   18: cutting probes located through grading.enu_to_ll_dense (heights moved < 0.1 mm)
+#   17: PR #843 (restored highway and ramp shoulder widths)
+#   16: walkway bridge spans cap the road under them (PR #842) and OSM busways graded (PR #836)
+#   15: continuous subsea tunnel profiles and their approaches (PR #822, #792)
+#   14: past an abutment end the ground falls away under a still-climbing deck (ABUT_UNDER_GRADE)
+#   13: centimetre-scale dirt wear and bounded edge displacement from random banking
+#   12: dirt roads toned down (#783, #784; dev); PR #811's own 12: bounded, local dirt damage, independent of real
+#       grades and DEM extensions
+#   11: pass roads with two lanes graded as mountain roads again (the Stelvio)
+#   10: worn dirt roads (PR #677: damage, lean, 2 m vertices, 2.5 m smoothing of minor dirt)
+#   9: roundabout rings level across (RING_LEVEL_ON)
+#   8: PR #753 (a deck end's approaches rise with it, slip roads tied to their overpass road)
+#   7: PR #471 and #686 lanes (wider / narrower roads graded)
+#   6: the dip under a deck takes its ends on their embankments (#684's fill)
+#   5: one half width a bridge (each was appended twice: under-deck ground and carriageways read the wrong bridge's)
+#   4: junction pads, steep side-road ramps, rail bridges the DEM predates (PR #482/#671)
+#   3: bridge ends on embankments (#694), the ground under decks (#698), junction corridors (#682)
+PLANS_FORMAT = 28
 
 
 def plans_format():

@@ -395,7 +395,20 @@ def _facts_load(feats, kind, extra):
 # (bakepack.py), in place of the code hash; the plans' key holds it too (plancache.plans_format). Bump it whenever a
 # change makes other facts (level ranges, specs, lane flow, grade separations or their inputs' rules), or players keep
 # the old ones; tests/test_bake_formats.py fails until it is bumped.
-FACTS_FORMAT = 12     # 12: France: no sidewalks on the short unnamed pieces of a junction (franceroads.py); 11: France: lanes given their room, one width per street (franceroads.py); 10: France: town street defaults and narrower sidewalks (franceroads.py); 9: France: BD TOPO widths floored on through roads (ign_largeur.py); 8: France: BD TOPO carriageway widths (ign_largeur.py); 7: PR #843 (restored highway shoulders, regional merge marking profiles: Spec.state); 6: busways (PR #836) and walkway spans (PR #842) in the cells; 5: PR #505's Spec.france (French road scenery flag); 4: pass roads with a mapped or default two-lane count stay mountain roads (the Stelvio); 3: PR #471 lane counts (validated highway counts, two-lane highway default) and #686 (Swedish dual carriageways, 2.75 m lanes); 2: OSM's own surface first, "unpaved" on car roads gravel, regional gravel for untagged minor roads
+# Its history:
+#   12: France: no sidewalks on the short unnamed pieces of a junction (franceroads.py)
+#   11: France: lanes given their room, one width per street (franceroads.py)
+#   10: France: town street defaults and narrower sidewalks (franceroads.py)
+#   9: France: BD TOPO widths floored on through roads (ign_largeur.py)
+#   8: France: BD TOPO carriageway widths (ign_largeur.py)
+#   7: PR #843 (restored highway shoulders, regional merge marking profiles: Spec.state)
+#   6: busways (PR #836) and walkway spans (PR #842) in the cells
+#   5: PR #505's Spec.france (French road scenery flag)
+#   4: pass roads with a mapped or default two-lane count stay mountain roads (the Stelvio)
+#   3: PR #471 lane counts (validated highway counts, two-lane highway default) and #686 (Swedish dual carriageways,
+#       2.75 m lanes)
+#   2: OSM's own surface first, "unpaved" on car roads gravel, regional gravel for untagged minor roads
+FACTS_FORMAT = 12
 
 
 def _facts_baked(feats, kind, extra):
