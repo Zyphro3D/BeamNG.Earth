@@ -35,7 +35,15 @@ import rangeread  # noqa: E402
 import xproc  # noqa: E402
 import railtags  # noqa: E402
 
-railtags.LANES_ON = False       # (the lane shards are fetched per build: test_railtags; these count Overture's requests)
+_LANES_ON = railtags.LANES_ON
+
+
+def setUpModule():
+    railtags.LANES_ON = False   # (the lane shards are fetched per build: test_railtags; these count Overture's requests)
+
+
+def tearDownModule():
+    railtags.LANES_ON = _LANES_ON       # (not left off for the modules after this one in the same process)
 
 try:
     import duckdb  # noqa: F401 (only whether it is installed)
