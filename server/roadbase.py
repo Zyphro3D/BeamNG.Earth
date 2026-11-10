@@ -396,6 +396,8 @@ def _facts_load(feats, kind, extra):
 # change makes other facts (level ranges, specs, lane flow, grade separations or their inputs' rules), or players keep
 # the old ones; tests/test_bake_formats.py fails until it is bumped.
 # Its history:
+#   14: one-way motorway / trunk carriageways of other names kept from overlapping too, a pair's share and gap read
+#       from either side (#2374; 13's facts were written by the night's survey with an earlier state of it)
 #   13: France: motorway carriageways of 3.5 m lanes and their shoulders (franceroads); nameless one-way motorway
 #       carriageways capped against each other where they overlap (#2374)
 #   12: France: no sidewalks on the short unnamed pieces of a junction (franceroads.py)
@@ -410,7 +412,7 @@ def _facts_load(feats, kind, extra):
 #   3: PR #471 lane counts (validated highway counts, two-lane highway default) and #686 (Swedish dual carriageways,
 #       2.75 m lanes)
 #   2: OSM's own surface first, "unpaved" on car roads gravel, regional gravel for untagged minor roads
-FACTS_FORMAT = 13
+FACTS_FORMAT = 14
 
 
 def _facts_baked(feats, kind, extra):

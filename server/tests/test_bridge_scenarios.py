@@ -82,6 +82,14 @@ class DeckWidthScenarios(unittest.TestCase):
         self.assertLessEqual((ground[0].width + ground[1].width) / 2, 10.4 - roads.DUAL_MIN_MEDIAN_M + 1e-6)
         self.assertLessEqual((bridge[0].width + bridge[1].width) / 2, 10.4 - roads.DUAL_MIN_MEDIAN_M + 1e-6)
 
+    def test_differently_named_carriageways_never_overlap(self):
+        """A ring road's carriageways named each its own way ("Périphérique Intérieur" / "Extérieur", a French ring road), a long
+        one beside a shorter piece of the other (its share beside it 38 %): both kept from overlapping (#2374)."""
+        f = scenario([[(-5.7, -150), (-5.7, 150)], [(5.7, 300), (5.7, -300)]], ["motorway"] * 2,
+                     names=["Périphérique Extérieur", "Périphérique Intérieur"], oneway=[0, 1])
+        ground, _ = self.assert_deck_as_wide_as_its_road(f)
+        self.assertLessEqual((ground[0].width + ground[1].width) / 2, 11.4 - roads.DUAL_MIN_MEDIAN_M + 1e-6)
+
     def test_close_carriageways_never_overlap(self):
         """Carriageways 7 m apart: each deck capped so the two keep a barrier's width between them (dual_cap)."""
         f = scenario([[(-3.5, -300), (-3.5, 300)], [(3.5, 300), (3.5, -300)]], ["motorway"] * 2,

@@ -1479,11 +1479,14 @@ def dual_carriageways(feats, specs, left_hand=False):
         if sp is None or sp.cls not in DUAL_CLASSES:     # (one-way already: paired for its median only)
             continue
         nm = str(names[i] or "").strip()
-        if nm and nm != "None":
+        named = bool(nm) and nm != "None"
+        if named:
             groups.setdefault((nm, sp.cls), []).append(i)
-        elif sp.oneway and not sp.link:
+        if sp.oneway and not sp.link and (not named or sp.cls in ("motorway", "trunk")):
             # (a numbered road has no name: Sweden's 2+1 roads, below; and most motorways: a French city's ring road, two
-            # carriageways 18 and 14 m wide 10.4 m apart, overlapped 5.6 m, no room for its median barrier, #2374)
+            # carriageways 18 and 14 m wide 10.4 m apart, overlapped 5.6 m, no room for its median barrier, #2374); a
+            # named motorway's / trunk's too, kept from overlapping a one-way carriageway of another name (a French ring road's: "Périphérique
+            # Intérieur" and "Extérieur", never paired as one road)
             groups.setdefault(("", sp.cls), []).append(i)
     out = list(specs)
     for (group_name, _), idx in groups.items():
@@ -1505,10 +1508,16 @@ def dual_carriageways(feats, specs, left_hand=False):
                 if i == j:
                     continue
                 share, side = _dual_side(xy[i], xy[j])
+                if share < DUAL_SHARE and abs(side) > 0.5:
+                    # (the shorter one's share: a long carriageway beside a shorter piece of the other was never paired
+                    # with it, only that piece with the long one)
+                    share = max(share, _dual_side(xy[j], xy[i])[0])
                 if share >= DUAL_SHARE and abs(side) > 0.5:
                     # the nearest of the carriageways beside it (by share, cells holding different neighbours
                     # paired one piece of Boston Street 20 m and 38 m away: a sidewalk on its median in one tile)
-                    gap = _centre_gap(xy[i], xy[j])
+                    # (from either side's points: a long carriageway drawn with few points has none beside a
+                    # shorter piece of the other, its own read 149 m for 11.4)
+                    gap = min(_centre_gap(xy[i], xy[j]), _centre_gap(xy[j], xy[i]))
                     if best is None or gap < best[3]:
                         best = (share, side, j, gap)
             if best is None:
