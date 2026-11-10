@@ -41,7 +41,12 @@ _TMP = tempfile.TemporaryDirectory()
 
 
 def index(*features):
-    """A band file (tools/build_regional_data.band_file, unsimplified) of the features, as the server reads it."""
+    """A band file (tools/build_regional_data.band_file, unsimplified) of the features, as the server reads it.
+    Writing one needs zstd (Python 3.14's compression.zstd or the zstandard package, requirements-ci.lock): the test
+    is skipped without it."""
+    import importlib.util
+    if importlib.util.find_spec("compression.zstd" if sys.version_info >= (3, 14) else "zstandard") is None:
+        raise unittest.SkipTest("writing a band file needs zstandard (server/requirements-ci.lock)")
     parts = []
     for f in features:
         g = f["geometry"]

@@ -26,15 +26,14 @@ import zipfile
 
 import numpy as np
 
-try:
-    from compression import zstd as _zstd       # Python 3.14+
-
-    def zcompress(b):
+def zcompress(b):
+    """b as one zstd frame (level 19): Python 3.14's compression.zstd, else the zstandard package. Imported here, at
+    its first use: the module loads without either (the tests that only read its other helpers)."""
+    try:
+        from compression import zstd as _zstd       # Python 3.14+
         return _zstd.compress(b, 19)
-except ImportError:                             # (older Pythons: the zstandard package)
-    import zstandard
-
-    def zcompress(b):
+    except ImportError:                             # (older Pythons: the zstandard package)
+        import zstandard
         return zstandard.ZstdCompressor(level=19).compress(b)
 
 SIMPLIFY_DEG = 1e-4         # Douglas-Peucker tolerance (~11 m north-south): a sign's style picked 10 m off a border
