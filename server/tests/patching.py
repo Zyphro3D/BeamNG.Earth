@@ -17,8 +17,10 @@ FAMILIES = {"roads": ("road",), "grading": ("grad",), "buildings": ("bld", "buil
 
 
 class patch_all(contextlib.ContextDecorator):    # noqa: N801 (named like the mock.patch it stands for)
-    def __init__(self, module, name, value):
-        self.module, self.name, self.value = module, name, value
+    def __init__(self, module, name, value=mock.DEFAULT, **mock_kwargs):
+        # (no value: one MagicMock made with mock_kwargs, e.g. return_value= or side_effect=, put in every module)
+        self.module, self.name = module, name
+        self.value = mock.MagicMock(**mock_kwargs) if value is mock.DEFAULT else value
         self._stack = None
 
     def _targets(self):

@@ -531,7 +531,6 @@ class RoadZ:
         return bool(p and os.path.exists(p))
 
     def _path(self, src, key):
-        import roads
         import roadbase
         if src == "lidar" and not roadbase.LIDAR_GAPS_ON:
             src = "lidar-nogaps"            # (built without the ground stretches: not the cells with them)

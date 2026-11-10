@@ -10,12 +10,13 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import franceroads as fr  # noqa: E402
 import roads  # noqa: E402
+from patching import patch_all  # noqa: E402
 
 
 def adjust(spec, attrs=None):
     feats = SimpleNamespace(rules={}, attrs=attrs or {})
     with mock.patch.object(fr, "ON", True), mock.patch.object(fr, "french_feature", lambda f, i: True), \
-            mock.patch.object(roads, "is_ring", lambda f, i: False):
+            patch_all(roads, "is_ring", lambda f, i: False):
         return fr.adjust_specs(feats, [spec])[0]
 
 
@@ -97,8 +98,8 @@ class SplitPieceTest(unittest.TestCase):
         sp = roads.Spec(5.0, "paved", True, "secondary", True, walk=2.5)
         feats = SimpleNamespace(rules={}, attrs={"name": [name], "osm_width": ["5"]})
         with mock.patch.object(fr, "ON", True), mock.patch.object(fr, "french_feature", lambda f, i: True), \
-                mock.patch.object(roads, "is_ring", lambda f, i: False), \
-                mock.patch.object(roads, "_lengths", lambda f: np.array([length])):
+                patch_all(roads, "is_ring", lambda f, i: False), \
+                patch_all(roads, "_lengths", lambda f: np.array([length])):
             return fr.adjust_specs(feats, [sp])[0]
 
     def test_a_short_unnamed_piece_has_no_sidewalk(self):
@@ -142,8 +143,8 @@ class OneStreetTest(unittest.TestCase):
     def run_it(self, widths, lengths, names=None, cls="tertiary"):
         specs = [roads.Spec(w, "paved", True, cls, True, france=True, walk=1.6) for w in widths]
         feats = SimpleNamespace(rules={}, attrs={"name": names or ["Rue A"] * len(widths)})
-        with mock.patch.object(roads, "is_ring", lambda f, i: False), \
-                mock.patch.object(roads, "_lengths", lambda f: np.array(lengths, float)):
+        with patch_all(roads, "is_ring", lambda f, i: False), \
+                patch_all(roads, "_lengths", lambda f: np.array(lengths, float)):
             return [s.width for s in fr._one_width_per_street(feats, specs)]
 
     def test_the_pieces_take_the_longest_ones_width(self):

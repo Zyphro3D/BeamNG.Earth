@@ -12,6 +12,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import netfetch  # noqa: E402
 import revisit  # noqa: E402
+from patching import patch_all  # noqa: E402
 
 
 class RevisitTest(unittest.TestCase):
@@ -58,8 +59,8 @@ class RevisitTest(unittest.TestCase):
                 ra = [roads.level_ranges(cell(), i) for i in range(2)]
                 b_feats = cell()            # (another process: its own decoded cell)
                 from unittest import mock
-                with mock.patch.object(roads, "_road_specs", side_effect=AssertionError("made again")), \
-                        mock.patch.object(roads, "_level_ranges", side_effect=AssertionError("made again")):
+                with patch_all(roads, "_road_specs", side_effect=AssertionError("made again")), \
+                        patch_all(roads, "_level_ranges", side_effect=AssertionError("made again")):
                     self.assertEqual(roads.road_specs(b_feats), a)
                     self.assertEqual([roads.level_ranges(b_feats, i) for i in range(2)], ra)
                 self.assertEqual(b_feats.__dict__["_road_specs"][(None, None, False)], a)

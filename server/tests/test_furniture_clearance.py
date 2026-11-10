@@ -10,6 +10,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import furniture  # noqa: E402
 import roads  # noqa: E402
+from patching import patch_all  # noqa: E402
 from test_furniture import road  # noqa: E402
 from test_roads import FRAME, features, flat, rules  # noqa: E402
 
@@ -304,7 +305,7 @@ class DevelopmentContextTest(unittest.TestCase):
         elev = lambda la, lo: np.zeros(np.shape(la))
         urban = lambda la, lo: np.ones(np.shape(la), bool)
         tile = []
-        with patch.object(roads, '_bridge_chunks', return_value=chunks):
+        with patch_all(roads, '_bridge_chunks', return_value=chunks):
             roads.build_tile(FRAME, 0, 0, [ground], elev, urban_fn=urban, clearance_out=tile)
         deck_context = [roads._deck_clearance(ch) for ch in chunks if ch.get('deck')]
         self.assertTrue(deck_context)
@@ -342,7 +343,7 @@ class DevelopmentContextTest(unittest.TestCase):
             shift_of=lambda fid, p: np.full(len(p), 10.),
             width_of=lambda fid, p: np.where(p[:, 0] < 128., 8., 16.))
         context = []
-        with patch.object(roads, '_bridge_chunks', return_value=chunks):
+        with patch_all(roads, '_bridge_chunks', return_value=chunks):
             roads.build_tile(FRAME, 0, 0, [], flat, clearance_out=context)
         self.assertTrue(context[0].clear(row('stop', 20., 119., z=20.)))
         self.assertFalse(context[0].clear(row('stop', 190., 119., z=20.)))
@@ -352,7 +353,7 @@ class DevelopmentContextTest(unittest.TestCase):
         import roadmesh
         tunnel = {'tunnel': True, 'n': [[0., 100., 0.], [256., 100., 0.]], 'w': 8.}
         context = []
-        with patch.object(roads, '_tunnel_chunks', return_value=[tunnel]), \
+        with patch_all(roads, '_tunnel_chunks', return_value=[tunnel]), \
                 patch.object(furniture, 'place', wraps=furniture.place) as place:
             roads.build_tile(FRAME, 0, 0, [], flat, tunnels=object(), walks=[], props=[],
                              clearance_out=context)

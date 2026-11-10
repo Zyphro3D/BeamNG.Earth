@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import geodesy  # noqa: E402
 import mapgeom  # noqa: E402
 import roads  # noqa: E402
+from patching import patch_all  # noqa: E402
 import surface as sf  # noqa: E402
 
 LAT, LON = 39.2834, -76.5934
@@ -1330,7 +1331,7 @@ class DirtStripTest(unittest.TestCase):
 
     def setUp(self):
         import roadbase
-        self.enterContext(mock.patch.object(roads, "ROADS_IN_GROUND", True))
+        self.enterContext(patch_all(roads, "ROADS_IN_GROUND", True))
         self.enterContext(mock.patch.object(roadbase, "DIRT_STRIPS", True))
 
     def test_dirt_and_gravel_get_a_continuous_strip_paved_none(self):
@@ -1426,7 +1427,7 @@ class DirtStripTest(unittest.TestCase):
             road = features([[(-20, 40), (600, 40)]], ["track"], ids=["trk"])
             self.assertFalse(_strips(0, road), "no strip: the ground's tint alone")
             self.assertEqual(roads.look_of(roads.road_specs(road)[0], "trk"), roads.LOOK["dirt"])
-            with mock.patch.object(roads, "ROADS_IN_GROUND", False):   # (meshes for every carriageway: no fade uv)
+            with patch_all(roads, "ROADS_IN_GROUND", False):   # (meshes for every carriageway: no fade uv)
                 ch = [c for c in roads.build_tile(FRAME, 0, 0, [road], flat) if c["m"] == roads.LOOK["dirt"]["m"]]
             self.assertTrue(ch)
             self.assertNotIn("slen", ch[0])

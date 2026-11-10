@@ -16,6 +16,7 @@ import fast  # noqa: E402
 import mapcells  # noqa: E402
 import revisit  # noqa: E402
 import roads  # noqa: E402
+from patching import patch_all  # noqa: E402
 import roadbase  # noqa: E402
 import roadz  # noqa: E402
 from test_roads import features, FRAME  # noqa: E402
@@ -194,7 +195,7 @@ class CellFactsTest(unittest.TestCase):
         from unittest import mock
         first = [roads.level_ranges(self.feats(), i) for i in range(2)]
         self.assertTrue(os.path.isdir(os.path.join(self.tmp, "plans", "test_run", "facts")), "kept for the run")
-        with mock.patch.object(roads, "_level_ranges", side_effect=AssertionError("made again")):
+        with patch_all(roads, "_level_ranges", side_effect=AssertionError("made again")):
             self.assertEqual([roads.level_ranges(self.feats(), i) for i in range(2)], first, "this process's")
             roads._FACTS_MEM.clear()        # (another process: the run's file)
             f0 = revisit.faults()

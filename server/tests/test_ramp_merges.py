@@ -8,6 +8,7 @@ import numpy as np
 sys.path[:0] = [str(Path(__file__).resolve().parents[1]), str(Path(__file__).resolve().parent)]
 import roads
 import roadmarkings
+from patching import patch_all  # noqa: E402
 import rampmerges
 import geodesy
 from test_roads import features, rules, FRAME, LAT, LON
@@ -61,13 +62,13 @@ class MergeTest(unittest.TestCase):
                         patch.object(rampmerges, '_cache', LayoutCache()):
                     frame, feats = fixture(entry)
                     tapers = [[] for _ in range(len(feats))]
-                    with patch.object(roads, 'road_tapers', return_value=tapers):
+                    with patch_all(roads, 'road_tapers', return_value=tapers):
                         expected = rampmerges.ground(frame, [feats])
                     self.assertEqual(len(expected), 1)
                     tapers[feature] = [(-84., 42., 8., 20.)]
                     self.assertIsNone(roads.taper_widths(6., tapers[feature], [-85.], [42.]))
                     feats._road_revision = 1
-                    with patch.object(roads, 'road_tapers', return_value=tapers):
+                    with patch_all(roads, 'road_tapers', return_value=tapers):
                         actual = rampmerges.ground(frame, [feats])
                         self.assertEqual(len(actual), 1)
                         for key in ('guide', 'outer', 'span'):

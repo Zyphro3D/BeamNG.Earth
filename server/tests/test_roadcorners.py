@@ -14,6 +14,7 @@ from test_roads import FRAME, features, flat, rules  # noqa: E402
 import grading  # noqa: E402
 import roadcorners  # noqa: E402
 import roads  # noqa: E402
+from patching import patch_all  # noqa: E402
 import surface  # noqa: E402
 import vegetation  # noqa: E402
 
@@ -53,7 +54,7 @@ class PavementCornerTest(unittest.TestCase):
         self.assertFalse(any(roads.has_sidewalks(sp) for _, sp, *_ in rows))
         for in_ground in (False, True):
             walks = []
-            with patch.object(roads, "ROADS_IN_GROUND", in_ground):
+            with patch_all(roads, "ROADS_IN_GROUND", in_ground):
                 chunks = roads.build_tile(FRAME, 0, 0, [f], flat, walks=walks)
             self.assertFalse(walks)
             self.assertFalse(any(c["m"] == "crossing_white" for c in chunks))
@@ -195,7 +196,7 @@ class RuralTeeTest(unittest.TestCase):
     tertiary roads have edge lines) an edge line along each arc; the straight ones end at the tangents."""
 
     def build(self, country, in_ground=False):
-        with patch.object(roads, "ROADS_IN_GROUND", in_ground):
+        with patch_all(roads, "ROADS_IN_GROUND", in_ground):
             return roads.build_tile(FRAME, 0, 0, [tee()], flat, walks=[], country=country) + \
                 roads.build_tile(FRAME, -1, 0, [tee()], flat, walks=[], country=country)
 
@@ -261,7 +262,7 @@ class RuralTeeTest(unittest.TestCase):
         self.assertTrue(all(roads.has_sidewalks(sp) for sp in roads.road_specs(f, urban)))
         self.assertEqual(roadcorners.source([f], urban, frame=FRAME)[2], [])
         for in_ground in (False, True):
-            with patch.object(roads, "ROADS_IN_GROUND", in_ground):
+            with patch_all(roads, "ROADS_IN_GROUND", in_ground):
                 got = roads.build_tile(FRAME, 0, 0, [f], flat, urban, walks=[], country="DE")
                 with patch.object(roadcorners, "tile", lambda *a, **k: ([], {})):
                     before = roads.build_tile(FRAME, 0, 0, [f], flat, urban, walks=[], country="DE")
