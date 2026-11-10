@@ -752,7 +752,7 @@ class Reader:
         if sizes and max(sizes) > guess:
             self._footer_learn(spec["theme"], spec["type"], max(sizes))
         tf = time.perf_counter()
-        uris = ", ".join(f"'{proto}://{p}'" for p in paths)
+        uris = ", ".join(f"'{proto}://{_q(p)}'" for p in paths)
         with self._lock:
             new = [p for p in paths if p not in self._meta]
         for p in list(new):             # parsed by another process or an earlier run (release files never change)
@@ -764,7 +764,7 @@ class Reader:
         if new:
             meta = con.execute(f"""SELECT file_name, row_group_id, row_group_num_rows, path_in_schema, stats_min,
                 stats_max, dictionary_page_offset, data_page_offset, total_compressed_size
-                FROM parquet_metadata([{", ".join(f"'{proto}://{p}'" for p in new)}])
+                FROM parquet_metadata([{", ".join(f"'{proto}://{_q(p)}'" for p in new)}])
                 ORDER BY file_name, row_group_id, column_id""").fetchall()
             parsed = {}                 # path -> {rg: {"first": row, "n", "bbox": {leaf: (min, max)}, "cols": {top: [range]}}}
             next_row = {}
@@ -847,7 +847,7 @@ class Reader:
                     # columns it names, ~60 requests one after another)
                     w = f", coalesce(({wkey}), false) AS w" if wkey else ""
                     got = con.execute(f"""SELECT file_row_number, bbox.xmin AS x0, bbox.xmax AS x1, bbox.ymin AS y0,
-                        bbox.ymax AS y1{w} FROM read_parquet('{proto}://{path}', file_row_number = true)
+                        bbox.ymax AS y1{w} FROM read_parquet('{proto}://{_q(path)}', file_row_number = true)
                         WHERE {only}""").fetchnumpy()
                     fr = np.asarray(got["file_row_number"], np.int64)
                     cols = [np.ma.filled(np.ma.asarray(got[c]).astype(np.float64), np.nan).astype(
@@ -929,7 +929,7 @@ class Reader:
 
     def _run(self, con, proto, paths, layer, spec, bounds, rows, files=None, kind="demand"):
         lon0, lat0, lon1, lat1 = bounds
-        src = ("read_parquet([" + ", ".join(f"'{proto}://{p}'" for p in paths) + "], filename = true, "
+        src = ("read_parquet([" + ", ".join(f"'{proto}://{_q(p)}'" for p in paths) + "], filename = true, "
                "file_row_number = true)")
         # only the row groups the plan fetched (DuckDB would otherwise read every row group whose
         # statistics it cannot rule out, lazily, one request each)
