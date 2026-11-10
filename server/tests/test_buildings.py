@@ -549,6 +549,14 @@ class DoorTest(unittest.TestCase):
                     self.assertLess(z + h / 2, spec.height + 0.01)
         self.assertGreater(seen, 3)
 
+    def test_no_company_sign_outside_north_america(self):
+        """The signs are West Coast USA's fictional firms: none on a big box in France."""
+        for k in range(30):
+            spec = bld.plan(rect(k * 200, 0, 60, 40), {"class": "industrial"}, 0, 43.7, 1.4)
+            rows = bld.doors([(spec, 0.0, 0.0)], [(np.array([(-50.0, -10.0), (9000.0, -10.0)]), 6.0, "primary", True)],
+                             0.0, 0.0)
+            self.assertFalse([r for r in rows if r[0].startswith("wallsign")])
+
     def test_no_door_without_a_road(self):
         spec = bld.plan(rect(0, 0, 10, 8), {"class": "house"})
         self.assertEqual(bld.doors([(spec, 0.0, 0.0)], [(np.array([(500.0, 0), (600.0, 0)]), 4.0)], 0, 0), [])

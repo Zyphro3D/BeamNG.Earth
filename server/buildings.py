@@ -341,7 +341,7 @@ def oriented_box(p):
 class Spec:
     """What is built for one footprint (decided by plan())."""
     __slots__ = ("ring", "floors", "floor_h", "height", "roof", "roof_mat", "facade", "band", "shop", "plain", "min_h", "wall", "door", "windows", "front", "steeple", "stoop",
-                 "sign", "porch", "cls", "seed", "deck", "pitch", "portal", "gring", "ship", "fr_house")
+                 "sign", "porch", "cls", "seed", "deck", "pitch", "portal", "gring", "ship", "fr_house", "us_signs")
 
     def __init__(self, **kw):
         for k in self.__slots__:
@@ -848,7 +848,7 @@ def plan(ring, attrs, neighbours=0, lat=None, lon=None, look=None, town=False, d
     spec = Spec(ring=ring, floors=nf, floor_h=floor_h, height=h, roof=roof, roof_mat=roof_mat, facade=facade,
                 band=band, shop=shop and not shed and nf >= 1, plain=plain, seed=seed, min_h=0.0, wall=wall,
                 windows=windows, steeple=church and area < 2500 and roof not in DOME_ROOFS, porch=porch, cls=cls,
-                deck=garage and roof == "flat",
+                deck=garage and roof == "flat", us_signs=style.name.startswith("us_"),
                 pitch=math.degrees(math.atan2(dome_rise(roof, hw, rh), max(float(hw), 0.1))) if roof in DOME_ROOFS
                 else style.pitch)
     return francehouses.adapt(spec, attrs, lat, lon)
@@ -3251,8 +3251,9 @@ def _sign_in_open(rows, spec, d, out, others):
 
 
 def _wall_sign(spec, a, d, Le, out, gmax):
-    """A company sign centred high on a big box's or restaurant's street wall (WALL_SIGNS), if it fits."""
-    if _hash01(spec.seed, "wallsign") >= WALL_SIGN_SHARE:
+    """A company sign centred high on a big box's or restaurant's street wall (WALL_SIGNS), if it fits. Only in
+    North America: the firms are West Coast USA's (a big box in France carried an English slogan on its front)."""
+    if not spec.us_signs or _hash01(spec.seed, "wallsign") >= WALL_SIGN_SHARE:
         return []
     if spec.cls in RESTAURANT_CLASSES:
         key = "burger"
