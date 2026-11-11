@@ -89,9 +89,18 @@ def warm(path):
 
 def replace(tmp, path):
     """os.replace(tmp, path), making path's folder again if it was deleted under us (the game or the player
-    clearing its temp folder) instead of failing every write after it. On Windows a file going into the game's folder
-    is read once at once (warm)."""
-    _replace(tmp, path)
+    clearing its temp folder) instead of failing every write after it. On Windows a file another thread or process
+    has open (the game reading a provisional block's mask while the graded block's replaces it: a terrain request
+    failed, banc_vitesse 2026-11-10) cannot be replaced (PermissionError): tried again REPLACE_WAITS, then the error
+    stands. On Windows a file going into the game's folder is read once at once (warm)."""
+    for wait in REPLACE_WAITS + (None,):
+        try:
+            _replace(tmp, path)
+            break
+        except PermissionError:
+            if wait is None:
+                raise
+            time.sleep(wait)
     if WARM_READ and staging_dir(path) is not None:
         warm(path)
 
@@ -112,7 +121,7 @@ def _replace(tmp, path):
         os.replace(tmp, path)
 
 
-REPLACE_WAITS = (0.02, 0.05, 0.1, 0.25, 0.5)    # s between the tries of replace_cached (~0.9 s in all)
+REPLACE_WAITS = (0.02, 0.05, 0.1, 0.25, 0.5, 1.0)   # s between the tries of replace (~1.9 s in all)
 READ_WAITS = (0.02, 0.05, 0.1, 0.25)            # s between the tries of read_held
 
 
@@ -163,20 +172,17 @@ def replace_cached(tmp, path):
     (PermissionError, WinError 5: GitHub #67, the DEM tile cache on a cloud PC failed terrain requests): retried
     REPLACE_WAITS; still held but there, that copy is kept and tmp removed. True when tmp went in, False when the
     copy already there was kept."""
-    for wait in REPLACE_WAITS + (None,):
+    try:
+        replace(tmp, path)          # (tried again REPLACE_WAITS)
+        return True
+    except PermissionError:
+        if not os.path.exists(path):
+            raise
         try:
-            replace(tmp, path)
-            return True
-        except PermissionError:
-            if wait is None:
-                if not os.path.exists(path):
-                    raise
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
-                return False
-            time.sleep(wait)
+            os.remove(tmp)
+        except OSError:
+            pass
+        return False
 
 
 INLINE_MAX = 1 << 20        # bytes: a session file this small or smaller goes inside its message (inline_json)

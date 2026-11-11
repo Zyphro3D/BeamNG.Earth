@@ -94,6 +94,38 @@ class StagingTest(unittest.TestCase):
             staging.os.replace = real
             staging.REPLACE_WAITS = old_waits
 
+    def test_session_file_held_a_moment(self):
+        # Windows: the game reading a provisional block's mask while the graded block's replaces it (banc_vitesse,
+        # 2026-11-10: the terrain request failed); tried again, then the error stands
+        real, calls = os.replace, []
+
+        def held(n):
+            def fake(a, b):
+                calls.append(a)
+                if len(calls) <= n:
+                    raise PermissionError(13, "Access is denied")
+                real(a, b)
+            return fake
+        old_waits = staging.REPLACE_WAITS
+        staging.REPLACE_WAITS = (0.0,) * len(old_waits)
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                path, tmp = os.path.join(d, "hm_m4.png"), os.path.join(d, "hm_m4.png.1.tmp")
+                Path(path).write_bytes(b"provisional")
+                Path(tmp).write_bytes(b"graded")
+                staging.os.replace = held(3)
+                staging.replace(tmp, path)
+                self.assertEqual(Path(path).read_bytes(), b"graded")
+                calls.clear()
+                Path(tmp).write_bytes(b"again")
+                staging.os.replace = held(99)
+                with self.assertRaises(PermissionError):
+                    staging.replace(tmp, path)
+                self.assertEqual(len(calls), len(staging.REPLACE_WAITS) + 1)
+        finally:
+            staging.os.replace = real
+            staging.REPLACE_WAITS = old_waits
+
 
 
 class WarmTest(unittest.TestCase):
