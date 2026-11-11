@@ -65,6 +65,7 @@ from earthbase import (
     PREFETCHED_MAX,
     PREFETCH_AGAIN_S,
     PREFETCH_CHAIN,
+    PREFETCH_CHAIN_MIN_V,
     PREFETCH_PARALLEL,
     PROVISIONAL_KEEP_S,
     RADIUS_REPORT_REL,
@@ -202,7 +203,7 @@ class _StreamMixin:
                     self.predicted_block = self.s.layout.block_at(*c)
                     at[c] = where[0]
             self.predicted_chain = []
-            if math.hypot(*self.vel) > earthbase.FAST_BASE_V:
+            if math.hypot(*self.vel) > PREFETCH_CHAIN_MIN_V:
                 route_at = {}
                 cs = predict_route_chain(self.route_xy(aid), px, py, *self.vel, base.cx, base.cy, rule,
                                          PREFETCH_CHAIN + 1, route_at)

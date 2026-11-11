@@ -334,6 +334,10 @@ PREFETCH_START = 200.0      # m (Chebyshev) from the block centre before prefetc
 # 500 mph the next block was asked for ~1.3 s before it was needed and took 0.5-3 s, so the game held its car for its
 # ground half the time (Indianapolis 2026-10-30); one predicted block was not enough
 PREFETCH_CHAIN = 4
+# ... from this speed on (m/s): at FAST_BASE_V (40) a car speeding up from standing had its chain from ~270 m on, too late
+# for its second block; from 15 m/s the stops on a first visit's 0-250 km/h run fell from 45 to 30 s, its pauses at 0.5
+# and 1 km gone (tools/banc_vitesse.py, 3 runs each, 2026-11-11). The chain follows the heading whatever the speed.
+PREFETCH_CHAIN_MIN_V = 15.0
 READY_STEPS = 2             # grid steps a built block may be from the mod's target and still be taken (follow.lua)
 PREFETCH_PARALLEL = 2
 # The prefetch lane's block processes: two on a machine with the cores and memory for them (PREFETCH_PARALLEL's two
