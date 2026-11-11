@@ -9,7 +9,6 @@ Off: BNE_IGN_LARGEUR=off. A fetch that fails leaves the cell as it was.
 import gzip
 import json
 import logging
-import math
 import os
 import threading
 
@@ -61,42 +60,14 @@ def parse(features):
     return rows
 
 
-def _index(rows):
-    segs, grid = [], {}
+def _segments(rows):
+    """The rows' segments (m, 5): ax, ay, bx, by (degrees), width, in the rows' order."""
+    parts = []
     for line, w in rows:
-        for a, b in zip(line[:-1], line[1:]):
-            k = len(segs)
-            segs.append((a[0], a[1], b[0], b[1], w))
-            pad = MATCH_M / 111000.0
-            for gx in range(int(math.floor((min(a[0], b[0]) - pad) * GRID)), int(math.floor((max(a[0], b[0]) + pad) * GRID)) + 1):
-                for gy in range(int(math.floor((min(a[1], b[1]) - pad) * GRID)), int(math.floor((max(a[1], b[1]) + pad) * GRID)) + 1):
-                    grid.setdefault((gx, gy), []).append(k)
-    return segs, grid
-
-
-def _width_at(px, py, ux, uy, segs, grid, kx):
-    """The width of the nearest segment running along (ux, uy) at (px, py) in degrees, or None."""
-    best, width = MATCH_M, None
-    for k in grid.get((int(math.floor(px * GRID)), int(math.floor(py * GRID))), ()):
-        ax, ay, bx, by, w = segs[k]
-        dx, dy = (bx - ax) * kx, by - ay
-        length = math.hypot(dx, dy)
-        if length < 1e-9 or abs(dx * ux + dy * uy) / length < SAME_WAY_COS:
-            continue
-        t = max(0.0, min(1.0, (((px - ax) * kx) * dx + (py - ay) * dy) / (length * length)))
-        d = math.hypot((px - ax) * kx - t * dx, (py - ay) - t * dy) * 111000.0
-        if d <= best:
-            best, width = d, w
-    return width
-
-
-def _longest(feats, i):
-    out = None
-    for part in feats.parts(i):
-        for ring in part:
-            if len(ring) >= 2 and (out is None or len(ring) > len(out)):
-                out = np.asarray(ring, np.float64)
-    return out
+        p = np.asarray(line, np.float64)
+        if len(p) >= 2:
+            parts.append(np.c_[p[:-1], p[1:], np.full(len(p) - 1, float(w))])
+    return np.concatenate(parts) if parts else np.zeros((0, 5))
 
 
 def _one_way(feats, i):
@@ -105,44 +76,37 @@ def _one_way(feats, i):
 
 
 def join(feats, rows):
-    """Writes BD TOPO's widths to feats' osm_width where the map has none. Returns how many roads took one."""
+    """Writes BD TOPO's widths to feats' osm_width where the map has none. Returns how many roads took one.
+    Each candidate road's SAMPLES points (along its longest ring) look up the nearest segment running along it, in one
+    native call for the whole cell (earthfast.ign_join); a road takes the median of what MIN_VOTES or more found."""
     n = len(feats)
     if not n or not rows:
         return 0
-    segs, grid = _index(rows)
+    import fast
+    fast.require(172, "ign_join")
     old = feats.attrs.get("osm_width")
     col = np.full(n, "", dtype=object) if old is None else np.asarray(old).astype(object)
     classes = feats.attrs.get("class")
+    cls = np.asarray(classes).astype(str) if classes is not None else np.full(n, "primary")
+    empty = np.array([str(v).strip() in ("", "nan", "None") for v in col], bool)
+    cand = np.flatnonzero((np.asarray(feats.kind) == mapgeom.LINE) & empty
+                          & np.isin(cls, sorted(THROUGH | SMALL)))
+    if len(cand):
+        votes, medians = fast._ef.ign_join(
+            np.ascontiguousarray(_segments(rows)), np.ascontiguousarray(feats.part_off, np.int64),
+            np.ascontiguousarray(feats.ring_off, np.int64), np.ascontiguousarray(feats.coord_off, np.int64),
+            np.ascontiguousarray(feats.lonlat, np.float64), np.ascontiguousarray(cand, np.int64), SAMPLES,
+            float(GRID), MATCH_M / 111000.0, MATCH_M, SAME_WAY_COS)
+    else:
+        votes, medians = np.zeros(0, np.int32), np.zeros(0)
     joined = 0
-    for i in range(n):
-        if feats.kind[i] != mapgeom.LINE or str(col[i]).strip() not in ("", "nan", "None"):
+    for i, v, m in zip(cand.tolist(), np.asarray(votes).tolist(), np.asarray(medians).tolist()):
+        if v < MIN_VOTES:
             continue
-        cls = str(classes[i]) if classes is not None else "primary"
-        if cls not in THROUGH and cls not in SMALL:
+        width = float(m)
+        if cls[i] in SMALL and width < SMALL_MIN_M:
             continue
-        ring = _longest(feats, i)
-        if ring is None:
-            continue
-        kx = math.cos(math.radians(float(ring[:, 1].mean())))
-        s = np.r_[0.0, np.cumsum(np.hypot(np.diff(ring[:, 0]) * kx, np.diff(ring[:, 1])))]
-        if s[-1] <= 0:
-            continue
-        got = []
-        for f in (np.arange(SAMPLES) + 0.5) / SAMPLES * s[-1]:
-            j = min(int(np.searchsorted(s, f, side="right")) - 1, len(ring) - 2)
-            ds = max(s[j + 1] - s[j], 1e-12)
-            t = (f - s[j]) / ds
-            ux, uy = (ring[j + 1, 0] - ring[j, 0]) * kx / ds, (ring[j + 1, 1] - ring[j, 1]) / ds
-            w = _width_at(ring[j, 0] + t * (ring[j + 1, 0] - ring[j, 0]), ring[j, 1] + t * (ring[j + 1, 1] - ring[j, 1]),
-                          ux, uy, segs, grid, kx)
-            if w is not None:
-                got.append(w)
-        if len(got) < MIN_VOTES:
-            continue
-        width = float(np.median(got))
-        if cls in SMALL and width < SMALL_MIN_M:
-            continue
-        if cls in THROUGH:
+        if cls[i] in THROUGH:
             width = max(width, THROUGH_ONE_WAY_MIN_M if _one_way(feats, i) else THROUGH_TWO_WAY_MIN_M)
         col[i] = f"{width:g}"
         joined += 1

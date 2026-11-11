@@ -5,6 +5,7 @@ mod gravity;
 mod polyproject;
 mod s3url;
 mod countrymap;
+mod ignwidths;
 mod carriageway_solver;
 mod carriageways;
 mod spaceclouds;
@@ -5572,6 +5573,8 @@ fn earthfast(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(waytags::way_tag_rows, m)?)?;
     m.add_function(wrap_pyfunction!(waytags::lane_parts, m)?)?;
     m.add_function(wrap_pyfunction!(underdeck::deck_capped, m)?)?;
-    m.add("VERSION", 170)?;
+    // (France: IGN BD TOPO widths matched to a cell's roads, ign_largeur.join)
+    m.add_function(wrap_pyfunction!(ignwidths::ign_join, m)?)?;
+    m.add("VERSION", 172)?;
     Ok(())
 }
