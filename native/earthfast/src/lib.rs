@@ -12,6 +12,7 @@ mod polyproject;
 mod lanesections;
 mod s3url;
 mod countrymap;
+mod ignwidths;
 mod carriageway_solver;
 mod carriageways;
 mod spaceclouds;
@@ -6429,6 +6430,9 @@ fn earthfast(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // PaintPolys, PaintFields, paint_photo, pil_raster; server/paintlist.py, surface.paint_square), roadtone's coverage
     // loop shared with it
     paintlist::register(m)?;
-    m.add("VERSION", 295)?;
+    // 296 (the France fork, on 295): IGN BD TOPO widths matched to a cell's roads in one call (ignwidths::ign_join,
+    // server/ign_largeur.py)
+    m.add_function(wrap_pyfunction!(ignwidths::ign_join, m)?)?;
+    m.add("VERSION", 296)?;
     Ok(())
 }

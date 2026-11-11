@@ -20,6 +20,11 @@ def road_feats(lines, osm_width=None):
         kind = np.full(len(lines), mapgeom.LINE)
         attrs = {} if osm_width is None else {"osm_width": np.array(osm_width)}
         rules = {}
+        # (one part of one ring a road, as mapgeom.Features lays them out: the native join reads these)
+        part_off = np.arange(len(lines) + 1, dtype=np.int64)
+        ring_off = np.arange(len(lines) + 1, dtype=np.int64)
+        coord_off = np.r_[0, np.cumsum([len(ln) for ln in lines])].astype(np.int64)
+        lonlat = np.concatenate([np.array(ln, float) for ln in lines]) if lines else np.zeros((0, 2))
 
         def __len__(self):
             return len(lines)
