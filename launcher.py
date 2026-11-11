@@ -982,17 +982,26 @@ def split_launch_options(line):
     return env, wrapper, post.split()
 
 
-def start_game(use_gcpatch, build="native", gfx="", user_dir=None, steam_args=({}, [], [])):
+def game_port_args(port):
+    """The game's options naming the world server's port (the mod's net.lua reads -bngeport), [] for the default one.
+    Without them a server started on another port (--port: Windows reserves 47613 with WSL's mirrored networking) was
+    never reached by a game this app started: the player started BeamMP with -bngeport first, and the app then
+    updated the mod under the running game and reloaded its Lua, which crashed it."""
+    return ["-bngeport", str(int(port))] if port and int(port) != SERVER_PORT else []
+
+
+def start_game(use_gcpatch, build="native", gfx="", user_dir=None, steam_args=({}, [], []), port=None):
     """Start the game; returns a Popen when this process started it directly, else None (through Steam).
 
     steam_args: (env, wrapper, options) adopted from Steam's launch options for the direct start (through Steam,
     Steam applies them itself): variables for the game's environment, a command that wraps it (gamemoderun,
-    mangohud), the game's own options after %command%."""
+    mangohud), the game's own options after %command%. port: the world server's (game_port_args)."""
     steam_env, wrapper, steam_opts = steam_args
     # (dev: BNGE_GAME_WRAPPER="perf record ... --" profiles the game alone, Linux direct start)
     wrapper = os.environ.get("BNGE_GAME_WRAPPER", "").split() + list(wrapper or [])
     win_args = ["-gfx", GFX_ARG.get(gfx, gfx)] if gfx else []
     extra = os.environ.get("BNGE_GAME_ARGS", "").split()     # (tests: e.g. "-bngetest car,damage")
+    extra += game_port_args(port)
     win_args += extra
     # a game folder the player chose outside Steam's libraries (another launcher, a copy of its own): started directly
     own = apppaths.saved_game_dir()
@@ -1944,7 +1953,7 @@ def run(args):
         else:
             if wine:
                 say("(under Wine / Proton: on Linux the AppImage runs the server natively, faster)")
-            proc = start_game(not args.no_gcpatch, build, args.gfx, user_dir, steam_args)
+            proc = start_game(not args.no_gcpatch, build, args.gfx, user_dir, steam_args, port)
         say()
         say("In the game: Freeroam > BeamNG.Earth.  Closing the game stops the server.")
         say()

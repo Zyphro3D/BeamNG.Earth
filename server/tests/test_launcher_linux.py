@@ -307,6 +307,38 @@ class SteamLaunchOptionsTest(unittest.TestCase):
             self.assertIsNone(launcher.steam_launch_options([os.path.join(d, "config")]))
 
 
+class GamePortTest(unittest.TestCase):
+    """A server on another port (--port) is named to the game the app starts (-bngeport, read by the mod's net.lua)."""
+
+    def test_only_another_port_is_named(self):
+        self.assertEqual(launcher.game_port_args(None), [])
+        self.assertEqual(launcher.game_port_args(launcher.SERVER_PORT), [])
+        self.assertEqual(launcher.game_port_args(44000), ["-bngeport", "44000"])
+
+    def test_windows_start_names_the_port(self):
+        with mock.patch.object(launcher, "IS_WIN", True), \
+                mock.patch.object(launcher, "under_wine", return_value=False), \
+                mock.patch.object(launcher.apppaths, "saved_game_dir", return_value=None), \
+                mock.patch.object(launcher, "windows_game_dir", return_value="G"), \
+                mock.patch.object(launcher.os, "startfile", create=True) as sf, \
+                mock.patch.object(launcher.subprocess, "Popen") as po, \
+                mock.patch.dict(os.environ, {"BNGE_GAME_ARGS": ""}):
+            launcher.start_game(False, port=44000)
+        sf.assert_not_called()          # (through Steam, the options would not reach the game)
+        self.assertEqual(po.call_args[0][0], [os.path.join("G", "BeamNG.drive.exe"), "-bngeport", "44000"])
+
+    def test_windows_default_port_still_through_steam(self):
+        with mock.patch.object(launcher, "IS_WIN", True), \
+                mock.patch.object(launcher, "under_wine", return_value=False), \
+                mock.patch.object(launcher.apppaths, "saved_game_dir", return_value=None), \
+                mock.patch.object(launcher.os, "startfile", create=True) as sf, \
+                mock.patch.object(launcher.subprocess, "Popen") as po, \
+                mock.patch.dict(os.environ, {"BNGE_GAME_ARGS": ""}):
+            launcher.start_game(False, port=launcher.SERVER_PORT)
+        sf.assert_called_once()
+        po.assert_not_called()
+
+
 class SplitLaunchOptionsTest(unittest.TestCase):
     def test_env_wrapper_options(self):
         self.assertEqual(launcher.split_launch_options("DRI_PRIME=1 gamemoderun %command% -gfx dx11"),
