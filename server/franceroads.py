@@ -96,25 +96,34 @@ def french_features(feats):
     import countrybounds
     n = len(feats)
     out = np.zeros(n, bool)
-    pts, owner = [], []
-    for i in range(n):
-        a = feats.coord_off[feats.ring_off[feats.part_off[i]]]
-        b = feats.coord_off[feats.ring_off[feats.part_off[i + 1]]]
-        ll = np.asarray(feats.lonlat[a:b])
-        if len(ll) < 2 or not np.isfinite(ll).all():
-            continue
+    if n:
+        # every feature's coordinates at once (a road's run of them: coord_off from its first part's first ring to the
+        # next road's), its points and the middles of its segments; one road at a time was ~3 s of a city's first
+        # block (2026-11-11)
+        a = np.asarray(feats.coord_off)[np.asarray(feats.ring_off)[np.asarray(feats.part_off)[:-1]]].astype(np.int64)
+        b = np.asarray(feats.coord_off)[np.asarray(feats.ring_off)[np.asarray(feats.part_off)[1:]]].astype(np.int64)
+        ll = np.asarray(feats.lonlat, np.float64)
+        cnt = b - a
+        own = np.repeat(np.arange(n), cnt)
+        idx = np.concatenate([np.arange(x, y) for x, y in zip(a.tolist(), b.tolist())]) if cnt.sum() else \
+            np.zeros(0, np.int64)
+        pv = ll[idx] if len(idx) else np.zeros((0, 2))
         # Metropolitan France only; overseas territories keep their own codes.
-        if not ((ll[:, 0] > -5.3) & (ll[:, 0] < 9.8) & (ll[:, 1] > 41.3) & (ll[:, 1] < 51.2)).all():
-            continue
-        p = np.vstack([ll, (ll[:-1] + ll[1:]) / 2])
-        pts.append(p)
-        owner.append(np.full(len(p), i))
-    if pts:
-        p, own = np.concatenate(pts), np.concatenate(owner)
-        fr = np.array([code == "FR" for code in countrybounds.bundled().codes_at(np.c_[p[:, 1], p[:, 0]])], bool)
-        # a feature is French when all its points are
-        out[np.unique(own)] = True
-        out[np.unique(own[~fr])] = False
+        good = np.isfinite(pv).all(axis=1) & (pv[:, 0] > -5.3) & (pv[:, 0] < 9.8) & (pv[:, 1] > 41.3) & (pv[:, 1] < 51.2)
+        bad = np.zeros(n, bool)
+        bad[own[~good]] = True
+        ok = (cnt >= 2) & ~bad
+        keep = ok[own]
+        if keep.any():
+            pk, ok_own = pv[keep], own[keep]
+            same = ok_own[1:] == ok_own[:-1]            # (consecutive points of one road: a segment)
+            mid = ((pk[:-1] + pk[1:]) / 2)[same]
+            p = np.concatenate([pk, mid])
+            po = np.concatenate([ok_own, ok_own[:-1][same]])
+            fr = np.array([code == "FR" for code in countrybounds.bundled().codes_at(np.c_[p[:, 1], p[:, 0]])], bool)
+            # a feature is French when all its points are
+            out[np.unique(po)] = True
+            out[np.unique(po[~fr])] = False
     feats.__dict__["_bnge_french"] = out
     return out
 
