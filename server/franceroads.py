@@ -83,19 +83,40 @@ def french_feature(feats, i):
     Border-crossing/unknown features keep upstream geometry and paint. Testing
     vertices and segment midpoints also catches a road crossing a narrow enclave.
     """
+    return bool(french_features(feats)[i])
+
+
+def french_features(feats):
+    """french_feature of every feature of feats, made once (one border lookup for all their points) and remembered on
+    feats: a cell's roads were each looked up again by every spec of it (ground, bridges ...), ~3300 calls for ~1000
+    roads, the most of a first visit's block planning in France (2026-11-11)."""
+    got = feats.__dict__.get("_bnge_french")
+    if got is not None and len(got) == len(feats):
+        return got
     import countrybounds
-    a = feats.coord_off[feats.ring_off[feats.part_off[i]]]
-    b = feats.coord_off[feats.ring_off[feats.part_off[i + 1]]]
-    ll = np.asarray(feats.lonlat[a:b])
-    if len(ll) < 2 or not np.isfinite(ll).all():
-        return False
-    # Metropolitan France only; overseas territories keep their own codes.
-    if not ((ll[:, 0] > -5.3) & (ll[:, 0] < 9.8) & (ll[:, 1] > 41.3) & (ll[:, 1] < 51.2)).all():
-        return False
-    idx = countrybounds.bundled()
-    # (one lookup for all the points: one each was 0.8 of a block's 5.2 s where its cells' roads were new, 2026-11-10)
-    pts = np.vstack([ll, (ll[:-1] + ll[1:]) / 2])
-    return all(code == "FR" for code in idx.codes_at(np.c_[pts[:, 1], pts[:, 0]]))
+    n = len(feats)
+    out = np.zeros(n, bool)
+    pts, owner = [], []
+    for i in range(n):
+        a = feats.coord_off[feats.ring_off[feats.part_off[i]]]
+        b = feats.coord_off[feats.ring_off[feats.part_off[i + 1]]]
+        ll = np.asarray(feats.lonlat[a:b])
+        if len(ll) < 2 or not np.isfinite(ll).all():
+            continue
+        # Metropolitan France only; overseas territories keep their own codes.
+        if not ((ll[:, 0] > -5.3) & (ll[:, 0] < 9.8) & (ll[:, 1] > 41.3) & (ll[:, 1] < 51.2)).all():
+            continue
+        p = np.vstack([ll, (ll[:-1] + ll[1:]) / 2])
+        pts.append(p)
+        owner.append(np.full(len(p), i))
+    if pts:
+        p, own = np.concatenate(pts), np.concatenate(owner)
+        fr = np.array([code == "FR" for code in countrybounds.bundled().codes_at(np.c_[p[:, 1], p[:, 0]])], bool)
+        # a feature is French when all its points are
+        out[np.unique(own)] = True
+        out[np.unique(own[~fr])] = False
+    feats.__dict__["_bnge_french"] = out
+    return out
 
 
 def adjust_specs(feats, specs):
