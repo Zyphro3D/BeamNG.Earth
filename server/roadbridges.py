@@ -2,6 +2,7 @@
 sites, BridgeProfiles / TunnelProfiles and the chain store.
 """
 import math
+import os
 import threading
 from collections import OrderedDict
 import numpy as np
@@ -1812,3 +1813,62 @@ def wet_run_inside(xy, wet):
     import fast
     fast.require(48, "wet_run_inside")
     return float(fast._ef.wet_run_inside(np.ascontiguousarray(xy, np.float64), np.ascontiguousarray(wet, bool)))
+
+
+# The terrain under a deck is the elevation's: its own bumps, the deck itself where the data kept it, an approach's fill
+# beside it. Wherever it stood over the deck it showed through the road and the car met it there (a city's survey:
+# 208 of 852 decks, up to 2.5 m, mostly at a side or an end, 2026-11-10). The terrain block is held DECK_GROUND_UNDER_M
+# under each deck's road over its footprint (its road width and the slab's overhang, roadmesh.PARAPET_W), between its
+# ends: inside the slab (roadmesh.DECK_DEPTH), so never seen; nothing changes where the ground is lower already.
+DECK_GROUND_ON = os.environ.get("BNE_DECK_GROUND", "on") != "off"
+DECK_GROUND_UNDER_M = 0.3
+DECK_GROUND_SIDE_M = roadmesh.PARAPET_W
+
+
+def ground_under_decks(x, y, z, decks, under=DECK_GROUND_UNDER_M, side=DECK_GROUND_SIDE_M):
+    """z (n,), the terrain at (x, y) (n,) (metres, the decks' frame), at most `under` under the road of the decks over
+    it (decks [(xy (k, 2), z (k,), width m)]): within width / 2 + side of a deck's line, between its two ends (a point
+    past an end is not under it). Returns z itself when nothing is capped. Pure."""
+    z = np.asarray(z, np.float64)
+    x, y = np.asarray(x, np.float64), np.asarray(y, np.float64)
+    out = None
+    order = xs = None
+    for line, dz, width in decks:
+        line = np.asarray(line, np.float64)[:, :2]
+        dz = np.asarray(dz, np.float64)
+        if len(line) < 2 or len(dz) != len(line) or not np.isfinite(dz).all():
+            continue
+        r = float(width) / 2 + side
+        lo, hi = line.min(0) - r, line.max(0) + r
+        if order is None:               # (the points sorted by x once: each deck reads its own slice, not every point)
+            order = np.argsort(x, kind="stable")
+            xs = x[order]
+        cand = order[np.searchsorted(xs, lo[0], "left"):np.searchsorted(xs, hi[0], "right")]
+        idx = cand[(y[cand] >= lo[1]) & (y[cand] <= hi[1])]
+        if not len(idx):
+            continue
+        px, py = x[idx], y[idx]
+        cap = np.full(len(idx), np.inf)
+        last = len(line) - 2
+        for s in range(last + 1):
+            (ax, ay), (bx, by) = line[s], line[s + 1]
+            dx, dy = bx - ax, by - ay
+            l2 = dx * dx + dy * dy
+            if l2 < 1e-12:
+                continue
+            t = ((px - ax) * dx + (py - ay) * dy) / l2
+            tc = np.clip(t, 0.0, 1.0)
+            ok = np.hypot(px - (ax + tc * dx), py - (ay + tc * dy)) <= r
+            if s == 0:                      # (an end's own line is under it: t = 0 rounds either way)
+                ok &= t >= -1e-6
+            if s == last:
+                ok &= t <= 1.0 + 1e-6
+            if ok.any():
+                cap = np.where(ok, np.minimum(cap, dz[s] + tc * (dz[s + 1] - dz[s]) - under), cap)
+        hit = cap < z[idx]
+        if hit.any():
+            if out is None:
+                out = z.copy()
+            sel = idx[hit]
+            out[sel] = np.minimum(out[sel], cap[hit])
+    return z if out is None else out

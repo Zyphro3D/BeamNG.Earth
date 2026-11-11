@@ -429,11 +429,18 @@ def build(aid, lat, lon, hm_zoom, q, cx, cy, size, out_dir, name, ter_name=None,
         half = size * heightmap.SQUARE / 2
         cell_fn = lambda key: _s.md.cell(key, layers=("roads",), kind="demand").layers.get("roads")   # noqa: E731
 
+        t1 = time.perf_counter()
+        decks = _block_decks(aid, frame, elev, cell_fn, (cx - half, cy - half, cx + half, cy + half))
+        part_s["decks"] = time.perf_counter() - t1
+
         def gen(la, lo):        # the ground over the low arches raised over their vaults (roads.arch_raise)
             z = elev(la, lo)
             t1 = time.perf_counter()
             z = roadsmod.block_arch_raise(tun, cell_fn, frame, la, lo, z, (cx - half, cy - half, cx + half, cy + half))
-            part_s["arch"] = part_s.get("arch", 0.0) + time.perf_counter() - t1
+            t2 = time.perf_counter()
+            part_s["arch"] = part_s.get("arch", 0.0) + t2 - t1
+            z = under_decks(frame, decks, la, lo, z)    # (and never over a bridge deck: roadbridges.ground_under_decks)
+            part_s["decks"] += time.perf_counter() - t2
             return z
     info = heightmap.generate(frame, gen, os.path.join(out_dir, name), cx, cy, q=q, size=size, keep=keep,
                               chunks=chunks, ground_at=tuple(ground_at))
@@ -494,6 +501,53 @@ def build(aid, lat, lon, hm_zoom, q, cx, cy, size, out_dir, name, ter_name=None,
     info["stages"] = stages
     info["started"], info["finished"] = started, time.time()
     return info
+
+
+def _block_decks(aid, frame, elev, cell_fn, box):
+    """[(xy (k, 2), z (k,), width m)] of the bridge decks over a terrain block's box (frame metres), their heights the
+    road tiles' (this process's bridge chains, on the same graded ground: elev), [] when off or on a failure."""
+    import mapcells
+    import roadbridges
+    if not roadbridges.DECK_GROUND_ON:
+        return []
+    try:
+        x0, y0, x1, y1 = box
+        m = 50.0
+        la, lo, _ = frame.enu_to_geodetic(np.array([x0 - m, x1 + m, x0 - m, x1 + m]),
+                                          np.array([y0 - m, y0 - m, y1 + m, y1 + m]), 0.0)
+        cells = [cell_fn(k) for k in mapcells.cells_for_bbox(float(np.min(la)), float(np.min(lo)),
+                                                                float(np.max(la)), float(np.max(lo)))]
+        return [(np.asarray(xy, np.float64)[:, :2], np.asarray(z, np.float64), float(spec.width))
+                for _fid, spec, xy, z, _lon in _bridges(aid, frame, elev).parts(cells, box)]
+    except Exception as e:      # (the terrain as it was: decks over it may show it)
+        log.warning("block decks: %s: %s", type(e).__name__, e)
+        return []
+
+
+def under_decks(frame, decks, la, lo, z):
+    """z, the terrain's heights (elev's) at (la, lo), held under the decks [(xy, z, width)] (frame metres:
+    roadbridges.ground_under_decks). Returns z itself when nothing is capped."""
+    if not decks:
+        return z
+    import roadbridges
+    la_, lo_ = np.asarray(la, np.float64).ravel(), np.asarray(lo, np.float64).ravel()
+    zf = np.asarray(z, np.float64).ravel()
+    pts = np.concatenate([xy for xy, _z, _w in decks])
+    r = max(w for _xy, _z, w in decks) / 2 + roadbridges.DECK_GROUND_SIDE_M + 1.0
+    (x0, y0), (x1, y1) = pts.min(0) - r, pts.max(0) + r
+    cla, clo, _ = frame.enu_to_geodetic(np.array([x0, x1, x0, x1]), np.array([y0, y0, y1, y1]), 0.0)
+    near = (la_ >= np.min(cla)) & (la_ <= np.max(cla)) & (lo_ >= np.min(clo)) & (lo_ <= np.max(clo))
+    if not near.any():
+        return z
+    e, n, u0 = frame.geodetic_to_enu(la_[near], lo_[near], 0.0)
+    u0 = np.asarray(u0, np.float64)
+    zz = zf[near] + u0                  # (in the frame's up, as the decks' heights)
+    got = roadbridges.ground_under_decks(np.asarray(e, np.float64), np.asarray(n, np.float64), zz, decks)
+    if got is zz:
+        return z
+    out = zf.copy()
+    out[near] = got - u0
+    return out.reshape(np.shape(z)).astype(np.asarray(z).dtype, copy=False)
 
 
 def _chain_store(name, cls, elev, setup=None):

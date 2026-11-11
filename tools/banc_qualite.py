@@ -127,10 +127,12 @@ def measure_place(bw, lat, lon, fids, out):
     if t is not None:
         t.join()
 
-    def final(xy):
+    def final(xy, cap=True):
         la, lo, _ = frame.enu_to_geodetic(xy[:, 0], xy[:, 1], 0.0)
         z0 = np.asarray(bw.ground(frame, la, lo, np.asarray(s.dem.sample(la, lo, 15), float)), float)
         z = np.asarray(g.apply(la, lo, z0.copy(), grading.ROAD_LIFT), float)
+        if cap:                 # (as the terrain block: under the decks; an end's step reads the road's side of it)
+            z = np.asarray(bw.under_decks(frame, every_deck, la, lo, z), float)
         return np.asarray(frame.geodetic_to_enu(la, lo, z)[2], float)
 
     def elev(la, lo):
@@ -138,11 +140,12 @@ def measure_place(bw, lat, lon, fids, out):
         return g.apply(la, lo, z, grading.ROAD_LIFT)
 
     bridges = bw._bridges(1, frame, elev)
-    decks = {}
+    decks, every_deck = {}, []
     for tx, ty in roads.tiles_near(0.0, 0.0, PLACE_M):
         feats = [s.md.cell(k, layers=("roads",), kind="demand").layers.get("roads")
                  for k in roads.cells_of_tile(frame, tx, ty)]
         for fid, spec, xy, z, _ in bridges.parts(feats, roads.tile_bbox(tx, ty)):
+            every_deck.append((np.asarray(xy, float)[:, :2], np.asarray(z, float), float(spec.width)))
             if str(fid) in fids:
                 xy = np.asarray(xy, float)[:, :2]
                 decks.setdefault((str(fid), round(float(xy[0, 0]), 1), round(float(xy[0, 1]), 1)),
@@ -165,7 +168,7 @@ def measure_place(bw, lat, lon, fids, out):
         wla, wlo, _ = frame.enu_to_geodetic(np.array([px[i]]), np.array([py[i]]), 0.0)
         steps = []
         for k in (0, -1):
-            zg = float(final(xy[[k]])[0])
+            zg = float(final(xy[[k]], cap=False)[0])
             d = zg - float(z[k])
             if abs(d) <= END_GROUND_M:
                 ela, elo, _ = frame.enu_to_geodetic(np.array([xy[k, 0]]), np.array([xy[k, 1]]), 0.0)
