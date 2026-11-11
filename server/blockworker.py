@@ -518,7 +518,7 @@ def _block_decks(aid, frame, elev, cell_fn, box):
         cells = [cell_fn(k) for k in mapcells.cells_for_bbox(float(np.min(la)), float(np.min(lo)),
                                                                 float(np.max(la)), float(np.max(lo)))]
         return [(np.asarray(xy, np.float64)[:, :2], np.asarray(z, np.float64), float(spec.width))
-                for _fid, spec, xy, z, _lon in _bridges(aid, frame, elev).parts(cells, box)]
+                for _fid, spec, xy, z, _lon in _block_bridges(frame, elev).parts(cells, box)]
     except Exception as e:      # (the terrain as it was: decks over it may show it)
         log.warning("block decks: %s: %s", type(e).__name__, e)
         return []
@@ -574,11 +574,23 @@ def _bridge_setup(p):
         "infrastructure")                                   # (bridge:structure tags: bridgetypes)
 
 
+def _block_bridge_setup(p):
+    _bridge_setup(p)
+    p.light = True                          # (heights only: no piers, no trusses)
+
+
 def _bridges(aid, frame, elev):
     """The anchor's view (roads.ChainView) of this process's bridge chains (deck heights of whole chains, each solved
     once whatever the anchor: roads.ChainStore)."""
     import roads as roadsmod
     return roadsmod.ChainView(_chain_store("bridges", roadsmod.BridgeProfiles, elev, _bridge_setup), frame)
+
+
+def _block_bridges(frame, elev):
+    """A terrain block's view of the bridge chains: their deck heights only (light: no piers, no trusses, which it never
+    uses; about a quarter of a second a block with bridges)."""
+    import roads as roadsmod
+    return roadsmod.ChainView(_chain_store("block_bridges", roadsmod.BridgeProfiles, elev, _block_bridge_setup), frame)
 
 
 NAV_GRADED_M = 900.0        # m (Chebyshev) round the AI graph's centre where its ground is graded in full: the road tiles'

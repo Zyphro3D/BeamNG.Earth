@@ -852,6 +852,7 @@ class BridgeProfiles:
                     todo.append(((fid, j), feats, i))
         return BridgeProfiles.parts_todo(self, todo)      # (the whole parts: TunnelProfiles splits them)
 
+    light = False       # heights only (a terrain block's decks): no piers, no trusses
     owner_of = None     # owner_of(self, comp, pool) -> the profiles that solve chain comp (ChainStore: the one of its
                         # first part's region), or None: this one
 
@@ -909,11 +910,12 @@ class BridgeProfiles:
                 # the first solve of a part is kept, and what goes with it, unless this one saw more of it
                 if old is None or len(xy) > len(old[1]):
                     self.done[k] = (spec, xy, z, lon)
-                    self._commit(k, ground)
+                    if not self.light:
+                        self._commit(k, ground)
             chain = [(self.done[k][1], self.done[k][2], self.done[k][0].width) for k in comp
                      if k in self.done]
             ck = min(comp) if comp else None
-            fresh = ck is not None and ck not in self.trusses
+            fresh = ck is not None and ck not in self.trusses and not self.light
             if fresh:
                 self.trusses[ck] = []
             got = self.done.get(key)

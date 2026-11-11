@@ -66,5 +66,32 @@ class UnderDecksGeoTest(unittest.TestCase):
         self.assertIs(blockworker.under_decks(geodesy.EnuFrame(45.0, 5.0), [], np.array([45.0]), np.array([5.0]), z), z)
 
 
+
+class LightChainTest(unittest.TestCase):
+    """A light store (a terrain block's) gives the decks the full one gives, without piers or trusses."""
+
+    def parts(self, light):
+        from test_approaches import flat_elev
+        from test_bridge_scenarios import scenario
+        from test_roads import FRAME
+        import roads
+        f = scenario([[(0, -300), (0, 300)]], ["primary"])
+        bp = roads.BridgeProfiles(FRAME, lambda key: f, flat_elev)
+        bp.light = light
+        return {fid: (np.asarray(xy)[:, :2], np.asarray(z)) for fid, _sp, xy, z, _l in
+                bp.parts([f], (-400, -400, 400, 400))}, bp
+
+    def test_same_decks_no_structure(self):
+        full, fbp = self.parts(False)
+        light, lbp = self.parts(True)
+        self.assertTrue(full)
+        self.assertEqual(sorted(full), sorted(light))
+        for fid in full:
+            np.testing.assert_array_equal(full[fid][0], light[fid][0])
+            np.testing.assert_array_equal(full[fid][1], light[fid][1])
+        self.assertFalse(lbp.trusses)
+        self.assertFalse([k for k in lbp.piers if lbp.piers[k]])
+
+
 if __name__ == "__main__":
     unittest.main()
