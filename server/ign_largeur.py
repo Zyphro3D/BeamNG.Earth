@@ -32,7 +32,7 @@ GRID = 2000                 # candidate grid, cells per degree
 MIN_M, MAX_M = 2.0, 30.0
 SAMPLES = 5
 MIN_VOTES = 2               # sampled points that must find a segment
-# BD TOPO against OpenStreetMap's mapped widths (323 roads round Toulouse): no bias, a typical 1 m off. But its small
+# BD TOPO against OpenStreetMap's mapped widths (323 roads round a French city): no bias, a typical 1 m off. But its small
 # streets are nearly all 3 or 4 m, a default rather than a measure (real ones are drawn 5.5 m or more), and on a motorway
 # it is one carriageway, not the road. So: the through roads' values, and a small street's only when above the default.
 THROUGH = {"primary", "secondary", "tertiary"}

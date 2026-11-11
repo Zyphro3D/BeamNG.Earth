@@ -1,6 +1,6 @@
 """France: real building attributes from IGN BD TOPO (Etalab Licence Ouverte 2.0), joined to the buildings layer.
 
-Overture knows the footprints of French buildings but few heights (1-9 % around Toulouse) and hardly any roof or wall.
+Overture knows the footprints of French buildings but few heights (1-9 % around a French city) and hardly any roof or wall.
 BD TOPO `batiment` has them, per z14 map-data cell, kept on disk under <cache>/ign_bati/v<VERSION>/<z>/<x>/<y>.json.gz:
 
 - height: `hauteur` (to the eaves) plus the roof's rise (altitude_maximale_toit - altitude_minimale_toit);
