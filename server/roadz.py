@@ -222,6 +222,34 @@ def name_ok(map_name, src_name, src_ref):
     return True
 
 
+def _map_keys(map_name):
+    """name_ok's map side of map_name: None when it contradicts nothing (no name), else (its road numbers' digits,
+    its words of 4 letters or more)."""
+    m = _norm(map_name)
+    if not m:
+        return None
+    return {_digits(r) for r in refs_of(m)}, {t for t in _TOKEN.findall(m) if len(t) >= 4}
+
+
+def _src_keys(src_name, src_ref):
+    """name_ok's source side of (src_name, src_ref): (its road numbers' digits, its name's words of 4 letters or
+    more), frozen (a dict key)."""
+    sr = refs_of(src_ref) | refs_of(src_name)
+    s = _norm(src_name)
+    return (frozenset(_digits(r) for r in sr),
+            frozenset(t for t in _TOKEN.findall(s) if len(t) >= 4) if s else frozenset())
+
+
+def _keys_ok(mk, sk):
+    """name_ok from _map_keys and _src_keys."""
+    if mk is None:
+        return True
+    (md, mw), (sd, sw) = mk, sk
+    if md and sd and md.isdisjoint(sd):
+        return False
+    return not (mw and sw and mw.isdisjoint(sw))
+
+
 class Lines:
     """3D road lines of one cell and source: lonlat (n, 2) and z (n,) (m; NaN: none) of every vertex, off (L + 1,) the
     lines' vertex ranges, level (L,) int8 (>0 bridge, 0 ground, <0 tunnel), ref / name (L,) text, corrected: the
@@ -254,6 +282,23 @@ class Lines:
 
     def __len__(self):
         return len(self.off) - 1
+
+    def src_keys(self):
+        """(keys, inv): name_ok's source side (_src_keys) of each distinct (name, ref) of the lines, and each line's
+        index in keys; made once (a cell's lines are asked about by every deck near it)."""
+        got = self.__dict__.get("_src_keys")
+        if got is None:
+            pairs = list(zip(self.name.tolist(), self.ref.tolist()))
+            index, keys = {}, []
+            inv = np.empty(len(pairs), np.int64)
+            for j, p in enumerate(pairs):
+                i = index.get(p)
+                if i is None:
+                    i = index[p] = len(keys)
+                    keys.append(_src_keys(*p))
+                inv[j] = i
+            got = self._src_keys = (keys, inv)
+        return got
 
     def save(self, path):
         import staging
@@ -1250,7 +1295,9 @@ class RoadZ:
         with self._lock:
             got = self._names.get(mk)
         if got is None:
-            got = np.array([name_ok(name, ln.name[j], ln.ref[j]) for j in range(len(ln))], bool)
+            keys, inv = ln.src_keys()           # (each source name parsed once per cell, not once per deck asking)
+            mapk = _map_keys(name)
+            got = np.array([_keys_ok(mapk, sk) for sk in keys], bool)[inv] if len(ln) else np.zeros(0, bool)
             with self._lock:
                 if len(self._names) > 4096:
                     self._names.clear()

@@ -83,6 +83,30 @@ class NameTest(unittest.TestCase):
         self.assertFalse(roadz.name_ok("A 75", "", "A6"), "two road numbers that differ")
         self.assertTrue(roadz.name_ok("E 18", "", "E18"))
 
+    NAMES = ["", "None", "nan", "Rue de Rivoli", "rue de rivoli", "Avenue Kléber", "Boulevard Périphérique",
+             "Bd Peripherique Interieur", "A 75", "A75", "A6", "E 18", "E18", "R4", "4", "D41A", "D 41", "N 20",
+             "Route de la Plage", "Pont Neuf", "Autoroute du Soleil", "A 62 ; E 72", "Rocade Ouest", "oak st"]
+
+    def test_names_ok_matches_name_ok_line_by_line(self):
+        """_names_ok (each source name parsed once per cell) says what name_ok says of every line."""
+        rows, k = [], 0
+        for nm in self.NAMES:
+            for rf in self.NAMES:
+                rows.append(([[1.0 + k * 1e-4, 43.0], [1.0001 + k * 1e-4, 43.0]], [0.0, 0.0], 1, rf, nm))
+                k += 1
+        ln = roadz.Lines.build(rows)
+        prov = roadz.RoadZ.__new__(roadz.RoadZ)
+        prov._lock, prov._names = __import__("threading").Lock(), {}
+        for name in self.NAMES:
+            want = [roadz.name_ok(name, ln.name[j], ln.ref[j]) for j in range(len(ln))]
+            self.assertEqual(prov._names_ok("ign", "c", ln, name).tolist(), want, name)
+
+    def test_names_ok_no_lines(self):
+        prov = roadz.RoadZ.__new__(roadz.RoadZ)
+        prov._lock, prov._names = __import__("threading").Lock(), {}
+        got = prov._names_ok("ign", "c", roadz.Lines.build([]), "A 75")
+        self.assertEqual(got.shape, (0,))
+
 
 class DatumTest(unittest.TestCase):
     def test_offset(self):
