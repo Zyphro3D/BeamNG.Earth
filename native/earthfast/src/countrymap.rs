@@ -35,6 +35,14 @@ const CACHE_BANDS: usize = 96;
 
 struct Run { ring: u32, pts: Vec<(i32, i32)> }
 
+/// A decoded band: its runs, and per sub-band (SUBS of the band's height) the edges (run, first point) whose latitude
+/// range meets it. A point's ray can only cross an edge whose range holds the point's latitude, so the point's sub-band
+/// lists every edge that counts (and a few that the crossing test then leaves out): the same crossings as testing them
+/// all (each of a band's thousands of edges for every point was ~63 us a point, 2026-11-11).
+struct Band { runs: Vec<Run>, y0: f64, sub_h: f64, subs: Vec<Vec<(u32, u32)>> }
+
+const SUBS: usize = 64;
+
 struct Map {
     path: String,
     bpd: u32,
@@ -44,7 +52,7 @@ struct Map {
     ring_centre: Vec<f64>,
     part_code: Vec<u16>,
     bands: Vec<(u64, u32, u32)>,
-    cache: Mutex<(HashMap<u32, Arc<Vec<Run>>>, Vec<u32>)>,   // decoded bands, their use order (oldest first)
+    cache: Mutex<(HashMap<u32, Arc<Band>>, Vec<u32>)>,   // decoded bands, their use order (oldest first)
 }
 
 fn rd_u32(b: &[u8], o: &mut usize) -> u32 { let v = u32::from_le_bytes(b[*o..*o + 4].try_into().unwrap()); *o += 4; v }
@@ -92,7 +100,7 @@ impl Map {
                  cache: Mutex::new((HashMap::new(), Vec::new())) })
     }
 
-    fn band(&self, k: u32) -> Result<Arc<Vec<Run>>, String> {
+    fn band(&self, k: u32) -> Result<Arc<Band>, String> {
         {
             let mut c = self.cache.lock().unwrap();
             if let Some(b) = c.0.get(&k).cloned() {
@@ -126,7 +134,19 @@ impl Map {
                 runs.push(Run { ring, pts });
             }
         }
-        let b = Arc::new(runs);
+        let y0 = (-90.0 + k as f64 / self.bpd as f64) * 1e6;
+        let sub_h = 1e6 / self.bpd as f64 / SUBS as f64;
+        let sub_of = |y: f64| (((y - y0) / sub_h).floor().max(0.0) as usize).min(SUBS - 1);
+        let mut subs: Vec<Vec<(u32, u32)>> = vec![Vec::new(); SUBS];
+        for (ri, r) in runs.iter().enumerate() {
+            for e in 0..r.pts.len().saturating_sub(1) {
+                let (ya, yb) = (r.pts[e].1 as f64, r.pts[e + 1].1 as f64);
+                for sb in sub_of(ya.min(yb))..=sub_of(ya.max(yb)) {
+                    subs[sb].push((ri as u32, e as u32));
+                }
+            }
+        }
+        let b = Arc::new(Band { runs, y0, sub_h, subs });
         let mut c = self.cache.lock().unwrap();
         c.0.insert(k, b.clone());
         c.1.push(k);
@@ -138,19 +158,21 @@ impl Map {
     fn at(&self, lat: f64, lon: f64) -> Result<u16, String> {
         if !(lat.is_finite() && lon.is_finite()) || !(-90.0..90.0).contains(&lat) { return Ok(0); }
         let k = ((lat + 90.0) * self.bpd as f64).floor() as u32;
-        let runs = self.band(k)?;
+        let band = self.band(k)?;
         let y = lat * 1e6;
         let mut parity: HashMap<u32, bool> = HashMap::new();   // ring -> odd crossings
-        for r in runs.iter() {
+        let sb = (((y - band.y0) / band.sub_h).floor().max(0.0) as usize).min(SUBS - 1);
+        for &(ri, e) in &band.subs[sb] {
+            let r = &band.runs[ri as usize];
             let c = self.ring_centre[r.ring as usize];
             let x = (lon + 360.0 * ((c - lon) / 360.0).round()) * 1e6;
-            let mut n = 0u32;
-            for w in r.pts.windows(2) {
-                let (x0, y0) = (w[0].0 as f64, w[0].1 as f64);
-                let (x1, y1) = (w[1].0 as f64, w[1].1 as f64);
-                if (y0 > y) != (y1 > y) && x0 + (y - y0) * (x1 - x0) / (y1 - y0) > x { n += 1; }
+            let (x0, y0) = (r.pts[e as usize].0 as f64, r.pts[e as usize].1 as f64);
+            let (x1, y1) = (r.pts[e as usize + 1].0 as f64, r.pts[e as usize + 1].1 as f64);
+            // (a ring's parity: one toggle per crossing, as one per run of an odd count did)
+            if (y0 > y) != (y1 > y) && x0 + (y - y0) * (x1 - x0) / (y1 - y0) > x {
+                let p = parity.entry(r.ring).or_insert(false);
+                *p = !*p;
             }
-            if n % 2 == 1 { let e = parity.entry(r.ring).or_insert(false); *e = !*e; }
         }
         // per part: inside its outer ring and none of its holes
         let mut part_in: HashMap<u32, (bool, bool)> = HashMap::new();

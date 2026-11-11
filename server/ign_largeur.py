@@ -61,13 +61,16 @@ def parse(features):
 
 
 def _segments(rows):
-    """The rows' segments (m, 5): ax, ay, bx, by (degrees), width, in the rows' order."""
-    parts = []
-    for line, w in rows:
-        p = np.asarray(line, np.float64)
-        if len(p) >= 2:
-            parts.append(np.c_[p[:-1], p[1:], np.full(len(p) - 1, float(w))])
-    return np.concatenate(parts) if parts else np.zeros((0, 5))
+    """The rows' segments (m, 5): ax, ay, bx, by (degrees), width, in the rows' order (one array for the whole cell: one
+    small one a line was ~1.1 s of a city's first block, 2026-11-11)."""
+    lines = [(line, w) for line, w in rows if len(line) >= 2]
+    if not lines:
+        return np.zeros((0, 5))
+    n = np.array([len(line) for line, _ in lines])
+    pts = np.array([pt for line, _ in lines for pt in line], np.float64).reshape(-1, 2)
+    keep = np.ones(len(pts) - 1, bool)
+    keep[np.cumsum(n)[:-1] - 1] = False         # (no segment from one line's last point to the next line's first)
+    return np.c_[pts[:-1][keep], pts[1:][keep], np.repeat(np.array([float(w) for _, w in lines]), n - 1)]
 
 
 def _one_way(feats, i):
