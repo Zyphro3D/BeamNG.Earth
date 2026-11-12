@@ -431,6 +431,8 @@ def build(aid, lat, lon, hm_zoom, q, cx, cy, size, out_dir, name, ter_name=None,
 
         t1 = time.perf_counter()
         decks = _block_decks(aid, frame, elev, cell_fn, (cx - half, cy - half, cx + half, cy + half))
+        walls = _abutment_walls(frame, elev, decks)
+        import roadbridges
         part_s["decks"] = time.perf_counter() - t1
 
         def gen(la, lo):        # the ground over the low arches raised over their vaults (roads.arch_raise)
@@ -440,6 +442,7 @@ def build(aid, lat, lon, hm_zoom, q, cx, cy, size, out_dir, name, ter_name=None,
             t2 = time.perf_counter()
             part_s["arch"] = part_s.get("arch", 0.0) + t2 - t1
             z = under_decks(frame, decks, la, lo, z)    # (and never over a bridge deck: roadbridges.ground_under_decks)
+            z = under_decks(frame, walls, la, lo, z, under=0.0, side=roadbridges.ABUT_SIDE_M)  # (abutments' faces)
             part_s["decks"] += time.perf_counter() - t2
             return z
     info = heightmap.generate(frame, gen, os.path.join(out_dir, name), cx, cy, q=q, size=size, keep=keep,
@@ -524,16 +527,37 @@ def _block_decks(aid, frame, elev, cell_fn, box):
         return []
 
 
-def under_decks(frame, decks, la, lo, z):
+def _abutment_walls(frame, elev, decks):
+    """roadbridges.abutment_walls of a terrain block's decks (frame metres), the terrain read with elev (lat, lon ->
+    heights); [] when off or on a failure (the terrain as it was)."""
+    import roadbridges
+    if not decks or not roadbridges.ABUT_WALL_ON:
+        return []
+
+    def ground(xy):
+        la, lo, _ = frame.enu_to_geodetic(xy[:, 0], xy[:, 1], 0.0)
+        la, lo = np.asarray(la, np.float64), np.asarray(lo, np.float64)
+        u0 = np.asarray(frame.geodetic_to_enu(la, lo, 0.0)[2], np.float64)
+        return np.asarray(elev(la, lo), np.float64) + u0        # (in the frame's up, as the decks' heights)
+    try:
+        return roadbridges.abutment_walls(decks, ground)
+    except Exception as e:
+        log.warning("abutment walls: %s: %s", type(e).__name__, e)
+        return []
+
+
+def under_decks(frame, decks, la, lo, z, under=None, side=None):
     """z, the terrain's heights (elev's) at (la, lo), held under the decks [(xy, z, width)] (frame metres:
-    roadbridges.ground_under_decks). Returns z itself when nothing is capped."""
+    roadbridges.ground_under_decks, its under and side unless given). Returns z itself when nothing is capped."""
     if not decks:
         return z
     import roadbridges
+    under = roadbridges.DECK_GROUND_UNDER_M if under is None else under
+    side = roadbridges.DECK_GROUND_SIDE_M if side is None else side
     la_, lo_ = np.asarray(la, np.float64).ravel(), np.asarray(lo, np.float64).ravel()
     zf = np.asarray(z, np.float64).ravel()
     pts = np.concatenate([xy for xy, _z, _w in decks])
-    r = max(w for _xy, _z, w in decks) / 2 + roadbridges.DECK_GROUND_SIDE_M + 1.0
+    r = max(w for _xy, _z, w in decks) / 2 + side + 1.0
     (x0, y0), (x1, y1) = pts.min(0) - r, pts.max(0) + r
     cla, clo, _ = frame.enu_to_geodetic(np.array([x0, x1, x0, x1]), np.array([y0, y0, y1, y1]), 0.0)
     near = (la_ >= np.min(cla)) & (la_ <= np.max(cla)) & (lo_ >= np.min(clo)) & (lo_ <= np.max(clo))
@@ -542,7 +566,7 @@ def under_decks(frame, decks, la, lo, z):
     e, n, u0 = frame.geodetic_to_enu(la_[near], lo_[near], 0.0)
     u0 = np.asarray(u0, np.float64)
     zz = zf[near] + u0                  # (in the frame's up, as the decks' heights)
-    got = roadbridges.ground_under_decks(np.asarray(e, np.float64), np.asarray(n, np.float64), zz, decks)
+    got = roadbridges.ground_under_decks(np.asarray(e, np.float64), np.asarray(n, np.float64), zz, decks, under, side)
     if got is zz:
         return z
     out = zf.copy()

@@ -1852,6 +1852,8 @@ def ground_under_decks(x, y, z, decks, under=DECK_GROUND_UNDER_M, side=DECK_GROU
         px, py = x[idx], y[idx]
         cap = np.full(len(idx), np.inf)
         last = len(line) - 2
+        best = np.full(len(idx), np.inf)    # (each point's nearest segment decides whether it is past an end: within
+        past = np.zeros(len(idx), bool)     # r of an inner vertex is not under the deck before its start)
         for s in range(last + 1):
             (ax, ay), (bx, by) = line[s], line[s + 1]
             dx, dy = bx - ax, by - ay
@@ -1860,13 +1862,19 @@ def ground_under_decks(x, y, z, decks, under=DECK_GROUND_UNDER_M, side=DECK_GROU
                 continue
             t = ((px - ax) * dx + (py - ay) * dy) / l2
             tc = np.clip(t, 0.0, 1.0)
-            ok = np.hypot(px - (ax + tc * dx), py - (ay + tc * dy)) <= r
+            dist = np.hypot(px - (ax + tc * dx), py - (ay + tc * dy))
+            beyond = np.zeros(len(idx), bool)
             if s == 0:                      # (an end's own line is under it: t = 0 rounds either way)
-                ok &= t >= -1e-6
+                beyond |= t < -1e-6
             if s == last:
-                ok &= t <= 1.0 + 1e-6
+                beyond |= t > 1.0 + 1e-6
+            closer = dist < best
+            best = np.where(closer, dist, best)
+            past = np.where(closer, beyond, past)
+            ok = dist <= r
             if ok.any():
                 cap = np.where(ok, np.minimum(cap, dz[s] + tc * (dz[s + 1] - dz[s]) - under), cap)
+        cap = np.where(past, np.inf, cap)
         hit = cap < z[idx]
         if hit.any():
             if out is None:
@@ -1874,3 +1882,91 @@ def ground_under_decks(x, y, z, decks, under=DECK_GROUND_UNDER_M, side=DECK_GROU
             sel = idx[hit]
             out[sel] = np.minimum(out[sel], cap[hit])
     return z if out is None else out
+
+
+# Where a deck leaves its approach's embankment over a crossing, the elevation model has no abutment wall: it smooths
+# the wall into a slope of earth running under the deck from the embankment's top down to the crossing's floor, up to
+# the deck (Avenue des États-Unis over the railway in Toulouse: 7 m over 18 m, the map's bridge running on over 100 m
+# of the real embankment, 2026-11-12). Under a deck, from the last station where it stands on the embankment (its road
+# within ABUT_TOP_M of the ground) toward a floor ABUT_OPEN_M or more under it, the terrain falls at ABUT_WALL_GRADE
+# down to that floor: a steep face where the abutment's wall is. Only over a flat floor (within ABUT_FLAT_M along
+# ABUT_FLOOR_MIN_M: a railway's or a road's corridor, not a valley's side under a viaduct), only between the
+# embankment's top and the slope's foot (the floor itself, the tracks' bed, stays), the terrain only
+# (blockworker: never the plans nor the decks, whose heights read the ground), never raised. BNE_ABUT_WALL=off.
+ABUT_WALL_ON = os.environ.get("BNE_ABUT_WALL", "on") != "off"
+ABUT_STEP_M = 1.0           # m between the stations along a deck where its ground is read
+ABUT_TOP_M = 1.5            # m: a deck's road this close over its ground stands on its embankment
+ABUT_OPEN_M = 4.0           # m: ... this far over it spans something (a car's, a train's headroom)
+ABUT_REACH_M = 30.0         # m from the embankment's top the open span's floor is looked for, and read
+ABUT_FLAT_M = 1.0           # m over the span's lowest ground its floor is ...
+ABUT_FLOOR_MIN_M = 6.0      # ... along this much of it at least (a valley's floor under a viaduct: not that flat)
+ABUT_MIN_DROP_M = 2.5       # m from the embankment's top to the floor, at least
+ABUT_WALL_GRADE = 3.0       # the face's fall (m per m along the deck: 72 degrees)
+ABUT_FOOT_M = 0.3           # m over the floor's lowest the face stops, at the slope's foot
+ABUT_SIDE_M = DECK_GROUND_SIDE_M + 1.0      # m past a deck's road it cuts (a divided road's two decks: the gap between)
+
+
+def abutment_walls(decks, ground):
+    """The abutment faces under decks [(xy (k, 2), z (k,), width m)] as pseudo-decks [(xy, cap, width)] for
+    ground_under_decks(..., under=0.0, side=ABUT_SIDE_M): the terrain held under cap along each run of a deck where a
+    face stands. ground(xy (n, 2)) -> the terrain's heights there (n,) (the decks' frame). Pure given ground."""
+    out = []
+    for line, dz, width in decks:
+        line = np.asarray(line, np.float64)[:, :2]
+        dz = np.asarray(dz, np.float64)
+        if len(line) < 2 or len(dz) != len(line) or not np.isfinite(dz).all():
+            continue
+        arc = np.r_[0.0, np.cumsum(np.hypot(*np.diff(line, axis=0).T))]
+        total = float(arc[-1])
+        if total < 2 * ABUT_STEP_M:
+            continue
+        s = np.arange(0.0, total + 1e-9, ABUT_STEP_M)
+        if s[-1] < total - 1e-6:
+            s = np.r_[s, total]
+        px, py, d = np.interp(s, arc, line[:, 0]), np.interp(s, arc, line[:, 1]), np.interp(s, arc, dz)
+        tx, ty = np.gradient(px), np.gradient(py)
+        nn = np.hypot(tx, ty) + 1e-12
+        nx, ny = -ty / nn, tx / nn
+        offs = np.array([-width / 2, 0.0, width / 2])      # (the deck's lowest ground across: its road's edges too)
+        pts = np.stack([(px[:, None] + nx[:, None] * offs).ravel(), (py[:, None] + ny[:, None] * offs).ravel()], 1)
+        g = np.asarray(ground(pts), np.float64).reshape(len(s), len(offs)).min(1)
+        if not np.isfinite(g).all():
+            continue
+        gap = d - g
+        top, open_ = gap <= ABUT_TOP_M, gap >= ABUT_OPEN_M
+        cap = np.full(len(s), np.inf)
+        n = len(s)
+        for i in range(n):
+            if not top[i]:
+                continue
+            for step in (1, -1):
+                j = i + step
+                if not (0 <= j < n) or top[j]:
+                    continue            # (not the embankment's last top station that way)
+                run = []                # the stations that way, within reach, up to the next embankment
+                k = j
+                while 0 <= k < n and abs(s[k] - s[i]) <= ABUT_REACH_M and not top[k]:
+                    run.append(k)
+                    k += step
+                run = np.array(run)
+                if not open_[run].any():
+                    continue
+                low = float(g[run].min())
+                floor = run[g[run] <= low + ABUT_FLAT_M]        # (the span's floor: a corridor's flat, not a slope)
+                if abs(float(s[floor].max() - s[floor].min())) < ABUT_FLOOR_MIN_M or g[i] - low < ABUT_MIN_DROP_M:
+                    continue
+                toe = run[np.flatnonzero(g[run] <= low + 2 * ABUT_FOOT_M)[0]]  # (the slope's foot: the face ends)
+                for k in range(i + step, toe + step, step):
+                    c = max(low + ABUT_FOOT_M, g[i] - ABUT_WALL_GRADE * abs(s[k] - s[i]))
+                    cap[k] = min(cap[k], c)
+        fin = np.isfinite(cap)
+        if not fin.any():
+            continue
+        free = d - DECK_GROUND_UNDER_M          # (the deck's own hold: where no face stands)
+        edges = np.flatnonzero(np.diff(np.r_[0, fin.astype(np.int8), 0]))
+        for a, b in zip(edges[::2], edges[1::2]):
+            a0, b0 = max(a - 1, 0), min(b + 1, n)       # (a station either side: the run joins the deck's own hold)
+            c = np.where(np.isfinite(cap[a0:b0]), cap[a0:b0], free[a0:b0])
+            if b0 - a0 >= 2:
+                out.append((np.stack([px[a0:b0], py[a0:b0]], 1), c, float(width)))
+    return out

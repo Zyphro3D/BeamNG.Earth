@@ -49,6 +49,60 @@ class GroundUnderDecksTest(unittest.TestCase):
         self.assertAlmostEqual(got[0], UNDER)
 
 
+def _embankment_over_a_floor(floor=lambda x: 0.0):
+    """A deck along x at 10 m from x = 0 to 100; the ground: an embankment at 10 m up to x = 30, sloping down to the
+    floor by x = 48 (the elevation's smoothed abutment), the floor (floor(x)) on to x = 100."""
+    def ground(xy):
+        x = np.asarray(xy, float)[:, 0]
+        f = np.array([floor(v) for v in x])
+        return np.where(x <= 30.0, 10.0, np.where(x >= 48.0, f, 10.0 + (x - 30.0) / 18.0 * (f - 10.0)))
+    deck = [(np.array([[0.0, 0.0], [100.0, 0.0]]), np.array([10.0, 10.0]), 8.0)]
+    return deck, ground
+
+
+def _faced(walls, ground, x, y=0.0):
+    z = ground(np.array([[x, y]]))
+    return float(rb.ground_under_decks(np.array([x]), np.array([y]), z, walls, 0.0, rb.ABUT_SIDE_M)[0])
+
+
+class AbutmentWallTest(unittest.TestCase):
+    def test_the_slope_under_the_deck_cut_to_a_face(self):
+        deck, ground = _embankment_over_a_floor()
+        walls = rb.abutment_walls(deck, ground)
+        self.assertEqual(len(walls), 1)
+        self.assertAlmostEqual(_faced(walls, ground, 29.0), 10.0)           # (the embankment stays)
+        self.assertLess(_faced(walls, ground, 33.5), 10.0 - 3.5 * 10 / 18 - 2.0)  # (steeper than the slope)
+        for x in (35.0, 40.0, 45.0):                                        # (the slope gone: the floor)
+            self.assertAlmostEqual(_faced(walls, ground, x), rb.ABUT_FOOT_M, places=6)
+        self.assertAlmostEqual(_faced(walls, ground, 70.0), 0.0)            # (the floor itself unchanged)
+
+    def test_across_the_deck_and_a_bit_past_its_side(self):
+        deck, ground = _embankment_over_a_floor()
+        walls = rb.abutment_walls(deck, ground)
+        self.assertAlmostEqual(_faced(walls, ground, 40.0, 4.0 + rb.ABUT_SIDE_M - 0.1), rb.ABUT_FOOT_M, places=6)
+        self.assertAlmostEqual(_faced(walls, ground, 40.0, 4.0 + rb.ABUT_SIDE_M + 1.0),
+                               float(ground(np.array([[40.0, 0.0]]))[0]))   # (beside it: left alone)
+
+    def test_not_over_a_valley(self):
+        # (a viaduct's valley: no flat floor under the span, its side stays)
+        deck, ground = _embankment_over_a_floor(lambda x: 0.0 if x < 48.0 else -0.3 * (x - 48.0))
+        self.assertEqual(rb.abutment_walls(deck, ground), [])
+
+    def test_not_where_the_deck_never_stands_on_its_ground(self):
+        deck, ground = _embankment_over_a_floor()
+        high = [(deck[0][0], np.array([20.0, 20.0]), 8.0)]
+        self.assertEqual(rb.abutment_walls(high, ground), [])
+
+    def test_off_in_the_block(self):
+        orig = rb.ABUT_WALL_ON
+        rb.ABUT_WALL_ON = False
+        try:
+            deck, ground = _embankment_over_a_floor()
+            self.assertEqual(blockworker._abutment_walls(geodesy.EnuFrame(45.0, 5.0), lambda la, lo: la * 0, deck), [])
+        finally:
+            rb.ABUT_WALL_ON = orig
+
+
 class UnderDecksGeoTest(unittest.TestCase):
     def test_heights_at_lat_lon_held_under_a_deck_in_the_frame(self):
         frame = geodesy.EnuFrame(45.0, 5.0)
