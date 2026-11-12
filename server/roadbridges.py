@@ -1827,10 +1827,11 @@ DECK_GROUND_UNDER_M = 0.3
 DECK_GROUND_SIDE_M = roadmesh.PARAPET_W
 
 
-def ground_under_decks(x, y, z, decks, under=DECK_GROUND_UNDER_M, side=DECK_GROUND_SIDE_M):
+def ground_under_decks(x, y, z, decks, under=DECK_GROUND_UNDER_M, side=DECK_GROUND_SIDE_M, fall=0.0):
     """z (n,), the terrain at (x, y) (n,) (metres, the decks' frame), at most `under` under the road of the decks over
     it (decks [(xy (k, 2), z (k,), width m)]): within width / 2 + side of a deck's line, between its two ends (a point
-    past an end is not under it). Returns z itself when nothing is capped. Pure."""
+    past an end is not under it); fall (m, with ABUT_FALL_GRADE): beyond that the cap rises back over this much (no
+    sheer edge). Returns z itself when nothing is capped. Pure."""
     z = np.asarray(z, np.float64)
     x, y = np.asarray(x, np.float64), np.asarray(y, np.float64)
     out = None
@@ -1841,7 +1842,7 @@ def ground_under_decks(x, y, z, decks, under=DECK_GROUND_UNDER_M, side=DECK_GROU
         if len(line) < 2 or len(dz) != len(line) or not np.isfinite(dz).all():
             continue
         r = float(width) / 2 + side
-        lo, hi = line.min(0) - r, line.max(0) + r
+        lo, hi = line.min(0) - r - fall, line.max(0) + r + fall
         if order is None:               # (the points sorted by x once: each deck reads its own slice, not every point)
             order = np.argsort(x, kind="stable")
             xs = x[order]
@@ -1871,9 +1872,10 @@ def ground_under_decks(x, y, z, decks, under=DECK_GROUND_UNDER_M, side=DECK_GROU
             closer = dist < best
             best = np.where(closer, dist, best)
             past = np.where(closer, beyond, past)
-            ok = dist <= r
+            ok = dist <= r + fall
             if ok.any():
-                cap = np.where(ok, np.minimum(cap, dz[s] + tc * (dz[s + 1] - dz[s]) - under), cap)
+                rise = np.maximum(dist - r, 0.0) * ABUT_FALL_GRADE if fall else 0.0
+                cap = np.where(ok, np.minimum(cap, dz[s] + tc * (dz[s + 1] - dz[s]) - under + rise), cap)
         cap = np.where(past, np.inf, cap)
         hit = cap < z[idx]
         if hit.any():
@@ -1904,6 +1906,8 @@ ABUT_MIN_DROP_M = 2.5       # m from the embankment's top to the floor, at least
 ABUT_WALL_GRADE = 3.0       # the face's fall (m per m along the deck: 72 degrees)
 ABUT_FOOT_M = 0.3           # m over the floor's lowest the face stops, at the slope's foot
 ABUT_SIDE_M = DECK_GROUND_SIDE_M + 1.0      # m past a deck's road it cuts (a divided road's two decks: the gap between)
+ABUT_FALL_M = 8.0           # m past that it rises back to the terrain ...
+ABUT_FALL_GRADE = 1.0       # ... at this (45 degrees: a sheer cut's edge left spikes of earth beside the deck)
 
 
 def abutment_walls(decks, ground):

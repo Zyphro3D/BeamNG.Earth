@@ -62,7 +62,7 @@ def _embankment_over_a_floor(floor=lambda x: 0.0):
 
 def _faced(walls, ground, x, y=0.0):
     z = ground(np.array([[x, y]]))
-    return float(rb.ground_under_decks(np.array([x]), np.array([y]), z, walls, 0.0, rb.ABUT_SIDE_M)[0])
+    return float(rb.ground_under_decks(np.array([x]), np.array([y]), z, walls, 0.0, rb.ABUT_SIDE_M, rb.ABUT_FALL_M)[0])
 
 
 class AbutmentWallTest(unittest.TestCase):
@@ -80,8 +80,9 @@ class AbutmentWallTest(unittest.TestCase):
         deck, ground = _embankment_over_a_floor()
         walls = rb.abutment_walls(deck, ground)
         self.assertAlmostEqual(_faced(walls, ground, 40.0, 4.0 + rb.ABUT_SIDE_M - 0.1), rb.ABUT_FOOT_M, places=6)
-        self.assertAlmostEqual(_faced(walls, ground, 40.0, 4.0 + rb.ABUT_SIDE_M + 1.0),
-                               float(ground(np.array([[40.0, 0.0]]))[0]))   # (beside it: left alone)
+        here = float(ground(np.array([[40.0, 0.0]]))[0])
+        self.assertAlmostEqual(_faced(walls, ground, 40.0, 4.0 + rb.ABUT_SIDE_M + 1.0), rb.ABUT_FOOT_M + 1.0)
+        self.assertAlmostEqual(_faced(walls, ground, 40.0, 4.0 + rb.ABUT_SIDE_M + rb.ABUT_FALL_M + 0.5), here)
 
     def test_not_over_a_valley(self):
         # (a viaduct's valley: no flat floor under the span, its side stays)

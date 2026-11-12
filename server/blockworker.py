@@ -442,7 +442,8 @@ def build(aid, lat, lon, hm_zoom, q, cx, cy, size, out_dir, name, ter_name=None,
             t2 = time.perf_counter()
             part_s["arch"] = part_s.get("arch", 0.0) + t2 - t1
             z = under_decks(frame, decks, la, lo, z)    # (and never over a bridge deck: roadbridges.ground_under_decks)
-            z = under_decks(frame, walls, la, lo, z, under=0.0, side=roadbridges.ABUT_SIDE_M)  # (abutments' faces)
+            z = under_decks(frame, walls, la, lo, z, under=0.0, side=roadbridges.ABUT_SIDE_M,   # (abutments' faces)
+                            fall=roadbridges.ABUT_FALL_M)
             part_s["decks"] += time.perf_counter() - t2
             return z
     info = heightmap.generate(frame, gen, os.path.join(out_dir, name), cx, cy, q=q, size=size, keep=keep,
@@ -546,7 +547,7 @@ def _abutment_walls(frame, elev, decks):
         return []
 
 
-def under_decks(frame, decks, la, lo, z, under=None, side=None):
+def under_decks(frame, decks, la, lo, z, under=None, side=None, fall=0.0):
     """z, the terrain's heights (elev's) at (la, lo), held under the decks [(xy, z, width)] (frame metres:
     roadbridges.ground_under_decks, its under and side unless given). Returns z itself when nothing is capped."""
     if not decks:
@@ -557,7 +558,7 @@ def under_decks(frame, decks, la, lo, z, under=None, side=None):
     la_, lo_ = np.asarray(la, np.float64).ravel(), np.asarray(lo, np.float64).ravel()
     zf = np.asarray(z, np.float64).ravel()
     pts = np.concatenate([xy for xy, _z, _w in decks])
-    r = max(w for _xy, _z, w in decks) / 2 + side + 1.0
+    r = max(w for _xy, _z, w in decks) / 2 + side + fall + 1.0
     (x0, y0), (x1, y1) = pts.min(0) - r, pts.max(0) + r
     cla, clo, _ = frame.enu_to_geodetic(np.array([x0, x1, x0, x1]), np.array([y0, y0, y1, y1]), 0.0)
     near = (la_ >= np.min(cla)) & (la_ <= np.max(cla)) & (lo_ >= np.min(clo)) & (lo_ <= np.max(clo))
@@ -566,7 +567,7 @@ def under_decks(frame, decks, la, lo, z, under=None, side=None):
     e, n, u0 = frame.geodetic_to_enu(la_[near], lo_[near], 0.0)
     u0 = np.asarray(u0, np.float64)
     zz = zf[near] + u0                  # (in the frame's up, as the decks' heights)
-    got = roadbridges.ground_under_decks(np.asarray(e, np.float64), np.asarray(n, np.float64), zz, decks, under, side)
+    got = roadbridges.ground_under_decks(np.asarray(e, np.float64), np.asarray(n, np.float64), zz, decks, under, side, fall)
     if got is zz:
         return z
     out = zf.copy()
