@@ -432,6 +432,7 @@ def build(aid, lat, lon, hm_zoom, q, cx, cy, size, out_dir, name, ter_name=None,
         t1 = time.perf_counter()
         decks = _block_decks(aid, frame, elev, cell_fn, (cx - half, cy - half, cx + half, cy + half))
         walls = _abutment_walls(frame, elev, decks)
+        cores = _wall_cores(g, frame, walls)
         import roadbridges
         part_s["decks"] = time.perf_counter() - t1
 
@@ -442,8 +443,7 @@ def build(aid, lat, lon, hm_zoom, q, cx, cy, size, out_dir, name, ter_name=None,
             t2 = time.perf_counter()
             part_s["arch"] = part_s.get("arch", 0.0) + t2 - t1
             z = under_decks(frame, decks, la, lo, z)    # (and never over a bridge deck: roadbridges.ground_under_decks)
-            z = under_decks(frame, walls, la, lo, z, under=0.0, side=roadbridges.ABUT_SIDE_M,   # (abutments' faces)
-                            fall=roadbridges.ABUT_FALL_M)
+            z = faced(frame, walls, cores, la, lo, z)       # (the abutments' faces, never out of a road on the ground)
             part_s["decks"] += time.perf_counter() - t2
             return z
     info = heightmap.generate(frame, gen, os.path.join(out_dir, name), cx, cy, q=q, size=size, keep=keep,
@@ -545,6 +545,47 @@ def _abutment_walls(frame, elev, decks):
     except Exception as e:
         log.warning("abutment walls: %s: %s", type(e).__name__, e)
         return []
+
+
+def _wall_cores(g, frame, walls):
+    """[(xy (k, 2), half width m)] of the graded roads' and tracks' cores (g's plans, frame metres; not the tunnels')
+    within the abutment faces' reach (walls: _abutment_walls): what the faces never dig (roadbridges.keep_roads). []
+    without walls or a grader, or on a failure (the faces as cut)."""
+    if not walls or g is None or not hasattr(g, "plans"):
+        return []
+    import roadbridges
+    try:
+        pts = np.concatenate([xy for xy, _c, _w in walls])
+        r = max(w for _xy, _c, w in walls) / 2 + roadbridges.ABUT_SIDE_M + roadbridges.ABUT_FALL_M + 1.0
+        (x0, y0), (x1, y1) = pts.min(0) - r, pts.max(0) + r
+        la, lo, _ = frame.enu_to_geodetic(np.array([x0, x1, x0, x1]), np.array([y0, y0, y1, y1]), 0.0)
+        out = []
+        for p in g.plans(np.asarray(la, np.float64), np.asarray(lo, np.float64), roads_only=True):
+            xy = np.asarray(p.xy, np.float64)[:, :2]
+            if len(xy) >= 2 and not ((xy.max(0) < (x0, y0)).any() or (xy.min(0) > (x1, y1)).any()):
+                out.append((xy, float(p.half)))
+        return out
+    except Exception as e:
+        log.warning("abutment walls' roads: %s: %s", type(e).__name__, e)
+        return []
+
+
+def faced(frame, walls, cores, la, lo, z):
+    """z, the terrain's heights at (la, lo) (under the decks already), cut to the abutments' faces (walls:
+    _abutment_walls; roadbridges.ABUT_*), the ground roads' and tracks' cores (_wall_cores) left as they were.
+    Returns z itself when nothing is cut."""
+    if not walls:
+        return z
+    import roadbridges
+    cut = under_decks(frame, walls, la, lo, z, under=0.0, side=roadbridges.ABUT_SIDE_M, fall=roadbridges.ABUT_FALL_M)
+    if cut is z or not cores:
+        return cut
+    zf, cf = np.asarray(z, np.float64).ravel(), np.asarray(cut, np.float64).ravel()
+    e, n, _ = frame.geodetic_to_enu(np.asarray(la, np.float64).ravel(), np.asarray(lo, np.float64).ravel(), 0.0)
+    got = roadbridges.keep_roads(np.asarray(e, np.float64), np.asarray(n, np.float64), zf, cf, cores)
+    if got is cf:
+        return cut
+    return got.reshape(np.shape(z)).astype(np.asarray(z).dtype, copy=False)
 
 
 def under_decks(frame, decks, la, lo, z, under=None, side=None, fall=0.0):

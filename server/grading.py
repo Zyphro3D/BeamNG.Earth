@@ -147,6 +147,8 @@ from gradbase import (  # (re-exported: callers use grading.<name>)
     JUNCTION_SNAP_ON,  # noqa: F401
     JUNCTION_TAPER_M,  # noqa: F401
     LEG_RID_SHIFT,  # noqa: F401
+    LINK_BESIDE_M,  # noqa: F401
+    LINK_BESIDE_ON,  # noqa: F401
     LINK_TURN_DEG,  # noqa: F401
     LL_GRID_M,  # noqa: F401
     LONG_PART_M,  # noqa: F401
@@ -313,6 +315,7 @@ from gradbase import (  # (re-exported: callers use grading.<name>)
     approach_add,  # noqa: F401
     bank,  # noqa: F401
     bend_zone,  # noqa: F401
+    beside_fixed_span,  # noqa: F401
     bridge_chain,  # noqa: F401
     bridge_chain_ends_free,  # noqa: F401
     bridge_lifts,  # noqa: F401

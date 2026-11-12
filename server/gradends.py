@@ -28,6 +28,7 @@ from gradbase import (
     PROFILE_STEP,
     ROAD_LIFT,
     SLOPE_RUN,
+    LINK_BESIDE_ON,
     TWIN_M,
     TWIN_ON,
     TWIN_SHARE,
@@ -46,6 +47,8 @@ from gradbase import (
     XS_ON,
     _Decks,
     _is_link,
+    _link_of_fixed,
+    beside_fixed_span,
     _seg_dist,
     approach_add,
     bridge_chain,
@@ -537,6 +540,7 @@ class _EndsMixin:
         if not len(hit):
             return None
         bridge = hc["bridges"][hc["end_of"][int(hit[0])]]
+        bridge_cls = hc.get("bridge_cls", [None] * len(hc["bridges"]))[hc["end_of"][int(hit[0])]]
         sol = self._xsolve(bridge) if XS_ON else None
         # the bridge's own cells (a few, it is short): the roads crossing under it and the parts it joins
         lam, lom, _ = self.frame.enu_to_geodetic(bridge[:, 0], bridge[:, 1], 0.0)
@@ -590,6 +594,10 @@ class _EndsMixin:
             if np.hypot(*(end - xy)) <= APPROACH_TOUCH_M:
                 best = lift
                 break
+        if best is not None and LINK_BESIDE_ON and _link_of_fixed(bridge_cls) and beside_fixed_span(
+                bridge, [b for c in cs for b, bc in zip(c["bridges"], c.get("bridge_cls", ())) if bc in APPROACH_SKIP],
+                lines):
+            best = None                 # (a link's deck beside its mainline's over the same road: the road dips)
         seen = self._observed_lift(bridge, xy, z_at)
         if seen is not None:            # (a measured deck: its own end, not what the clearance rules would need)
             seen, target = seen

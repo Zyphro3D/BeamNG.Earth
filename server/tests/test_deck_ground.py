@@ -84,6 +84,34 @@ class AbutmentWallTest(unittest.TestCase):
         self.assertAlmostEqual(_faced(walls, ground, 40.0, 4.0 + rb.ABUT_SIDE_M + 1.0), rb.ABUT_FOOT_M + 1.0)
         self.assertAlmostEqual(_faced(walls, ground, 40.0, 4.0 + rb.ABUT_SIDE_M + rb.ABUT_FALL_M + 0.5), here)
 
+    def test_a_road_on_the_ground_beside_the_deck_is_not_dug(self):
+        # (a link 6 m beside the deck, on the embankment: inside the face's cut and its 45 degree side)
+        deck, ground = _embankment_over_a_floor()
+        walls = rb.abutment_walls(deck, ground)
+        xs = np.linspace(20.0, 60.0, 81)
+        for y, on_road in ((6.0, True), (8.9, True), (11.0, False)):
+            x, yy = xs, np.full(len(xs), y)
+            z = np.full(len(xs), 10.0)                              # (the link's graded ground: level)
+            cut = rb.ground_under_decks(x, yy, z, walls, 0.0, rb.ABUT_SIDE_M, rb.ABUT_FALL_M)
+            self.assertLess(float(cut.min()), 9.0)                  # (the face reaches it)
+            link = [(np.array([[0.0, 6.0], [100.0, 6.0]]), 2.5)]
+            got = rb.keep_roads(x, yy, z, cut, link)
+            if on_road:
+                np.testing.assert_array_equal(got, z)
+            else:
+                self.assertIs(got, cut)
+
+    def test_the_face_stands_past_the_end_of_the_road_onto_the_deck(self):
+        deck, ground = _embankment_over_a_floor()
+        walls = rb.abutment_walls(deck, ground)
+        x, y = np.linspace(20.0, 60.0, 81), np.zeros(81)
+        z = ground(np.stack([x, y], 1))
+        cut = rb.ground_under_decks(x, y, z, walls, 0.0, rb.ABUT_SIDE_M, rb.ABUT_FALL_M)
+        own = [(np.array([[-50.0, 0.0], [30.0, 0.0]]), 4.0)]        # (its own road: ends where the deck starts)
+        got = rb.keep_roads(x, y, z, cut, own)
+        np.testing.assert_array_equal(got[x > 30.0], cut[x > 30.0])
+        self.assertIs(rb.keep_roads(x, y, z, cut, []), cut)
+
     def test_not_over_a_valley(self):
         # (a viaduct's valley: no flat floor under the span, its side stays)
         deck, ground = _embankment_over_a_floor(lambda x: 0.0 if x < 48.0 else -0.3 * (x - 48.0))

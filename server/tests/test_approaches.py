@@ -41,6 +41,21 @@ class BridgeLiftsTest(unittest.TestCase):
             self.assertGreaterEqual(lift, clear)
             self.assertLessEqual(lift, clear + grading.APPROACH_MARGIN_M + 1e-9)
 
+    def test_link_beside_its_mainline_over_the_same_road(self):
+        # (Lille, Rue de Bavay: a trunk's link 8 m beside the trunk's own bridge over one street)
+        link = np.c_[np.linspace(-15, 15, 16), np.full(16, 8.0)]
+        trunk = np.c_[np.linspace(-15, 15, 16), np.zeros(16)]
+        street = [np.array([[0.0, -100], [0, 100]])]
+        self.assertTrue(grading.beside_fixed_span(link, [trunk], street))
+        self.assertFalse(grading.beside_fixed_span(link, [], street))
+        self.assertFalse(grading.beside_fixed_span(link, [link], street))               # (itself: no mainline)
+        far = trunk + [0.0, 8.0 + grading.LINK_BESIDE_M + 5.0]
+        self.assertFalse(grading.beside_fixed_span(link, [far], street))                # (too far along the street)
+        other = [np.array([[0.0, 4.0], [0, 100]]), np.array([[40.0, -100], [40, 4]])]   # (two streets, one under each)
+        self.assertFalse(grading.beside_fixed_span(link, [trunk + [40.0, 0.0]], other))
+        at_end = [np.array([[-13.0, -100], [-13, 100]])]     # (meets the link 2 m from its end: a junction at grade)
+        self.assertFalse(grading.beside_fixed_span(link, [trunk], at_end))
+
     def test_nothing_under_nothing_raised(self):
         line = np.c_[np.linspace(-35, 35, 36), np.zeros(36)]
         self.assertEqual(grading.bridge_lifts(line, [line], [], lambda xy: np.full(len(xy), FLAT)), [])

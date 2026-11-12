@@ -66,7 +66,9 @@ def start_run(cache_dir):
 # The plans' output format: their key in the revisit cache (kept across updates) and in baked packs (bakepack.py), in
 # place of the code hash. Bump it whenever a change makes other plans (grading, its inputs' rules), or players keep the
 # old ones; tests/test_bake_formats.py fails until it is bumped (its fixture's digest is stored with the number).
-# Its history (29 was used by a withdrawn change, plans of it may be cached: the next bump is 30):
+# Its history (29 was used by a withdrawn change, plans of it may be cached):
+#   30: a link's bridge beside its mainline's over the same road not raised, the road dips under both
+#       (gradbase.LINK_BESIDE_*)
 #   28: a divided road's mapped width capped at its carriageways' gap and no inner sidewalk on touching ones
 #       (roads._dual_width, walk_sides)
 #   27: company wall signs only in North America (buildings.Spec.us_signs)
@@ -96,7 +98,7 @@ def start_run(cache_dir):
 #   5: one half width a bridge (each was appended twice: under-deck ground and carriageways read the wrong bridge's)
 #   4: junction pads, steep side-road ramps, rail bridges the DEM predates (PR #482/#671)
 #   3: bridge ends on embankments (#694), the ground under decks (#698), junction corridors (#682)
-PLANS_FORMAT = 28
+PLANS_FORMAT = 30
 
 
 def plans_format():

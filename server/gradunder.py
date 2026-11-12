@@ -15,6 +15,7 @@ from gradbase import (
     APPROACH_MIN_CROSS_M,
     APPROACH_MIN_LIFT,
     APPROACH_SKIP,
+    LINK_BESIDE_ON,
     CW_HEADROOM_M,
     CW_ON,
     MEASURED_SIDE_RUN,
@@ -44,7 +45,9 @@ from gradbase import (
     XS_ON,
     _Decks,
     _merge_span_chains,
+    _link_of_fixed,
     _never_raised,
+    beside_fixed_span,
     _road_fids,
     approach_add,
     deck_capped,
@@ -147,7 +150,7 @@ class _UnderpassMixin:
         cla, clo = np.asarray(cla, f64), np.asarray(clo, f64)
         keys = sorted(set(mapcells.cells_for_bbox(float(cla.min()), float(clo.min()), float(cla.max()),
                                                   float(clo.max()))) | {key}, key=str)
-        bridges, ground, over = [], {}, []
+        bridges, ground, over, links = [], {}, [], []
         for k in keys:
             c = self._cell_enu(k)
             if UNDER_DECK_ON:               # (every deck, for the ground under it: _under_ground)
@@ -158,6 +161,8 @@ class _UnderpassMixin:
                     continue
                 if not (UNDER_ANY_ON or cls in APPROACH_SKIP or cls.endswith("_link")):
                     continue
+                if LINK_BESIDE_ON and _link_of_fixed(cls):
+                    links.append(len(bridges))
                 bridges.append((line, cls in APPROACH_SKIP, False))     # (a link's "<cls>_link": raised)
             # (a line's deck: never raised; straight between its ends whatever its length or what it joins, as
             # railways.deck_heights lays it: no single-span test)
@@ -172,6 +177,14 @@ class _UnderpassMixin:
                     ground[(fid, j)] = (line, sg, med, cls)
         if not bridges or not ground:
             return
+        if links:
+            # (a link's deck beside its mainline's over the same road: never raised either, the road dips under both:
+            # gradbase.LINK_BESIDE_*)
+            fixed_lines = [b for b, fixed, rail in bridges if fixed and not rail]
+            ground_lines = [g[0] for g in ground.values()]
+            for n in links:
+                if beside_fixed_span(bridges[n][0], fixed_lines, ground_lines):
+                    bridges[n] = (bridges[n][0], True, False)
         # (single spans: neither end continues into another bridge part; deduplicated across cells)
         uniq, seen = [], set()
         for b, fixed, rail in bridges:

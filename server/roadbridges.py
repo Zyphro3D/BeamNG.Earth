@@ -1908,6 +1908,7 @@ ABUT_FOOT_M = 0.3           # m over the floor's lowest the face stops, at the s
 ABUT_SIDE_M = DECK_GROUND_SIDE_M + 1.0      # m past a deck's road it cuts (a divided road's two decks: the gap between)
 ABUT_FALL_M = 8.0           # m past that it rises back to the terrain ...
 ABUT_FALL_GRADE = 1.0       # ... at this (45 degrees: a sheer cut's edge left spikes of earth beside the deck)
+ABUT_ROAD_M = 0.5           # m past a ground road's or a track's core the faces leave as it was (keep_roads)
 
 
 def abutment_walls(decks, ground):
@@ -1973,4 +1974,51 @@ def abutment_walls(decks, ground):
             c = np.where(np.isfinite(cap[a0:b0]), cap[a0:b0], free[a0:b0])
             if b0 - a0 >= 2:
                 out.append((np.stack([px[a0:b0], py[a0:b0]], 1), c, float(width)))
+    return out
+
+
+def keep_roads(x, y, z, cut, cores, margin=ABUT_ROAD_M):
+    """cut (n,), the terrain z (n,) at (x, y) as the abutments' faces lowered it, back at z on the ground roads' and
+    the tracks' cores (cores [(xy (k, 2), half width m)]: the grading plans' lines, the decks' frame): within half +
+    margin of a line, beside it (past a line's end, under the deck its road leads onto, the face stands). A face's
+    cut reaches ABUT_SIDE_M + ABUT_FALL_M past its deck: it dug up to 11 m out of the link beside a trunk's deck, the
+    street under another and a railway's bed on its embankment (Lille, Rue de Bavay, 2026-11-12). Returns cut itself
+    when nothing is put back. Pure."""
+    z, cut = np.asarray(z, np.float64), np.asarray(cut, np.float64)
+    low = np.flatnonzero(cut < z - 1e-6)
+    if not len(low) or not cores:
+        return cut
+    px, py = np.asarray(x, np.float64)[low], np.asarray(y, np.float64)[low]
+    keep = np.zeros(len(low), bool)
+    for line, half in cores:
+        line = np.asarray(line, np.float64)[:, :2]
+        if len(line) < 2:
+            continue
+        r = float(half) + margin
+        (x0, y0), (x1, y1) = line.min(0) - r, line.max(0) + r
+        idx = np.flatnonzero((px >= x0) & (px <= x1) & (py >= y0) & (py <= y1) & ~keep)
+        if not len(idx):
+            continue
+        qx, qy = px[idx], py[idx]
+        on = np.zeros(len(idx), bool)
+        last = len(line) - 2
+        for s in range(last + 1):
+            (ax, ay), (bx, by) = line[s], line[s + 1]
+            dx, dy = bx - ax, by - ay
+            l2 = dx * dx + dy * dy
+            if l2 < 1e-12:
+                continue
+            t = ((qx - ax) * dx + (qy - ay) * dy) / l2
+            tc = np.clip(t, 0.0, 1.0)
+            inside = np.hypot(qx - (ax + tc * dx), qy - (ay + tc * dy)) <= r
+            if s == 0:
+                inside &= t >= 0.0
+            if s == last:
+                inside &= t <= 1.0
+            on |= inside
+        keep[idx[on]] = True
+    if not keep.any():
+        return cut
+    out = cut.copy()
+    out[low[keep]] = z[low[keep]]
     return out

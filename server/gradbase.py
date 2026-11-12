@@ -216,6 +216,14 @@ TWIN_M = 60.0               # m: another abutment this near whose approach runs 
 TWIN_SHARE = 0.5            # ... and is raised at least this share as much rises with it (no cap between them)
 APPROACH_CAP_GRADE = 0.10   # steepest grade a ramp falls at where a road beside it caps it (a cap alone dropped 3 m
                             # in 8 m by a side road north of the I-20 bridge near Temple, GA, 2026-10-20)
+# A link's bridge beside its mainline's over the same road is not raised for it either: the road dips under the
+# mainline's deck (never raised: APPROACH_SKIP), so it is already clear under the link's a few metres on. Raised by the
+# clearance rule from the elevation's fill under the decks, a trunk's link climbed 6.8 m over its own trunk 8 m beside
+# it, on a 100 m ridge of earth, to a deck falling 8.5 m in 30 m to the tunnel mouth both enter (Lille, the trunk road
+# over the street under the railway by Rue de Bavay, 50.6334 N 3.0837 E, 2026-11-12). Its deck counts as never raised
+# for the road under it too (_lower_underpasses): the dip is held at its own crossing.
+LINK_BESIDE_ON = os.environ.get("BNE_LINK_BESIDE", "on") != "off"
+LINK_BESIDE_M = 40.0        # m between the two decks' crossings of that road at most
 
 # Embankments at abutments (GitHub #38: a GPS drive near Presov, Slovakia flipped on the D1). A bridge's map line can end
 # down its embankment, short of the abutment: the road's last metres followed the valley's side in the elevation data and
@@ -2366,6 +2374,37 @@ def _seg_dist(line, p):
     ab = b - a
     t = np.clip(((p - a) * ab).sum(1) / np.maximum((ab * ab).sum(1), 1e-12), 0.0, 1.0)
     return float(np.hypot(*(a + t[:, None] * ab - p).T).min())
+
+
+def beside_fixed_span(line, fixed_lines, ground_lines, reach=LINK_BESIDE_M):
+    """True when a ground road crossing under the bridge part line ((k, 2) ENU m; mid-span: not within
+    APPROACH_MIN_CROSS_M of its ends, a junction at grade) also crosses under one of fixed_lines (the never-raised
+    decks' lines) within reach m of that crossing. Pure."""
+    line = np.asarray(line, np.float64)[:, :2]
+    if len(line) < 2 or not len(fixed_lines) or not len(ground_lines):
+        return False
+    lo, hi = line.min(0) - reach, line.max(0) + reach
+
+    def near(ln):
+        ln = np.asarray(ln, np.float64)[:, :2]
+        return len(ln) >= 2 and not ((ln.max(0) < lo).any() or (ln.min(0) > hi).any())
+    fixed = [np.asarray(f, np.float64)[:, :2] for f in fixed_lines if near(f)]
+    fixed = [f for f in fixed if not (len(f) == len(line) and np.array_equal(f, line))]
+    ground = [np.asarray(g, np.float64)[:, :2] for g in ground_lines if near(g)]
+    if not fixed or not ground:
+        return False
+    total = float(np.hypot(*np.diff(line, axis=0).T).sum())
+    for cr in roadsmod._crossings_by([line] + fixed, ground):
+        own = [pt for bi, arc, pt in cr if bi == 0 and APPROACH_MIN_CROSS_M <= arc <= total - APPROACH_MIN_CROSS_M]
+        other = [pt for bi, _arc, pt in cr if bi > 0]
+        if any(float(np.hypot(*(p - q))) <= reach for p in own for q in other):
+            return True
+    return False
+
+
+def _link_of_fixed(cls):
+    """A bridge class of _cell_enu's ("<class>_link" for a link) that is a never-raised class's link."""
+    return cls is not None and cls.endswith("_link") and cls[:-5] in APPROACH_SKIP
 
 
 def _never_raised(spec):
