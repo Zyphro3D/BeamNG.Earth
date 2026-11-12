@@ -68,7 +68,9 @@ class FakeNet:
 
 COMPANION = '''
 import os, sys, time
-open("seen.txt", "w").write(os.environ.get("BNE_FEED", "") + " " + " ".join(sys.argv[1:]))
+with open("seen.tmp", "w") as f:
+    f.write(os.environ.get("BNE_FEED", "") + " " + " ".join(sys.argv[1:]))
+os.replace("seen.tmp", "seen.txt")     # (whole when it appears: a test that saw it empty, Windows CI 2026-11-11)
 while True:
     time.sleep(0.2)
 '''

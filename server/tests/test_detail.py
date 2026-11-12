@@ -200,7 +200,9 @@ class DetailFastPhotoLaterTest(ServerHarness):
     cells = 64
     block = 1024
 
-    def _slow_block(self, speed, fast=True, photo_s=1.0, held_s=0.95):
+    def _slow_block(self, speed, fast=True, photo_s=3.0, held_s=2.5):
+        # (held_s well under photo_s: a block held for its photo comes after photo_s; one not held came in 1.03 s
+        # with 4 test modules at once, over the 0.95 s of a 1 s photo, 2026-11-12)
         self.hello()
         aid = self.prepare_anchor(1, LAT, LON)["anchorId"]
         s = self.server

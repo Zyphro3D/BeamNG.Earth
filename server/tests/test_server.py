@@ -1171,18 +1171,15 @@ class DeleteQueueTest(unittest.TestCase):
 
     def test_rate_and_rebuilt_tile(self):
         mesh = self.make("mesh")
-        paths = []
-        for k in range(3000):                               # backlog / DRAIN_S > the cap
-            paths.append(os.path.join(mesh.out_dir, f"f{k}"))
-            open(paths[-1], "w").close()
+        paths = [os.path.join(mesh.out_dir, f"f{k}") for k in range(3000)]     # backlog / DRAIN_S > the cap
         kept = os.path.join(mesh.out_dir, "far_1_0_0_0.cdae")
-        open(kept, "w").close()
-        times = []
-        remove = mesh._remove
+        times, removed = [], []
 
+        # (the queue's pace, not the disk's: a Windows runner's real deletes of 3000 files took the 2 s down to 48,
+        # 2026-11-11; files really going: GeoFilesTest)
         def timed(p):
             times.append(time.monotonic())
-            remove(p)
+            removed.append(p)
         mesh._remove = timed
 
         async def run():
@@ -1191,7 +1188,7 @@ class DeleteQueueTest(unittest.TestCase):
             mesh.tiles[(1, "0_0_0")] = object()
             await asyncio.sleep(2.0)
         asyncio.run(run())
-        self.assertTrue(os.path.exists(kept))
+        self.assertNotIn(kept, removed)
         # ~40 files/s, evenly spaced (one per step): never more than a few in any 0.1 s
         self.assertGreater(len(times), 1.5 * earthd.DELETE_MAX_RATE)
         self.assertLess(len(times), 2.0 * earthd.DELETE_MAX_RATE + 5)
@@ -1244,6 +1241,11 @@ class GeoFilesTest(unittest.TestCase):
         s = self.make()
         names = [f"rg_g17_{x}_7.json" for x in range(5, 9)]
         self.touch(s, *names)
+        # (a batch window well over the event loop's timer lateness: Windows wakes ~16 ms late, past the tests' 10 ms,
+        # and split the four graces into two listings on a CI runner)
+        p = patch_all(earthd, "GEO_LIST_BATCH_S", 0.3)
+        p.start()
+        self.addCleanup(p.stop)
         calls = []
         real = os.listdir
 
@@ -1255,7 +1257,7 @@ class GeoFilesTest(unittest.TestCase):
             with mock.patch.object(earthd.os, "listdir", counted):
                 for x in range(5, 9):
                     s.geo_dropped("roads", (x, 7), f"g17_{x}_7", grace=0.02)
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(2.0)        # (the batch at 0.32 s, then 4 deletes DELETE_INTERVAL apart)
         asyncio.run(run())
         self.assertEqual(len([c for c in calls if c == s.out_dir]), 1, calls)
         for n in names:
