@@ -66,13 +66,7 @@ class _State:
         self.airports = load_airports(cache_dir, self.dem) if airports else None
         md = mapdatamod.MapData(cache_dir, fetcher=net) if (roads or surface or sea) else None
         if md is not None:
-            md.dem = self.dem       # (gradesep's ground: the DEM as it is, read inside the map's own cell work)
-        if md is not None and roads:
-            # (the ground under road bridges out of the DEM, for every reader here: the road plans, the decks and
-            # their piers, the terrain blocks: bridgebed)
-            import bridgebed
-            self.dem = bridgebed.BedDem(
-                self.dem, lambda key: md.cell(key, layers=("roads",), kind="demand").layers.get("roads"))
+            md.dem = self.dem       # (gradesep's ground)
         # the sea's and the lakes' floors carved in (--sea on)
         self.sea = seacarvemod.SeaCarver(md, cache_dir, dem=self.dem) if sea else None
         self.md = md if roads else None
