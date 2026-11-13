@@ -28,6 +28,20 @@ only, nothing redistributed. Licence notes marked *(verify)* must be re-checked 
   were silhouette references only; no photo pixels or other authors' models are
   redistributed. The new kit uses country profiles, not named-village exceptions.
 
+## French asphalt (bundled, opt-in: BNE_FR_ASPHALT=on)
+
+The carriageways' asphalt of France's paved roads drawn as meshes (`mod/.../art/shapes/beamngEarth/fr_asphalt/`, built
+by `tools/build_fr_asphalt.py`; `server/roadbase.py` fr_asphalt_look):
+
+| Asset | Author | Used for | Licence |
+|---|---|---|---|
+| aerial_asphalt_01 (polyhaven.com/a/aerial_asphalt_01) | Poly Haven | the asphalt's base (~30 m of a street) | CC0 1.0 |
+| asphalt_01 (polyhaven.com/a/asphalt_01) | Poly Haven | town asphalt's detail | CC0 1.0 |
+| Asphalt026C, Asphalt025C (ambientcg.com) | ambientCG (Lennart Demes) | worn and fresh asphalt's detail | CC0 1.0 |
+
+The base-and-detail method follows EarthNG (github.com/Alezx311/earthng, MIT, Copyright (c) 2026 Alezx311:
+earthng/fast_art.road_sheets, fast_style's road materials); `tools/banc_routes.py` follows its earthng/road_audit.py.
+
 ## Map data (downloaded at runtime by the companion server and cached on the player's disk)
 
 | Data | Provider | Used for | Licence / terms | Attribution | Status |

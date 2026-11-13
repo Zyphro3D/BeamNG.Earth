@@ -22,6 +22,7 @@ import fast
 
 WEIGHTS = np.array([0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64], np.int32)
 DXGI_BC7_UNORM_SRGB = 99
+DXGI_BC7_UNORM = 98
 
 
 def encode(img):
@@ -99,11 +100,23 @@ def _encode_gpu(chain):
         return None
 
 
-def dds(rgb):
-    """A BC7_UNORM_SRGB DDS (DX10 header, the full mip chain) of a square power-of-two RGB image."""
+def linear_mips(img):
+    """The mip chain of a square power-of-two image down to 1x1, each level the 2x2 mean of the one above (data and
+    normal maps: their values are not light, mips() would treat them as sRGB colour)."""
+    chain = [np.asarray(img, np.uint8)]
+    while chain[-1].shape[0] > 1:
+        a = chain[-1].astype(np.float32)
+        a = (a[0::2, 0::2] + a[1::2, 0::2] + a[0::2, 1::2] + a[1::2, 1::2]) / 4.0
+        chain.append(np.clip(a + 0.5, 0, 255).astype(np.uint8))
+    return chain
+
+
+def dds(rgb, srgb=True):
+    """A BC7 DDS (DX10 header, the full mip chain) of a square power-of-two RGB image: BC7_UNORM_SRGB for colour, or
+    BC7_UNORM with plain mean mips (srgb False: normal and data maps)."""
     img = np.asarray(rgb, np.uint8)
     h, w = img.shape[:2]
-    chain = mips(img)
+    chain = mips(img) if srgb else linear_mips(img)
     body = _encode_gpu(chain)
     if body is None:
         body = b"".join(encode(m) for m in chain)
@@ -113,5 +126,5 @@ def dds(rgb):
     head += struct.pack("<2I4s5I", 32, 0x4, b"DX10", 0, 0, 0, 0, 0)   # pixel format: FOURCC DX10
     head += struct.pack("<4I", 0x401008, 0, 0, 0)                     # caps: COMPLEX TEXTURE MIPMAP
     head += struct.pack("<I", 0)                                       # reserved2
-    head += struct.pack("<5I", DXGI_BC7_UNORM_SRGB, 3, 0, 1, 0)       # DX10: format, TEXTURE2D, -, array 1, -
+    head += struct.pack("<5I", DXGI_BC7_UNORM_SRGB if srgb else DXGI_BC7_UNORM, 3, 0, 1, 0)   # DX10: format, 2D, array 1
     return head + body

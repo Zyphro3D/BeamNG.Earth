@@ -163,11 +163,33 @@ def surface_material_kind(spec):
     return terrain_surface(spec) or spec.kind
 
 
+# French asphalt (the France fork; tools/build_fr_asphalt.py: CC0 photographs, EarthNG's method): for France's paved
+# roads drawn as meshes, one aerial base over FR_ASPHALT_M with a look's detail added (fresh on the main roads, worn on
+# the small ones, city elsewhere), the texture square ("square": the repeats across are the width over the length,
+# _chunk). Off by default until judged in game (BNE_FR_ASPHALT=on).
+FR_ASPHALT_ON = os.environ.get("BNE_FR_ASPHALT", "off") == "on"
+FR_ASPHALT_M = 30.0
+FR_ASPHALT_FRESH = {"motorway", "trunk", "primary", "raceway"}
+FR_ASPHALT_WORN = {"service", "unclassified", "track"}
+
+
+def fr_asphalt_look(spec):
+    """The French asphalt look of a paved road, or None (off, not French, not asphalt)."""
+    if not FR_ASPHALT_ON or spec.kind != "paved" or spec.surf == "concrete" or not getattr(spec, "france", False):
+        return None
+    wear = "fresh" if spec.cls in FR_ASPHALT_FRESH else "worn" if spec.cls in FR_ASPHALT_WORN else "city"
+    return {**LOOK["paved"], "m": f"bne_fr_asphalt_{wear}", "tl": FR_ASPHALT_M, "square": True}
+
+
 def look_of(spec, fid=None):
     """A spec's road look: gridmap v2's concrete for a `surface=concrete` street, a dirt or gravel strip (DIRT_LOOK:
-    texture length its aspect times the width, one variation per road id fid), else its kind's (LOOK)."""
+    texture length its aspect times the width, one variation per road id fid), France's asphalt (fr_asphalt_look),
+    else its kind's (LOOK)."""
     if spec.kind == "paved" and spec.surf == "concrete":
         return CONCRETE
+    fr = fr_asphalt_look(spec)
+    if fr is not None:
+        return fr
     look = DIRT_LOOK.get(spec.kind) if DIRT_STRIPS else None
     if look is None:
         return LOOK[spec.kind]
@@ -4247,7 +4269,19 @@ def _cell_memo(feats, name, make):
 def bridge_specs(feats):
     """Per feature: the Spec of a road bridge (flag is_bridge, or level above ground; not a tunnel), else
     None. No parking widths on bridges (urban False). Pure."""
-    return list(_cell_memo(feats, "_bridge_specs", lambda: _bridge_specs(feats)))  # (cells stay decoded: mapdata)
+    return list(_cell_memo(feats, "_bridge_specs", lambda: _fr_asphalt_decks(feats, _bridge_specs(feats))))  # (cells stay decoded: mapdata)
+
+
+def _fr_asphalt_decks(feats, specs):
+    """specs with France's paved bridges marked french (Spec.france) while its asphalt is on (FR_ASPHALT_ON): their
+    decks take the road's asphalt (_deck_look). Unchanged otherwise."""
+    if not FR_ASPHALT_ON:
+        return specs
+    import franceroads
+    if not franceroads.ON:
+        return specs
+    return [sp._replace(france=True) if sp is not None and sp.kind == "paved" and franceroads.french_feature(feats, i)
+            else sp for i, sp in enumerate(specs)]
 
 
 def tunnel_specs(feats):
@@ -7106,6 +7140,8 @@ def _chunk(look, w, c):
            "n": [[round(float(v), 3) for v in p] for p in c]}
     if look.get("layer"):
         out["layer"] = look["layer"]
+    if look.get("square"):          # (its repeats across: the width over the texture's length, square texels)
+        out["tu"] = round(float(w) / float(look["tl"]), 4)
     if isinstance(look.get("dash"), tuple):
         import roadmarkings
         out.update(dash=look["dash"], phase=roadmarkings.phase(look.get("_source", c), c[0]) + look.get("_phase0", 0.0))
@@ -10567,6 +10603,9 @@ def _deck_look(spec):
     motorway's or trunk road's (DECK_CONCRETE_CLASSES), else asphalt — and asphalt for rock/grass surfaces, whose ground mask cannot be painted on a deck at all."""
     if not terrain_surface(spec) and spec.kind == "paved" and spec.surf == "concrete":
         return CONCRETE
+    fr = fr_asphalt_look(spec)      # (France's asphalt: the road's own over its bridges, a motorway's too)
+    if fr is not None:
+        return fr
     if DECK_CONCRETE_ON and spec.kind == "paved" and spec.cls in DECK_CONCRETE_CLASSES:
         return DECK_CONCRETE
     return DECK
@@ -10581,6 +10620,10 @@ def _corner_look(point, roads):
         if spec.kind == "paved" and spec.surf == "concrete":
             if dnp.hypot(pts[:, 0] - px, pts[:, 1] - py).min() <= CORNER_CONCRETE_M:
                 return CONCRETE
+    for _fid, spec, _pts, _lon in roads:    # (France's asphalt where its streets have it: no stock-asphalt wedges)
+        fr = fr_asphalt_look(spec)
+        if fr is not None:
+            return {**fr, "m": "bne_fr_asphalt_city"}
     return LOOK["paved"]
 
 

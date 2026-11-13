@@ -1,0 +1,89 @@
+{
+  "bne_fr_asphalt_city": {
+    "name": "bne_fr_asphalt_city",
+    "mapTo": "bne_fr_asphalt_city",
+    "class": "Material",
+    "version": 1.5,
+    "annotation": "ASPHALT",
+    "groundType": "ASPHALT",
+    "Stages": [
+      {
+        "baseColorMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_b.color.dds",
+        "normalMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_nm.normal.dds",
+        "roughnessMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_r.data.dds",
+        "ambientOcclusionMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_ao.data.dds",
+        "detailMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/city_dc.data.dds",
+        "detailNormalMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/city_dn.normal.dds",
+        "roughnessDetailMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/city_dr.data.dds",
+        "detailScale": [
+          15.0,
+          15.0
+        ],
+        "detailBaseColorMapStrength": 0.08,
+        "detailNormalMapStrength": 1.0,
+        "detailRoughnessMapStrength": 0.15
+      },
+      {},
+      {},
+      {}
+    ]
+  },
+  "bne_fr_asphalt_worn": {
+    "name": "bne_fr_asphalt_worn",
+    "mapTo": "bne_fr_asphalt_worn",
+    "class": "Material",
+    "version": 1.5,
+    "annotation": "ASPHALT",
+    "groundType": "ASPHALT",
+    "Stages": [
+      {
+        "baseColorMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_b.color.dds",
+        "normalMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_nm.normal.dds",
+        "roughnessMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_r.data.dds",
+        "ambientOcclusionMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_ao.data.dds",
+        "detailMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/worn_dc.data.dds",
+        "detailNormalMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/worn_dn.normal.dds",
+        "roughnessDetailMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/worn_dr.data.dds",
+        "detailScale": [
+          15.0,
+          15.0
+        ],
+        "detailBaseColorMapStrength": 0.1,
+        "detailNormalMapStrength": 1.0,
+        "detailRoughnessMapStrength": 0.15
+      },
+      {},
+      {},
+      {}
+    ]
+  },
+  "bne_fr_asphalt_fresh": {
+    "name": "bne_fr_asphalt_fresh",
+    "mapTo": "bne_fr_asphalt_fresh",
+    "class": "Material",
+    "version": 1.5,
+    "annotation": "ASPHALT",
+    "groundType": "ASPHALT",
+    "Stages": [
+      {
+        "baseColorMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_b.color.dds",
+        "normalMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_nm.normal.dds",
+        "roughnessMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_r.data.dds",
+        "ambientOcclusionMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/base_ao.data.dds",
+        "detailMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/fresh_dc.data.dds",
+        "detailNormalMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/fresh_dn.normal.dds",
+        "roughnessDetailMap": "/levels/beamng_earth/art/shapes/beamngEarth/fr_asphalt/fresh_dr.data.dds",
+        "detailScale": [
+          15.0,
+          15.0
+        ],
+        "detailBaseColorMapStrength": 0.05,
+        "detailNormalMapStrength": 1.0,
+        "detailRoughnessMapStrength": 0.15
+      },
+      {},
+      {},
+      {}
+    ]
+  }
+}
