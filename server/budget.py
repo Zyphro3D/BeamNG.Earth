@@ -31,7 +31,9 @@ SMALL_ROAD_PROCESSES = 2    # road-tile processes (earthd ROAD_PROCESSES; with o
 # 193 -> 361 m, on-route tiles late by 15.2 -> 3.8 s (median), the server's memory +1.9 GB (mean; peak 19.2 -> 21.9 GB),
 # its CPU the same; not on 16 threads, where the game's own frame rate beside them is not measured yet (2026-11-13).
 # The server's RAM limit caps them (earthd machine_profile: budget.desktop_sizes)
-ROAD_PROCESSES_BY_CPU = ((20, 32.0, 6), (12, 24.0, 4), (8, 16.0, 3))     # (threads at least, GB at least, processes)
+# (the France fork: six from 48 GB: a 20-thread, 34 GB PC with the game at Extreme ran its server over its 19.1 GB
+# limit after a teleport, every road process dropping its caches over and over, 2026-11-14)
+ROAD_PROCESSES_BY_CPU = ((20, 48.0, 6), (12, 24.0, 4), (8, 16.0, 3))     # (threads at least, GB at least, processes)
 SMALL_FAR_K = 0.8           # the far field's refinement factors (farfield.K_TABLE) times this: 204 tiles for 332
 SMALL_FAR_TEX = 256         # px of the far tiles' textures at every level (512 from L2 on a desktop)
 ARENA_MAX = 2               # glibc malloc arenas a process (every profile): one per thread kept freed memory ...

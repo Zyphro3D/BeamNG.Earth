@@ -45,8 +45,9 @@ class BudgetTest(unittest.TestCase):
 
     def test_road_processes_by_threads_and_memory(self):
         self.assertEqual(budget.road_processes(16, 62.0), 4)
-        self.assertEqual(budget.road_processes(24, 64.0), 6)     # (20+ threads, 32+ GB)
+        self.assertEqual(budget.road_processes(24, 64.0), 6)     # (20+ threads, 48+ GB: the France fork)
         self.assertEqual(budget.road_processes(24, 24.0), 4)     # (not the memory for six)
+        self.assertEqual(budget.road_processes(20, 34.0), 4)     # (a 34 GB PC: four, its server stayed over its limit with six)
         self.assertEqual(budget.road_processes(12, 16.0), 3)     # (16 GB: not four ~1.5 GB processes)
         self.assertEqual(budget.road_processes(8, 16.0), 3)
         self.assertEqual(budget.road_processes(6, 16.0), 2)
