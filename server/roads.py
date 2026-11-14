@@ -11561,8 +11561,9 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
             # driver's right side of the ring (left where they drive on the left): Seilh's Pierre Piantoni roundabout,
             # its sidewalks stopped dead at the ring, #2756; a sidewalk the map tags on the ring stands as it is)
             if walked_rings:
-                roads = [(fid, sp._replace(sides=(((1 if sp.dir >= 0 else -1) if left_hand else
-                                                  (-1 if sp.dir >= 0 else 1)),))
+                # (both sides asked: the one facing the island is left out below, islands.inner_sides; the geometry's
+                # own direction does not say which side is the outside)
+                roads = [(fid, sp._replace(sides=(1, -1))
                           if fid in walked_rings and getattr(sp, "sides", None) is None and getattr(sp, "france", False)
                           else sp, pts, lon)
                          for fid, sp, pts, lon in roads]
