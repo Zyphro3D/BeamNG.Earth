@@ -435,7 +435,9 @@ class ContentGuard(unittest.TestCase):
     columns, the query, the clipping, the WKB decode, the column builders; Overture's tiles' reader and its FORMAT; the
     block path) must bump that archive's bnwt.CONTENT (the old archives are then not read) or show that the output is
     unchanged; then the fingerprint here is updated."""
-    FINGERPRINT = {("base", 1): "925b2e6e87dc4a6c", ("transportation", 1): "98802c4b9213d440",
+    # (base: the France fork's DuckDB path escaping in Reader.query / _plan (overture._q): the same rows, the paths
+    # being plain object keys with no quote in them)
+    FINGERPRINT = {("base", 1): "42071be5eef357c8", ("transportation", 1): "98802c4b9213d440",
                    ("buildings", 1): "0c37ee4249d499ca", ("places", 1): "af34ebc49196615b"}
 
     @staticmethod
