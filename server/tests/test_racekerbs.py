@@ -46,5 +46,19 @@ class KerbTest(unittest.TestCase):
         self.assertEqual(rk.chunks([("osm-raceway-1", Spec(), line, 0.0)], (1000, 1000, 1200, 1200)), [])
 
 
+class LayoutsTest(unittest.TestCase):
+    def test_a_crossing_track_cuts_the_kerb_a_shared_one_does_not_double_it(self):
+        line = bend()
+        box = (-500, -500, 500, 500)
+        alone = rk.chunks([("osm-raceway-1", Spec(), line, 0.0)], box)
+        n_alone = sum(len(c["n"]) for c in alone)
+        same = rk.chunks([("osm-raceway-1", Spec(), line, 0.0), ("osm-raceway-2", Spec(), line.copy(), 0.0)], box)
+        self.assertEqual(sum(len(c["n"]) for c in same), n_alone, "a layout on the same asphalt: no second kerb")
+        across = np.c_[np.full(50, 30.0), np.linspace(-100, 200, 50), np.zeros(50)]     # (a track across the bend)
+        cut = rk.chunks([("osm-raceway-1", Spec(), line, 0.0), ("osm-raceway-3", Spec(), across, 0.0)], box)
+        pts = np.array([q for c in cut if c["fid"] == "osm-raceway-1" for q in c["n"]])
+        self.assertTrue(len(pts) and (np.abs(pts[:, 0] - 30.0) > 6.0 - rk.KERB_INSET_M).all(), "none on its asphalt")
+
+
 if __name__ == "__main__":
     unittest.main()
