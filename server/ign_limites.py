@@ -31,6 +31,9 @@ log = logging.getLogger("earthd.ign_limites")
 VERSION = 1
 ON = os.environ.get("BNE_IGN_LIMITES", "on").lower() != "off"
 WFS_URL, WFS_LANE = ign_bati.WFS_URL, ign_bati.WFS_LANE
+START_DELAY_S = 20.0        # s a cell's walls and hedges wait before their downloads start (fetch_later)
+BACKGROUND_WAIT_S = 1.0     # s before a request the host refused (its spare tokens gone) is asked again
+BACKGROUND_PATIENCE_S = 600.0   # s of refusals before the cell is given up for now (asked again by a later tile)
 WMS_URL = "https://data.geopf.fr/wms-r/wms"
 MNH_LAYER = "IGNF_LIDAR-HD_MNH_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93"
 ORTHO_LAYER = "HR.ORTHOIMAGERY.ORTHOPHOTOS"
@@ -180,13 +183,24 @@ class Provider:
         self._later, self._asked = None, set()      # (fetch_later: one background download at a time, per process)
 
     def _get(self, url):
-        for attempt in range(GET_TRIES):
+        # (kind "background": the walls and hedges only take what the host has to spare, after the ground's photos and
+        # the roads' widths a teleport's first blocks wait for (Millau's first visit, 2026-11-14: 48 MB of IGN in its
+        # first minute, at ~2 MB/s for everything); a refusal (Deferred) waits and asks again, it is not a failure)
+        import netfetch
+        end = time.monotonic() + BACKGROUND_PATIENCE_S
+        attempt = 0
+        while True:
             try:
-                return self.fetcher.get(url, kind="demand", lane=WFS_LANE).body
-            except Exception:       # (a 400 that the same request answers a moment later: a whole cell's barriers lost)
-                if attempt == GET_TRIES - 1:
+                return self.fetcher.get(url, kind="background", lane=WFS_LANE).body
+            except netfetch.Deferred:
+                if time.monotonic() > end:
                     raise
-                time.sleep(0.5 * (attempt + 1))
+                time.sleep(BACKGROUND_WAIT_S)
+            except Exception:       # (a 400 that the same request answers a moment later: a whole cell's barriers lost)
+                attempt += 1
+                if attempt >= GET_TRIES:
+                    raise
+                time.sleep(0.5 * attempt)
 
     def _parcels(self, cell):
         lon0, lat0, lon1, lat1 = cell.bounds()
@@ -320,6 +334,7 @@ class Provider:
             pool = self._later
 
         def job():
+            time.sleep(START_DELAY_S)       # (a teleport's first blocks download first)
             claim = self._claim(cell)
             if claim is False:
                 return

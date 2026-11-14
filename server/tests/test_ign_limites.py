@@ -165,6 +165,10 @@ class BackgroundTest(unittest.TestCase):
     frame = geodesy.EnuFrame(43.7, 1.37, 0.0)
     box = (-50.0, -50.0, 50.0, 50.0)
 
+    def setUp(self):
+        delay, L.START_DELAY_S = L.START_DELAY_S, 0.0     # (the wait for a teleport's first blocks: none here)
+        self.addCleanup(setattr, L, "START_DELAY_S", delay)
+
     def provider(self, tmp, seg=None):
         p = L.Provider(tmp, None)
         p.built = []
@@ -208,6 +212,22 @@ class BackgroundTest(unittest.TestCase):
             p.fetch_later(self.cell)
             self.drain(p)
             self.assertEqual(p.built, [])
+
+    def test_downloads_are_background_and_wait_when_refused(self):
+        import netfetch
+        asked = []
+
+        class Busy:             # (the host's spare tokens gone twice, then an answer)
+            def get(self, url, kind=None, lane=None):
+                asked.append(kind)
+                if len(asked) < 3:
+                    raise netfetch.Deferred("busy")
+                return SimpleNamespace(body=b"ok")
+        p = L.Provider(None, Busy())
+        wait, L.BACKGROUND_WAIT_S = L.BACKGROUND_WAIT_S, 0.0
+        self.addCleanup(setattr, L, "BACKGROUND_WAIT_S", wait)
+        self.assertEqual(p._get("http://x"), b"ok")
+        self.assertEqual(asked, ["background"] * 3)
 
     def test_a_dead_process_claim_runs_out(self):
         with tempfile.TemporaryDirectory() as tmp:

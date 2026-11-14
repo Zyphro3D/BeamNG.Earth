@@ -349,6 +349,23 @@ def _savez_deflated(path, arrays, level):
             with zf.open(key + ".npy", "w", force_zip64=True) as fh:
                 np.lib.format.write_array(fh, np.asanyarray(val), allow_pickle=True)
 
+
+class _Footprints:
+    """The buildings' outer rings of a map cell, as ign_bati.Provider.rows gives them ([[ring lon/lat], props]), from the
+    map's own buildings layer (already downloaded for the buildings themselves): ign_limites' houses without a second
+    download of IGN's buildings."""
+
+    def __init__(self, md):
+        self.md = md
+
+    def rows(self, key):
+        got = self.md.cell(key, layers=("buildings",), kind="demand")
+        f = got.layers.get("buildings") if got is not None else None
+        if f is None or not len(f):
+            return []
+        return [[np.asarray(part[0], np.float64)[:, :2].tolist(), None]
+                for i in range(len(f)) for part in f.parts(i) if part and len(part[0]) >= 4]
+
 class MapData:
     """See the module docstring. fetcher: the server's netfetch.Fetcher (None: one of its own);
     release: the Overture release (overture.RELEASE)."""
@@ -385,12 +402,16 @@ class MapData:
         regionaldata.configure(cache_dir, self.fetcher)     # (PR #505's regional scenery data, fetched on demand)
         import germanroads              # (Germany's surveyed road widths, lanes and surfaces, fetched on demand)
         germanroads.configure(cache_dir, self.fetcher)
-        import ign_bati                 # (France: IGN BD TOPO building attributes; BNE_IGN_BATI=off)
-        self.ign_bati = ign_bati.Provider(cache_dir, self.fetcher) if ign_bati.ON else None
+        import ign_bati                 # (France: IGN BD TOPO building attributes; BNE_IGN_BATI=off; only without
+        # upstream's bdtopo.py, which joins the same layer: the buildings were downloaded twice, 2026-11-14)
+        self.ign_bati = ign_bati.Provider(cache_dir, self.fetcher) \
+            if ign_bati.ON and getattr(self, "bdtopo", None) is None else None
         import ign_largeur              # (France: IGN BD TOPO carriageway widths; BNE_IGN_LARGEUR=off)
         self.ign_largeur = ign_largeur.Provider(cache_dir, self.fetcher) if ign_largeur.ON else None
-        import ign_limites              # (France: real walls and hedges on the property lines; BNE_IGN_LIMITES=off)
-        self.ign_limites = ign_limites.Provider(cache_dir, self.fetcher, self.ign_bati) if ign_limites.ON else None
+        import ign_limites              # (France: real walls and hedges on the property lines; BNE_IGN_LIMITES=off;
+        # the houses it keeps the walls off: ign_bati's outlines, else the map's own buildings layer)
+        self.ign_limites = ign_limites.Provider(cache_dir, self.fetcher, self.ign_bati or _Footprints(self)) \
+            if ign_limites.ON else None
         import roadz                    # (real road / deck / tunnel heights where a source has them: BNE_ROADZ)
         roadz.install(cache_dir, self.fetcher, self)
         self.lane_tags = railtags.LaneTags(cache_dir, self.fetcher) if railtags.LANES_ON else None   # (markings.py)
