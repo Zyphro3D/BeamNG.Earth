@@ -120,7 +120,7 @@ pub fn ign_join<'py>(
     let co = coord_off.as_array().to_owned();
     let ll = lonlat.as_array().to_owned();
     let cand = cand.as_array().to_owned();
-    let (votes, medians) = py.allow_threads(move || {
+    let (votes, medians) = py.detach(move || {
         let g = Grid::new(&s, grid, pad_deg);
         let mut votes = vec![0i32; cand.len()];
         let mut medians = vec![f64::NAN; cand.len()];
