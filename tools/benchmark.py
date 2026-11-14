@@ -90,7 +90,7 @@ TOLERANCE = {
     "perf.p95": (0.10, 1.0, "lower"),
     "perf.maxMs": (0.25, 10.0, "lower"),
 }
-PLACE_NUMBERS = ("load.ready_s", "load.anchor_s", "load.farDone_s", "tiles.live", "tiles.imports",
+PLACE_NUMBERS = ("load.ready_s", "load.anchor_s", "load.roads_s", "load.farDone_s", "tiles.live", "tiles.imports",
                  "tiles.failed", "tiles.textured", "exact.missLoad", "exact.missAfter")
 PLACE_FLAGS = (("ok", False), ("load.timedOut", True))     # (key, the bad value)
 VIEW_NUMBERS = ("perf.fps", "perf.p50", "perf.p95", "perf.p99", "perf.maxMs", "perf.over50")
@@ -303,6 +303,22 @@ def exact_ok(far):
     return far.get("underLevel") is not None and far.get("underLevel") == far.get("exactLevel") and not far.get("underOld")
 
 
+def roads_pending(p):
+    """Why the roads round the car (their tiles within the server's send range: carriageways, sidewalks, buildings) are
+    not all there yet (empty: they are): readiness's road part alone, the far field left out (what a driver waits for
+    after a teleport, the horizon streaming on)."""
+    roads = p.get("roads") or {}
+    if not roads.get("enabled"):
+        return []
+    if roads.get("tiles") == 0:
+        return ["roads: no road tiles yet"]
+    if roads.get("walksQueued"):
+        return [f"roads: {roads['walksQueued']} road / sidewalk / building meshes to make"]
+    if roads.get("queued") or roads.get("deleting"):
+        return [f"roads: {roads.get('queued', 0)} to make, {roads.get('deleting', 0)} to delete"]
+    return []
+
+
 def readiness(p, anchor_before=None, need_anchor=True, exact=True, backlog=False):
     """Why the place is not loaded yet (empty: ready). p = BNGE_BENCH.progress()."""
     if not p.get("mod"):
@@ -511,6 +527,8 @@ class Bench:
                     res["farDone_s"] = now
                 if exact_ok(far) and "exact_s" not in res:
                     res["exact_s"] = now
+                if "roads_s" not in res and exact_ok(far) and not roads_pending(p):
+                    res["roads_s"] = now        # (the ground and the roads round the car: drivable, the horizon later)
             reasons = readiness(p, anchor_before, need_anchor, self.opts.exact, self.opts.backlog)
             res["progress"], res["reasons"] = p, reasons
             if not reasons:
@@ -581,7 +599,7 @@ class Bench:
         w = self.wait_ready(t0, o.timeout, anchor_before)
         far_ready = (w["progress"].get("far") or {})
         commit = w.get("atCommit") or far0
-        rec["load"] = {k: (round(w[k], 2) if k in w else None) for k in ("anchor_s", "farDone_s", "exact_s", "ready_s")}
+        rec["load"] = {k: (round(w[k], 2) if k in w else None) for k in ("anchor_s", "roads_s", "farDone_s", "exact_s", "ready_s")}
         rec["load"].update({"timedOut": w["timedOut"], "reasons": w["reasons"], "polls": w["polls"]})
         rec["status"] = w["progress"].get("status")
         # without the new anchor the camera would show the previous place under this one's id
@@ -792,7 +810,8 @@ def summary_line(pr):
     if pr.get("error"):
         return f"FAILED: {pr['error']}"
     ld, t = pr.get("load") or {}, pr.get("tiles") or {}
-    parts = [f"ready {ld.get('ready_s')} s" if not ld.get("timedOut") else "NOT READY",
+    parts = [f"roads {ld.get('roads_s')} s" if ld.get("roads_s") is not None else "roads NOT READY",
+             f"ready {ld.get('ready_s')} s" if not ld.get("timedOut") else "NOT READY",
              f"{t.get('live')} tiles", f"exactMiss {(pr.get('exact') or {}).get('missLoad')} loading"]
     for v in pr.get("views", []):
         p = v.get("perf") or {}

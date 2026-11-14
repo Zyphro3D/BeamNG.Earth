@@ -329,6 +329,17 @@ class RulesTest(unittest.TestCase):
         p["roads"] = {"enabled": False, "queued": 9, "quietS": 0.0}
         self.assertEqual(bm.readiness(p, 7), [], "roads off: nothing to wait for")
 
+    def test_roads_round_the_car_without_the_far_field(self):
+        p = self.prog(done=False, queued=40)            # (the horizon still loading)
+        p["roads"] = {"enabled": True, "tiles": 0}
+        self.assertEqual(bm.roads_pending(p), ["roads: no road tiles yet"])
+        p["roads"] = {"enabled": True, "tiles": 9, "walksQueued": 3}
+        self.assertTrue(bm.roads_pending(p)[0].startswith("roads: 3 road"))
+        p["roads"] = {"enabled": True, "tiles": 9, "queued": 0, "deleting": 0}
+        self.assertEqual(bm.roads_pending(p), [])
+        self.assertTrue(bm.readiness(p, 7))              # (ready waits on, for the far field)
+        self.assertEqual(bm.roads_pending({"roads": {"enabled": False}}), [])
+
     def test_readiness(self):
         self.assertEqual(bm.readiness(self.prog(), 7), [])
         self.assertIn("teleport not committed yet", bm.readiness(self.prog(), 8))
