@@ -101,34 +101,31 @@ def french_features(feats):
     out = np.zeros(n, bool)
     if not n:
         return out
-    pts, owner = [], []
-    for i in range(n):
-        ll = _feature_points(feats, i)
-        if ll is not None:
-            pts.append(ll)
-            owner.append(np.full(len(ll), i))
-    if not pts:
-        return out
-    pts, owner = np.concatenate(pts), np.concatenate(owner)
-    codes = countrybounds.bundled().codes_at(np.c_[pts[:, 1], pts[:, 0]])
-    fr = np.array([c == "FR" for c in codes], bool)
-    out[np.unique(owner)] = True
-    bad = owner[~fr]
-    out[bad] = False
-    return out
-
-
-def _feature_points(feats, i):
-    """A feature's points and its segments' middles (lon, lat), or None when it is not wholly in France's box."""
-    a = feats.coord_off[feats.ring_off[feats.part_off[i]]]
-    b = feats.coord_off[feats.ring_off[feats.part_off[i + 1]]]
-    ll = np.asarray(feats.lonlat[a:b])
-    if len(ll) < 2 or not np.isfinite(ll).all():
-        return None
+    # (vectorised over the layer's offsets: a feature at a time was 1.5 s of a dense Paris cell, 2026-11-14)
+    co, ro, po = (np.asarray(x, np.int64) for x in (feats.coord_off, feats.ring_off, feats.part_off))
+    a, b = co[ro[po[:n]]], co[ro[po[1:n + 1]]]
+    ll = np.asarray(feats.lonlat, np.float64).reshape(-1, 2)
     # Metropolitan France only; overseas territories keep their own codes.
-    if not ((ll[:, 0] > -5.3) & (ll[:, 0] < 9.8) & (ll[:, 1] > 41.3) & (ll[:, 1] < 51.2)).all():
-        return None
-    return np.vstack([ll, (ll[:-1] + ll[1:]) / 2])
+    good = np.isfinite(ll).all(1) & (ll[:, 0] > -5.3) & (ll[:, 0] < 9.8) & (ll[:, 1] > 41.3) & (ll[:, 1] < 51.2)
+    bad_before = np.r_[0, np.cumsum(~good)]
+    ok = ((b - a) >= 2) & (bad_before[b] == bad_before[a])
+    if not ok.any():
+        return out
+    idx = np.flatnonzero(ok)
+    cnt = b[idx] - a[idx]
+    owner = np.repeat(idx, cnt)
+    pos = np.repeat(a[idx] - np.r_[0, np.cumsum(cnt)[:-1]], cnt) + np.arange(cnt.sum())
+    verts = ll[pos]
+    # each feature's segments' middles: a point and the next, both of the same feature
+    same = owner[:-1] == owner[1:]
+    mids = (verts[:-1][same] + verts[1:][same]) / 2
+    pts = np.concatenate([verts, mids])
+    owner = np.concatenate([owner, owner[:-1][same]])
+    codes = countrybounds.bundled().codes_at(np.c_[pts[:, 1], pts[:, 0]])
+    fr = np.asarray(codes, object) == "FR"
+    out[idx] = True
+    out[owner[~fr]] = False
+    return out
 
 
 def adjust_specs(feats, specs):
