@@ -7,6 +7,7 @@ from typing import NamedTuple
 
 import numpy as np
 import dmath
+import dnp
 
 VERSION = "european-street-edges-v3"
 STREETS = {"primary", "secondary", "tertiary", "unclassified", "residential", "living_street"}
@@ -77,17 +78,28 @@ def _places(x, y):
         (lon - pad_lon, lat - .075, lon + .05 + pad_lon, lat + .125), places=True))
 
 
+@lru_cache(maxsize=256)
+def _place_rows(x, y, country):
+    """_places(x, y) of country (or none) with a radius, as arrays: lons, lats, radii, [(name, kind)]."""
+    rows = [p for p in _places(x, y) if p.get("place") in PLACE_RADIUS and p.get("country") in (None, country)]
+    return (np.array([p["lon"] for p in rows], np.float64), np.array([p["lat"] for p in rows], np.float64),
+            np.array([PLACE_RADIUS[p["place"]] for p in rows], np.float64),
+            [(str(p["name"]), p["place"]) for p in rows])
+
+
 def _locality(country, lon, lat):
+    # (the France fork: the places of a cell as arrays: a place at a time was 1 s of a dense Paris cell, 2026-11-14)
+    lons, lats, radii, names = _place_rows(math.floor(lon * 20), math.floor(lat * 20), country)
+    if not len(names):
+        return "", ""
     scale = 111_195. * dmath.cos(math.radians(lat))
-    candidates = []
-    for place in _places(math.floor(lon * 20), math.floor(lat * 20)):
-        kind = place.get("place")
-        if kind not in PLACE_RADIUS or place.get("country") not in (None, country):
-            continue
-        dist = math.hypot((lon - place["lon"]) * scale, (lat - place["lat"]) * 111_195.)
-        if dist <= PLACE_RADIUS[kind]:
-            candidates.append((dist / PLACE_RADIUS[kind], str(place["name"]), kind))
-    return min(candidates, default=(0., "", ""))[1:]
+    dist = np.asarray(dnp.hypot((lon - lons) * scale, (lat - lats) * 111_195.), np.float64)
+    near = np.flatnonzero(dist <= radii)
+    ratio = dist / radii
+    if not len(near):
+        return "", ""
+    best = ratio[near].min()
+    return min(names[i] for i in near if ratio[i] == best)
 
 
 def country_for(lon, lat):
