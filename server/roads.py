@@ -12319,6 +12319,8 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
         if marks is not None and aisles:            # stall lines along the aisles (parking.aisle_markings)
             marks.extend(parking.aisle_markings(roads, aisles, wexact))
     chunks.extend(rampmerges.chunks(merge_layouts, box))
+    import racekerbs                            # (the France fork: red and white kerbs along a race track's bends)
+    chunks.extend(racekerbs.chunks(roads, box))
     return roadmarkings.paint(chunks)
 
 

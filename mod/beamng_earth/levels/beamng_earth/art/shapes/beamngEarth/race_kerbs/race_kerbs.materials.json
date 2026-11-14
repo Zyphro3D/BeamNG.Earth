@@ -1,0 +1,20 @@
+{
+  "bne_race_kerb": {
+    "name": "bne_race_kerb",
+    "mapTo": "bne_race_kerb",
+    "class": "Material",
+    "version": 1.5,
+    "annotation": "ASPHALT",
+    "groundType": "ASPHALT",
+    "Stages": [
+      {
+        "baseColorMap": "/levels/beamng_earth/art/shapes/beamngEarth/race_kerbs/kerb_b.color.dds",
+        "normalMap": "/levels/beamng_earth/art/shapes/beamngEarth/race_kerbs/kerb_nm.normal.dds",
+        "roughnessFactor": 0.55
+      },
+      {},
+      {},
+      {}
+    ]
+  }
+}
