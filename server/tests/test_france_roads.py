@@ -60,6 +60,21 @@ class WidthTest(FrenchTest):
         self.assertTrue(all(roads.lane_layout(s)[1] == 2 for s in ss))
         self.assertTrue(fr.narrow(ss[1]))
 
+    def test_a_roundabout_with_sidewalks_coming_in_is_walked_round(self):
+        # Seilh's Pierre Piantoni roundabout (#2756): the map's pieces do not share their ends with the ring's; two
+        # roads with sidewalks ending within RING_WALK_REACH_M of it make its ring walked round, one does not
+        t = np.linspace(0, 2 * np.pi, 33)
+        ring = np.c_[20 * np.cos(t), 20 * np.sin(t), np.zeros(33)]
+        walked = roads.Spec(6., "paved", True, "residential", france=True)
+        rural = roads.Spec(6., "paved", False, "secondary", france=True)
+        lines = [("r1", spec(), ring[:17], 0.0), ("r2", spec(), ring[16:], 0.0),
+                 ("a", walked, np.array([[25.0, 0, 0], [120.0, 0, 0]]), 0.0),
+                 ("b", walked, np.array([[-26.0, 0, 0], [-120.0, 0, 0]]), 0.0),
+                 ("c", rural, np.array([[0, 25.0, 0], [0, 120.0, 0]]), 0.0)]
+        rd = {"r1": 1, "r2": 1}
+        self.assertEqual(roads._rings_with_walks(lines, rd), {"r1", "r2"})
+        self.assertEqual(roads._rings_with_walks(lines[:3] + lines[4:], rd), set(), "one road with sidewalks only")
+
     def test_motorway_carriageway_french_width(self):
         # 3.5 m lanes, a 3 m hard shoulder and a 1 m left strip: 14.5 m for three lanes, 11 m for two (the US default
         # gave 18 and 14, #2374); a mapped width stands

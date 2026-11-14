@@ -3973,6 +3973,38 @@ SE_NO_STRIPS = {"residential", "living_street", "unclassified", "service", "unkn
 # stay). (cody196's PR #363 took 9 m a lane: twice the guides.)
 RING_LANE_M = 5.5               # m: a single-lane ring
 RING_WALK_APPROACHES = 2         # a ring with this many approaches with sidewalks gets one round its outer edge
+RING_WALK_REACH_M = 15.0        # m: a road with an end this near a roundabout's ring comes into it
+RING_GROUP_M = 40.0             # m: ring pieces this near one another are one roundabout
+
+
+def _rings_with_walks(roads_list, ring_dir):
+    """The ring pieces (fids of ring_dir) of the roundabouts that RING_WALK_APPROACHES roads with sidewalks come into
+    (an end within RING_WALK_REACH_M of the ring; the map's pieces seldom share their end points exactly, so
+    islands.ring_approaches found none at Seilh). Pure."""
+    rings = [(fid, np.asarray(pts, np.float64)[:, :2]) for fid, _sp, pts, _l in roads_list if fid in ring_dir and len(pts)]
+    if not rings:
+        return set()
+    groups = []                                     # [[fids], points]
+    for fid, xy in rings:
+        for g in groups:
+            if float(dnp.hypot(*(g[1].mean(0) - xy.mean(0)))) < RING_GROUP_M:
+                g[0].append(fid)
+                g[1] = np.vstack([g[1], xy])
+                break
+        else:
+            groups.append([[fid], xy])
+    out = set()
+    for fids, xy in groups:
+        n = 0
+        for fid, sp, pts, _l in roads_list:
+            if fid in ring_dir or not has_sidewalks(sp) or len(pts) < 2:
+                continue
+            ends = np.asarray(pts, np.float64)[[0, -1], :2]
+            d = dnp.hypot(ends[:, None, 0] - xy[None, :, 0], ends[:, None, 1] - xy[None, :, 1]).min()
+            n += float(d) <= RING_WALK_REACH_M
+        if n >= RING_WALK_APPROACHES:
+            out.update(fids)
+    return out
 RING_EXTRA_LANE_M = 4.3         # m per further circulating lane
 RING_JUNCTIONS = ("roundabout", "circular")
 
@@ -11517,6 +11549,7 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
         ring_dir = islands.ring_directions(roads, left_hand)
         if ring_dir:
             apps = islands.ring_approaches(roads, ring_dir)
+            walked_rings = _rings_with_walks(roads, ring_dir)     # (the France fork: before the approaches' go)
             short_apps = {fid for fid, sp, pts, _ in roads if fid in apps
                           and float(np.sum(dnp.hypot(*np.diff(pts[:, :2], axis=0).T))) < islands.APPROACH_NO_WALK_M}
             roads = [(fid,
@@ -11527,11 +11560,10 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
             # (the France fork, in France: a roundabout whose roads come in with sidewalks has one round its outer edge, the
             # driver's right side of the ring (left where they drive on the left): Seilh's Pierre Piantoni roundabout,
             # its sidewalks stopped dead at the ring, #2756; a sidewalk the map tags on the ring stands as it is)
-            walked = sum(1 for fid, sp, _p, _l in roads if fid in apps and fid not in short_apps and has_sidewalks(sp))
-            if walked >= RING_WALK_APPROACHES:
+            if walked_rings:
                 roads = [(fid, sp._replace(sides=(((1 if sp.dir >= 0 else -1) if left_hand else
                                                   (-1 if sp.dir >= 0 else 1)),))
-                          if fid in ring_dir and getattr(sp, "sides", None) is None and getattr(sp, "france", False)
+                          if fid in walked_rings and getattr(sp, "sides", None) is None and getattr(sp, "france", False)
                           else sp, pts, lon)
                          for fid, sp, pts, lon in roads]
     mapped_walks = []
