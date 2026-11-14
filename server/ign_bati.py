@@ -44,7 +44,26 @@ TEXT_COLUMNS = ("roof_shape", "roof_material", "facade_material", "height_src")
 
 
 def in_france(lon0, lat0, lon1, lat1):
-    return lon1 >= FRANCE[0] and lon0 <= FRANCE[2] and lat1 >= FRANCE[1] and lat0 <= FRANCE[3]
+    """A box (a map cell) with some of metropolitan France in it: France's box, then the country borders (its middle or
+    a corner in France) where they are there: the box alone took in Catalonia and northern Italy, and their IGN asks
+    came back empty after downloading (Barcelona's hills, 2026-11-14: 47 MB of IGN requests in a minute)."""
+    if not (lon1 >= FRANCE[0] and lon0 <= FRANCE[2] and lat1 >= FRANCE[1] and lat0 <= FRANCE[3]):
+        return False
+    try:
+        import countrybounds
+        idx = countrybounds.bundled()
+    except Exception:
+        idx = None
+    if idx is None:
+        return True
+    pts = ((lat0 + lat1) / 2, (lon0 + lon1) / 2), (lat0, lon0), (lat0, lon1), (lat1, lon0), (lat1, lon1)
+    try:
+        codes = [idx.at(float(la), float(lo)) for la, lo in pts]
+    except Exception:
+        return True
+    if all(c is None for c in codes):      # (the borders unreadable here: the box alone)
+        return True
+    return any(c == "FR" for c in codes)
 
 
 def parse(features):

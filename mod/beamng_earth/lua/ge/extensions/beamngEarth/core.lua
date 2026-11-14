@@ -2254,6 +2254,7 @@ local function hudTexts()
   local shown = st.inOurLevel and st.active
   hudInput.status = shown and statusbar.enabled and statusbar.text(st.status, loadLine()) or ''
   hudInput.loading = shown and statusbar.enabled and statusbar.loading(st.status, loadLine()) or ''
+  hudInput.loading = require('beamngEarth/lang').tr(hudInput.loading)     -- (the player's language: lang.lua)
   hudInput.credits = st.active and credits.enabled and credits.text(creditsFallback) or ''
   hudInput.banner = (st.inOurLevel or st.active) and banner.enabled and banner.current() or nil
   hudInput.hidden = credits.hiddenByUi()

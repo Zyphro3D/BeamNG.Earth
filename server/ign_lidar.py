@@ -24,8 +24,8 @@ BLOCK_TRIES = 3
 
 
 def in_france(cell):
-    lon0, lat0, lon1, lat1 = cell.bounds()
-    return lon1 >= FRANCE[0] and lon0 <= FRANCE[2] and lat1 >= FRANCE[1] and lat0 <= FRANCE[3]
+    import ign_bati                 # (France's box, then its borders: ign_bati.in_france)
+    return ign_bati.in_france(*cell.bounds())
 
 
 def to_canopy(values):

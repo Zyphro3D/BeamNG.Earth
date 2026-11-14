@@ -40,7 +40,7 @@ function M.payload(t)
     status = t.status or '',
     loading = t.loading or '',          -- the status bar's second line (statusbar.loading)
     credits = t.credits or '',
-    banner = (b.visible and b.text ~= '' and b.text) or '',
+    banner = (b.visible and b.text ~= '' and require('beamngEarth/lang').tr(b.text)) or '',   -- (lang.lua)
     bannerLevel = b.level or 'info',
     hidden = t.hidden and true or false,
   }

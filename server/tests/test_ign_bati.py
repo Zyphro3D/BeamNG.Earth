@@ -146,3 +146,30 @@ class ProviderTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InFranceTest(unittest.TestCase):
+    """ign_bati.in_france: France's box, then the borders where they are there (Catalonia is in the box)."""
+
+    def test_the_borders_decide_inside_the_box(self):
+        import countrybounds
+        from unittest import mock
+
+        class Spain:            # (south of 42.4: Spain, else France)
+            def at(self, lat, lon):
+                return "ES" if lat < 42.4 else "FR"
+        with mock.patch.object(countrybounds, "bundled", lambda: Spain()):
+            self.assertFalse(ign_bati.in_france(2.2, 41.5, 2.3, 41.6))     # (Barcelona's hills)
+            self.assertTrue(ign_bati.in_france(1.4, 43.5, 1.5, 43.6))      # (Toulouse)
+            self.assertTrue(ign_bati.in_france(2.2, 42.3, 2.3, 42.45))     # (a corner over the border)
+        self.assertFalse(ign_bati.in_france(-74.1, 40.6, -74.0, 40.7))     # (outside the box: no lookup)
+
+    def test_unreadable_borders_keep_the_box(self):
+        import countrybounds
+        from unittest import mock
+
+        class Absent:
+            def at(self, lat, lon):
+                return None
+        with mock.patch.object(countrybounds, "bundled", lambda: Absent()):
+            self.assertTrue(ign_bati.in_france(2.2, 41.5, 2.3, 41.6))
