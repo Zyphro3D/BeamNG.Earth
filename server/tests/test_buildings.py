@@ -947,6 +947,11 @@ class OverRoadTest(unittest.TestCase):
         self.assertEqual(min_h(np.nan, [corner]), 0.0, "no level: a road at its edge is no road through it")
         self.assertEqual(min_h(1.0, [np.array([[0.0, 200.0], [256.0, 200.0]])]), 0.0, "no road in it")
 
+    def test_a_race_track_is_a_road_a_building_over_it_is_lifted_from(self):
+        # the Circuit de Barcelona-Catalunya's "VIP Rooftop" (OSM layer 1) across its straight: a race track is one of
+        # the roads a building mapped over the ground is lifted over (road_lines' THROUGH_CLASSES)
+        self.assertIn("raceway", bld.THROUGH_CLASSES)
+
     def test_a_huge_footprint_with_streets_in_it_is_a_site_left_out(self):
         # OSM's 1.35 km2 "Blueberry Commons" by I-94 (Huntley MT, 2026-11-05): a planned development tagged building,
         # its streets inside, lifted over them as a 15 m wall over the prairie. A footprint over SITE_M2 that public

@@ -3117,7 +3117,10 @@ ACROSS_W = 8.0              # m: a footprint at most this wide that a public roa
                             # walkway or canopy over it (GitHub #48: the 69th Street station's 3 m shelters stood across
                             # the Dan Ryan as brick walls; a road crossing one runs only its width inside it)
 THROUGH_CLASSES = {"motorway", "trunk", "primary", "secondary", "tertiary", "residential", "unclassified",
-                   "living_street"}
+                   "living_street",
+                   # (the France fork: a race track, so a building mapped over it, OSM layer 1, is lifted over it: the
+                   # Circuit de Barcelona-Catalunya's "VIP Rooftop" across the straight stood as a solid block on it)
+                   "raceway"}
 
 
 def tunnel_lines(frame, road_layers, x0, y0, margin=50.0, size=256.0):
