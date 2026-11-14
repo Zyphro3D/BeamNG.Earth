@@ -19,6 +19,10 @@ from pathlib import Path
 
 import numpy as np
 
+import dnp
+
+import dmath
+
 import buildings
 import furniture
 import geotiles
@@ -75,7 +79,7 @@ def _lanes(frame, roads, rows):
                 continue
             s = furniture._project(line, at[None, :2])
             points, tangents = furniture._at(line, s)
-            dist = float(np.hypot(*(at[:2] - points[0][:2])))
+            dist = float(dnp.hypot(*(at[:2] - points[0][:2])))
             if dist <= SNAP_M and (best is None or dist < best[0]):
                 t = tangents[0] * (spec.dir if spec.oneway and spec.dir else 1)
                 best = (dist, points[0], t, float(spec.width))
@@ -90,7 +94,7 @@ def _plazas(lanes):
     for lane in lanes:
         for g in groups:
             q, t = g[0][0], g[0][1]
-            if float(np.hypot(*(lane[0][:2] - q[:2]))) <= PLAZA_M and float(lane[1] @ t) >= PLAZA_COS:
+            if float(dnp.hypot(*(lane[0][:2] - q[:2]))) <= PLAZA_M and float(dnp.dot(lane[1], t)) >= PLAZA_COS:
                 g.append(lane)
                 break
         else:
@@ -101,18 +105,18 @@ def _plazas(lanes):
 def plaza_rows(lanes):
     """Prop rows [group, x, y, z, yaw, scale, height, rank] (anchor frame) of one plaza's islands and gates."""
     travel = np.mean([t for _, t, _ in lanes], axis=0)
-    travel /= max(float(np.hypot(*travel)), 1e-9)
+    travel /= max(float(dnp.hypot(*travel)), 1e-9)
     right = np.array([travel[1], -travel[0]])
     ref = lanes[0][0][:2]
-    lanes = sorted(lanes, key=lambda lane: float((lane[0][:2] - ref) @ right))
-    across = [float((q[:2] - ref) @ right) for q, _, _ in lanes]
+    lanes = sorted(lanes, key=lambda lane: float(dnp.dot(lane[0][:2] - ref, right)))
+    across = [float(dnp.dot(q[:2] - ref, right)) for q, _, _ in lanes]
     gaps = [b - a for a, b in zip(across, across[1:])]
     usable = [g for g in gaps if LANE_GAP_M[0] <= g <= LANE_GAP_M[1]]
     if len(lanes) == 1:
         step = max(DEFAULT_GAP_M, lanes[0][2] / 2 + 1.0 + ISLAND_HALF_M) * 2
     else:
         step = float(np.median(usable)) if usable else 2 * DEFAULT_GAP_M
-    yaw_booth = (math.degrees(math.atan2(travel[1], travel[0])) - 90.0) % 360.0      # the island's length: local y
+    yaw_booth = (math.degrees(dmath.atan2(travel[1], travel[0])) - 90.0) % 360.0      # the island's length: local y
     islands = []        # (across, along point (3,))
     for k, (q, _, _) in enumerate(lanes):
         if k == 0:
@@ -125,7 +129,7 @@ def plaza_rows(lanes):
             islands.append((across[k] + step / 2, q))
     rows = []
     for c, q in islands:
-        along = float((q[:2] - ref) @ travel)
+        along = float(dnp.dot(q[:2] - ref, travel))
         p = ref + right * c + travel * along
         rows.append([buildings.G_TOLLBOOTH, round(float(p[0]), 2), round(float(p[1]), 2), round(float(q[2]), 2),
                      round(yaw_booth, 1), 1.0, buildings.TOLLBOOTH_H, 0.5])
@@ -133,9 +137,9 @@ def plaza_rows(lanes):
         right_island = min((ic for ic, _ in islands if ic > c), default=None)
         if right_island is None:
             continue
-        p = ref + right * (right_island - ISLAND_HALF_M + 0.3) + travel * (float((q[:2] - ref) @ travel) + GATE_ALONG_M)
+        p = ref + right * (right_island - ISLAND_HALF_M + 0.3) + travel * (float(dnp.dot(q[:2] - ref, travel)) + GATE_ALONG_M)
         rows.append([G_GATE, round(float(p[0]), 2), round(float(p[1]), 2), round(float(q[2]), 2),
-                     round(math.degrees(math.atan2(travel[1], travel[0])) % 360.0, 1), 1.0, GATE_H, 0.5])
+                     round(math.degrees(dmath.atan2(travel[1], travel[0])) % 360.0, 1), 1.0, GATE_H, 0.5])
     return rows
 
 

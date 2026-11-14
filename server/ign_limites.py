@@ -22,6 +22,10 @@ import time
 
 import numpy as np
 
+import dnp
+
+import dmath
+
 import ign_bati
 import mapcells
 import revisit
@@ -96,7 +100,9 @@ def roof_shape(h, mask):
     if high - low < ROOF_FLAT_M:
         return 0
     x, y = xs - xs.mean(), ys - ys.mean()
-    w, v = np.linalg.eigh(np.cov(np.vstack((x, y))))
+    xc, yc = x - x.mean(), y - y.mean()     # (the covariance by hand: np.cov / linalg are BLAS, GitHub #1169)
+    n1 = max(len(x) - 1, 1)
+    w, v = dnp.eigh(np.array([[np.sum(xc * xc), np.sum(xc * yc)], [np.sum(xc * yc), np.sum(yc * yc)]]) / n1)
     long_axis = v[:, int(np.argmax(w))]
     s = x * long_axis[0] + y * long_axis[1]
     t = -x * long_axis[1] + y * long_axis[0]
@@ -124,7 +130,7 @@ def roof_of_ring(h, pixels):
 
 
 def merc(lon, lat):
-    return (np.radians(lon) * 6378137.0, np.log(np.tan(np.pi / 4 + np.radians(lat) / 2)) * 6378137.0)
+    return (np.radians(lon) * 6378137.0, dnp.log(dnp.tan(np.pi / 4 + np.radians(lat) / 2)) * 6378137.0)
 
 
 def cell_box(cell):
@@ -285,7 +291,7 @@ class Provider:
                     seen.add(key)
                     edges.append((a[0], a[1], b[0], b[1]))
         lat = cell.center()[0]
-        found = detect(edges, h, mask, photo, size / MNH_PX * math.cos(math.radians(lat)))
+        found = detect(edges, h, mask, photo, size / MNH_PX * dmath.cos(math.radians(lat)))
         out = np.zeros((len(found), 6))
         for i, (x0, y0, x1, y1, kind, height) in enumerate(found):
             out[i] = (x0 / scale + mx0, my0 - y0 / scale, x1 / scale + mx0, my0 - y1 / scale, kind, height)
@@ -384,7 +390,7 @@ def _panels(ex, ey, fx, fy, kind, h):
     if length < 1e-6:
         return
     tx, ty = (fx - ex) / length, (fy - ey) / length
-    yaw = math.degrees(math.atan2(ty, tx)) % 360.0
+    yaw = math.degrees(dmath.atan2(ty, tx)) % 360.0
     if kind == 2:
         group, step, top, natural = HEDGE, HEDGE_STEP, min(HEDGE_MAX_M, max(1.0, h)), min(HEDGE_MAX_M, max(1.0, h))
     elif h < FENCE_MAX_M:
@@ -425,7 +431,7 @@ def rows(frame, provider, box, elev):
         if not len(seg):
             continue
         lon = np.degrees(seg[:, [0, 2]] / 6378137.0)
-        lat = np.degrees(2 * np.arctan(np.exp(seg[:, [1, 3]] / 6378137.0)) - np.pi / 2)
+        lat = np.degrees(2 * dnp.arctan(dnp.exp(seg[:, [1, 3]] / 6378137.0)) - np.pi / 2)
         e, n, _ = frame.geodetic_to_enu(lat.ravel(), lon.ravel(), np.zeros(lat.size))
         e, n = e.reshape(-1, 2), n.reshape(-1, 2)
         near = ((e.max(1) >= x0 - PAD_M) & (e.min(1) <= x1 + PAD_M) & (n.max(1) >= y0 - PAD_M) & (n.min(1) <= y1 + PAD_M))

@@ -9,6 +9,8 @@ kerb from its last part out past its exit (EXIT_M), as a circuit's are laid. The
 """
 import numpy as np
 
+import dnp
+
 KERB_ON = True
 MATERIAL = "bne_race_kerb"
 KERB_W = 1.3            # m across
@@ -28,7 +30,7 @@ MIN_KERB_M = 8.0        # m: a shorter kerb is left out
 
 def _resample(line, step):
     p = np.asarray(line, np.float64)
-    seg = np.hypot(*np.diff(p[:, :2], axis=0).T)
+    seg = dnp.hypot(*np.diff(p[:, :2], axis=0).T)
     s = np.r_[0.0, np.cumsum(seg)]
     if s[-1] < step * 3:
         return None, None
@@ -43,10 +45,10 @@ def bends(xy, step=STEP_M):
     if len(xy) < 5:
         return []
     d = np.diff(xy, axis=0)
-    head = np.unwrap(np.arctan2(d[:, 1], d[:, 0]))
+    head = np.unwrap(dnp.arctan2(d[:, 1], d[:, 0]))
     rate = np.gradient(head) / step                      # rad per m
     k = max(1, int(round(SMOOTH_M / step)))
-    rate = np.convolve(rate, np.ones(k) / k, mode="same")
+    rate = dnp.convolve(rate, np.ones(k) / k, mode="same")
     on = np.abs(rate) > 1.0 / BEND_R_M
     out = []
     i = 0
@@ -68,7 +70,7 @@ def bends(xy, step=STEP_M):
 def _offset(p, side, off):
     """p (k, 3) moved off m to its side (+1 left of its direction)."""
     d = np.gradient(p[:, :2], axis=0)
-    norm = np.hypot(d[:, 0], d[:, 1])
+    norm = dnp.hypot(d[:, 0], d[:, 1])
     norm[norm == 0] = 1.0
     left = np.stack([-d[:, 1] / norm, d[:, 0] / norm], 1)
     q = p.copy()

@@ -6834,7 +6834,7 @@ def walks_off_roads(runs, carriageways):
         for t in (0.3, w / 2, w - 0.3):
             v = (curb[:, :2] + outv * t)[:, None] - na
             u = np.clip((v * d).sum(2) / np.maximum((d * d).sum(1), 1e-12), 0.0, 1.0)
-            on |= (np.hypot(*np.moveaxis(v - u[..., None] * d, 2, 0)) < h[near] - WALK_ON_ROAD_M).any(1)
+            on |= (dnp.hypot(*np.moveaxis(v - u[..., None] * d, 2, 0)) < h[near] - WALK_ON_ROAD_M).any(1)
         if not on.any():
             out.append(rn)
             continue
@@ -7990,7 +7990,7 @@ class BridgeProfiles:
             if not len(z):
                 continue
             pts = np.asarray(ln, np.float64)[:, :2]
-            reach = OBS_JOINT_GRADE * float(np.sum(np.hypot(*np.diff(pts, axis=0).T)))
+            reach = OBS_JOINT_GRADE * float(np.sum(dnp.hypot(*np.diff(pts, axis=0).T)))
             for node, far, zfar in ((a, b, float(z[-1])), (b, a, float(z[0]))):
                 if node in target:
                     h = zfar if deg[far] == 1 else target.get(far, zfar)

@@ -8,6 +8,7 @@
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use std::collections::HashMap;
+use crate::dm::Dm;
 
 /// numpy's pairwise summation of a float64 run (its add.reduce: numpy/_core/src/umath/loops_utils.h.src).
 fn pairwise_sum(a: &[f64]) -> f64 {
@@ -76,12 +77,12 @@ impl Grid {
             let (ax, ay, bx, by, w) = (s[[i, 0]], s[[i, 1]], s[[i, 2]], s[[i, 3]], s[[i, 4]]);
             let dx = (bx - ax) * kx;
             let dy = by - ay;
-            let length = dx.hypot(dy);
+            let length = dx.dhypot(dy);
             if length < 1e-9 || (dx * ux + dy * uy).abs() / length < same_way_cos {
                 continue;
             }
             let t = ((((px - ax) * kx) * dx + (py - ay) * dy) / (length * length)).clamp(0.0, 1.0);
-            let d = ((px - ax) * kx - t * dx).hypot((py - ay) - t * dy) * 111000.0;
+            let d = ((px - ax) * kx - t * dx).dhypot((py - ay) - t * dy) * 111000.0;
             if d <= best {
                 best = d;
                 width = w;
@@ -144,12 +145,12 @@ pub fn ign_join<'py>(
             let n = b - a;
             lat.clear();
             lat.extend((a..b).map(|k| ll[[k, 1]]));
-            let kx = (pairwise_sum(&lat) / n as f64).to_radians().cos();
+            let kx = (pairwise_sum(&lat) / n as f64).to_radians().dcos();
             cum.clear();
             cum.push(0.0f64);
             let mut acc = 0.0f64;
             for k in a..b - 1 {
-                acc += ((ll[[k + 1, 0]] - ll[[k, 0]]) * kx).hypot(ll[[k + 1, 1]] - ll[[k, 1]]);
+                acc += ((ll[[k + 1, 0]] - ll[[k, 0]]) * kx).dhypot(ll[[k + 1, 1]] - ll[[k, 1]]);
                 cum.push(acc);
             }
             let total = cum[n - 1];

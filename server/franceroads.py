@@ -173,7 +173,7 @@ def walks_in_town(runs, frame, urban_fn, french, mapped=()):
         elif not near.all() and rn.get("fid") not in mapped:
             # (a road whose sidewalks the map tags, OSM sidewalk=*, keeps them between the fields: Seilh's Route de
             # Toulouse at the Pierre Piantoni roundabout, #2676)
-            built = np.convolve(near.astype(np.int32), np.ones(2 * reach + 1, np.int32), "same") > 0
+            built = dnp.convolve(near.astype(np.int32), np.ones(2 * reach + 1, np.int32), "same") > 0
             if not built.all():
                 done[k] = [p for p in roads.walk_pieces(rn, pts, ~built) if roads._length(p["pts"]) >= WALK_TOWN_KEEP_M]
     return [p for k, rn in enumerate(runs) for p in done.get(k, [rn])]
