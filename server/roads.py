@@ -3972,6 +3972,7 @@ SE_NO_STRIPS = {"residential", "living_street", "unclassified", "service", "unkn
 # two-lane 29-32 ft (8.8-9.8 m). No parking lanes or inferred sidewalks on the ring (urban False; mapped sidewalks
 # stay). (cody196's PR #363 took 9 m a lane: twice the guides.)
 RING_LANE_M = 5.5               # m: a single-lane ring
+RING_WALK_APPROACHES = 2         # a ring with this many approaches with sidewalks gets one round its outer edge
 RING_EXTRA_LANE_M = 4.3         # m per further circulating lane
 RING_JUNCTIONS = ("roundabout", "circular")
 
@@ -11523,6 +11524,16 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
                        else sp._replace(urban=False, median=None, street=None) if fid in short_apps
                        else sp),
                       pts, lon) for fid, sp, pts, lon in roads]
+            # (the France fork, in France: a roundabout whose roads come in with sidewalks has one round its outer edge, the
+            # driver's right side of the ring (left where they drive on the left): Seilh's Pierre Piantoni roundabout,
+            # its sidewalks stopped dead at the ring, #2756; a sidewalk the map tags on the ring stands as it is)
+            walked = sum(1 for fid, sp, _p, _l in roads if fid in apps and fid not in short_apps and has_sidewalks(sp))
+            if walked >= RING_WALK_APPROACHES:
+                roads = [(fid, sp._replace(sides=(((1 if sp.dir >= 0 else -1) if left_hand else
+                                                  (-1 if sp.dir >= 0 else 1)),))
+                          if fid in ring_dir and getattr(sp, "sides", None) is None and getattr(sp, "france", False)
+                          else sp, pts, lon)
+                         for fid, sp, pts, lon in roads]
     mapped_walks = []
     european_walks = walks is not None and europewalks.enabled()
     if european_walks:
