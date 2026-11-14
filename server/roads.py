@@ -12052,7 +12052,8 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
         runs_near = walks_off_roads(runs_near, [(p2[:, :2], s2.width / 2) for _, s2, p2, _ in roads])
         if franceroads.ON and urban_fn is not None:   # (France fork: generated sidewalks only where it is built)
             runs_near = franceroads.walks_in_town(runs_near, frame, urban_fn,
-                                                  {fid for fid, sp, _, _ in roads if getattr(sp, "france", False)})
+                                                  {fid for fid, sp, _, _ in roads if getattr(sp, "france", False)},
+                                                  {fid for fid, sp, _, _ in roads if getattr(sp, "sides", None)})
         for fid, run, style in mapped_walks:
             runs_near.append({"fid": fid, "pts": run, "w": style.width, "side": 1,
                               "j": (False, False), "footway": style, "mapped": True})

@@ -134,7 +134,7 @@ def adjust_specs(feats, specs):
     return _one_width_per_street(feats, out)
 
 
-def walks_in_town(runs, frame, urban_fn, french):
+def walks_in_town(runs, frame, urban_fn, french, mapped=()):
     """runs without the stretches of a French road's sidewalk (fids in french) that have nothing built within
     WALK_TOWN_REACH_M: the road was urban as a whole, its sidewalks ran on between the fields; and without the scraps
     left in junctions (WALK_ISOLATED_M, joined to nothing). One land-cover call."""
@@ -163,7 +163,9 @@ def walks_in_town(runs, frame, urban_fn, french):
         rn = runs[k]
         if roads._length(pts) < WALK_ISOLATED_M and not any(rn["j"]):
             done[k] = []
-        elif not near.all():
+        elif not near.all() and rn.get("fid") not in mapped:
+            # (a road whose sidewalks the map tags, OSM sidewalk=*, keeps them between the fields: Seilh's Route de
+            # Toulouse at the Pierre Piantoni roundabout, #2676)
             built = np.convolve(near.astype(np.int32), np.ones(2 * reach + 1, np.int32), "same") > 0
             if not built.all():
                 done[k] = [p for p in roads.walk_pieces(rn, pts, ~built) if roads._length(p["pts"]) >= WALK_TOWN_KEEP_M]

@@ -64,8 +64,9 @@ def run(x0=0.0, x1=200.0, y=6.0, fid="a", j=(False, False)):
 
 
 class WalksInTownTest(unittest.TestCase):
-    def go(self, runs, urban, french=("a",)):
-        return fr.walks_in_town(runs, Frame(), lambda lat, lon: urban(np.asarray(lon), np.asarray(lat)), set(french))
+    def go(self, runs, urban, french=("a",), mapped=()):
+        return fr.walks_in_town(runs, Frame(), lambda lat, lon: urban(np.asarray(lon), np.asarray(lat)), set(french),
+                                set(mapped))
 
     def test_a_sidewalk_in_town_is_the_same_object(self):
         r = run()
@@ -75,6 +76,11 @@ class WalksInTownTest(unittest.TestCase):
         got = self.go([run(x1=300.0)], lambda x, y: x < 100.0)
         self.assertEqual(len(got), 1)
         self.assertLess(got[0]["pts"][:, 0].max(), 180.0)
+
+    def test_a_sidewalk_the_map_tags_runs_on_between_the_fields(self):
+        r = run(x1=300.0)
+        self.assertIs(self.go([r], lambda x, y: x < 100.0, mapped=("a",))[0], r)
+        self.assertEqual(self.go([run(x1=8.0)], lambda x, y: np.ones(x.shape, bool), mapped=("a",)), [])   # (a scrap)
 
     def test_a_house_within_reach_keeps_it(self):
         r = run()
