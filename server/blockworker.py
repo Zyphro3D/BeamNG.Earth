@@ -883,6 +883,11 @@ def _build(aid, lat, lon, hm_zoom, q, cx, cy, size, out_dir, name, ter_name=None
         if hasattr(_s.surface, "paint_ground_pads"):
             idx = _s.surface.paint_ground_pads(idx, keep["lat"], keep["lon"])
         stages["roadPaint"] = time.perf_counter() - t1
+        if provisional and not roads_complete:
+            # (the France fork: a stand-in block whose roads are not all painted yet has no grass layer: its 3D grass
+            # grew across the lanes until the real block came, the user's Fuji and Barcelona drives, 2026-11-14;
+            # the grass comes with the graded block)
+            idx = np.where((idx == surfacemod.GRASS) | (idx == surfacemod.LAWN), surfacemod.DIRT, idx).astype(idx.dtype)
         idx = surfacemod.fold_layers(idx, land, heightmap.SQUARE, stages)   # (fewer layers: a cheaper swap)
         info["layers"] = surfacemod.write_masks(idx[::-1], out_dir, name[:-4])
         info["surfaceComplete"] = complete and roads_complete
