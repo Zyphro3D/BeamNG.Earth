@@ -86,7 +86,13 @@ def join(feats, rows):
     if not n or not rows:
         return 0
     import fast
-    fast.require(296, "ign_join")
+    try:
+        fast.require(296, "ign_join")
+    except fast.NativeMissing as e:     # (an older kernel, e.g. a Linux build not remade: the map's widths then)
+        if not getattr(join, "_said", False):
+            join._said = True
+            log.warning("ign_largeur: %s", e)
+        return 0
     old = feats.attrs.get("osm_width")
     col = np.full(n, "", dtype=object) if old is None else np.asarray(old).astype(object)
     classes = feats.attrs.get("class")

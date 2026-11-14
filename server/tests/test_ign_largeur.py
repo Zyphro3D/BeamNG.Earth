@@ -12,6 +12,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import ign_largeur as IL  # noqa: E402
 import mapcells  # noqa: E402
 import mapgeom  # noqa: E402
+import fast  # noqa: E402
+
+# (the join is native, earthfast 296: the France fork's kernel; an older one leaves the widths alone)
+NATIVE = getattr(getattr(fast, "_ef", None), "VERSION", 0) >= 296
 
 
 def road_feats(lines, osm_width=None):
@@ -38,6 +42,7 @@ EAST = [[1.40, 43.60], [1.41, 43.60]]
 NORTH = [[1.405, 43.595], [1.405, 43.605]]
 
 
+@unittest.skipUnless(NATIVE, "earthfast 296 (ign_join)")
 class JoinTest(unittest.TestCase):
     def test_a_road_takes_the_width_of_the_segment_along_it(self):
         f = road_feats([EAST])
@@ -70,6 +75,7 @@ class JoinTest(unittest.TestCase):
         self.assertEqual(IL.join(f, [[EAST, 5.0]]), 0)
 
 
+@unittest.skipUnless(NATIVE, "earthfast 296 (ign_join)")
 class TrustTest(unittest.TestCase):
     def with_class(self, cls):
         f = road_feats([EAST])
