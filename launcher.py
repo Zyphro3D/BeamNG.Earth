@@ -432,6 +432,29 @@ def server_port_busy(port=SERVER_PORT):
         return False
 
 
+def port_free(port):
+    """This process could listen on 127.0.0.1:port (False: taken, or in a range Windows keeps for itself: WSL's
+    mirrored networking reserves ~45000-48000, where the world server's 47613 is)."""
+    import socket
+    s = socket.socket()
+    try:
+        s.bind(("127.0.0.1", port))
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
+def spare_port():
+    """A port the world server can listen on when its own cannot be had (the system's pick, passed to the game with
+    -bngeport: game_port_args)."""
+    import socket
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
 def _startup_tail(log_path):
     """A bounded, complete-line tail: startup failures can produce very large tracebacks/logs."""
     try:
@@ -1346,7 +1369,16 @@ def split_launch_options(line):
     return env, wrapper, post.split()
 
 
-def start_game(use_gcpatch, build="native", gfx="", user_dir=None, steam_args=({}, [], []), meanwhile=None):
+def game_port_args(port):
+    """The game's options naming the world server's port (the mod's net.lua reads -bngeport), [] for the default one.
+    Without them a server started on another port (--port: Windows reserves 47613 with WSL's mirrored networking) was
+    never reached by a game this app started: the player started BeamMP with -bngeport first, and the app then
+    updated the mod under the running game and reloaded its Lua, which crashed it."""
+    return ["-bngeport", str(int(port))] if port and int(port) != SERVER_PORT else []
+
+
+def start_game(use_gcpatch, build="native", gfx="", user_dir=None, steam_args=({}, [], []), meanwhile=None,
+               port=None):
     """Start the game; returns a Popen when this process started it directly, else None (through Steam).
 
     meanwhile: called once the game has been asked to start, before the start is watched (a direct Linux start's
@@ -1354,12 +1386,13 @@ def start_game(use_gcpatch, build="native", gfx="", user_dir=None, steam_args=({
 
     steam_args: (env, wrapper, options) adopted from Steam's launch options for the direct start (through Steam,
     Steam applies them itself): variables for the game's environment, a command that wraps it (gamemoderun,
-    mangohud), the game's own options after %command%."""
+    mangohud), the game's own options after %command%. port: the world server's (game_port_args)."""
     steam_env, wrapper, steam_opts = steam_args
     # (dev: BNGE_GAME_WRAPPER="perf record ... --" profiles the game alone, Linux direct start)
     wrapper = os.environ.get("BNGE_GAME_WRAPPER", "").split() + list(wrapper or [])
     win_args = ["-gfx", GFX_ARG.get(gfx, gfx)] if gfx else []
     extra = os.environ.get("BNGE_GAME_ARGS", "").split()     # (tests: e.g. "-bngetest car,damage")
+    extra += game_port_args(port)
     win_args += extra
     # a game folder the player chose outside Steam's libraries (another launcher, a copy of its own): started directly
     own = apppaths.saved_game_dir()
@@ -1995,7 +2028,20 @@ def beammp_wait_seconds(value):
     return seconds
 
 
+# This fork's released app: France's scenery on, no usage reports. Set before the server starts (it inherits them, and
+# reads them at import); a value already in the environment wins.
+FORK_DEFAULTS = {"BNE_FR_ROADS": "on", "BNE_FR_HOUSES": "on", "BNE_TOWNSIGNS": "on", "BNE_DIRSIGNS": "on",
+                 "BNE_REGIONAL_POLES": "fr-varied", "BNE_EU_ROAD_DETAILS": "on", "BNE_TELEMETRY": "off"}
+
+
+def apply_fork_defaults(environ=None):
+    environ = os.environ if environ is None else environ
+    for k, v in FORK_DEFAULTS.items():
+        environ.setdefault(k, v)
+
+
 def main():
+    apply_fork_defaults()
     if len(sys.argv) > 2 and sys.argv[1] == "--run-addon":     # (before tee_log: its output is its own run.log)
         ensure_ca_certs()
         run_addon(sys.argv[2:])
@@ -2050,6 +2096,8 @@ def main():
                          "integrated one), discrete forces that, off never steers; a GPU variable you or Steam's "
                          "launch options already set wins")
     ap.add_argument("--no-terminal", action="store_true", help="Linux: no terminal window (log to a file)")
+    ap.add_argument("--no-prepare", action="store_true",
+                    help="start the game at once, without the window that prepares places ahead (prelaunch.py)")
     ap.add_argument("--no-update-check", action="store_true",
                     help="do not ask GitHub for a newer BeamNG.Earth before the game starts")
     ap.add_argument("extra", nargs=argparse.REMAINDER, help="after --: more options for the server")
@@ -2314,6 +2362,12 @@ def run(args):
         if cache:
             extra = ["--cache-dir", cache] + extra
             row("Download cache", cache)
+    if port == SERVER_PORT and "--port" not in extra and not server_port_busy(port) and not port_free(port):
+        # (nothing answers there, yet it cannot be listened on: Windows keeps it, WSL's mirrored networking; the game
+        # started below is told the new one)
+        port = spare_port()
+        extra = ["--port", str(port)] + extra
+        row("World server port", f"{port} ({SERVER_PORT} is reserved by Windows, e.g. for WSL)")
     if server_port_busy(port):
         problem(f"another BeamNG.Earth world server is already running (port {port} is in use), maybe "
                 "left over from an earlier start.",
@@ -2335,7 +2389,9 @@ def run(args):
         # Windows PC (a player: "a week ago ... within 2 seconds it was asking what render ... now its closer to 10
         # seconds", Discord 2026-11-12). BeamMP still before the game: its launcher puts BeamMP's mod in place before
         # the game reads its mods. A server that cannot start is said as before; the game is then already open.
-        early = GAME_FIRST and not args.no_game and not running
+        # the window before the game (prelaunch.py): the server first, the window, then the game
+        prepare = not (args.no_game or getattr(args, "no_prepare", False) or running)
+        early = GAME_FIRST and not args.no_game and not running and not prepare
         followed = []
 
         def follow_server():            # (once: while start_game watches the start, or after it)
@@ -2344,6 +2400,9 @@ def run(args):
                 server_up(server, log_path, port, game_started=True)
         if not early:
             server_up(server, log_path, port, game_started=False)
+        if prepare:
+            import prelaunch
+            prelaunch.run(user_dir, port, say=say)
         try:
             beammp = None if args.no_game else beammp_up(user_dir, build, args)
         except OSError as e:
@@ -2376,7 +2435,7 @@ def run(args):
                 say("(under Wine / Proton: on Linux the AppImage runs the server natively, faster)")
             clear_level_flag(user_dir)
             proc = start_game(not args.no_gcpatch, build, args.gfx, user_dir, steam_args,
-                              meanwhile=follow_server if early else None)
+                              meanwhile=follow_server if early else None, port=port)
         if IS_WIN and not args.no_gcpatch:
             # the Windows game's engine patches, written into its memory once it runs (enginepatch.py: dtsmooth; off
             # with BNGEARTH_DTSMOOTH_WIN=0 or BNGEARTH_DTSMOOTH_OFF=1)

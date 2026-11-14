@@ -7854,6 +7854,27 @@ class Connection:
         except Exception as e:
             log.warning("report scrub: %s: %s", type(e).__name__, e)
 
+    async def road_spot(self, msg):
+        """{"id", "lat", "lon"} -> road_spot_result {"id", "lat"?, "lon"?}: the nearest spot on a public road on the
+        ground within randomplace.SEARCH_M (randomplace.road_spot; the launcher's window puts a prepared place's start
+        there), without lat / lon when there is none."""
+        out = {"type": "road_spot_result", "id": msg.get("id")}
+        md = getattr(self.s, "mapdata", None)
+        try:
+            lat, lon = float(msg["lat"]), float(msg["lon"])
+        except (KeyError, TypeError, ValueError):
+            md = None
+        if md is not None:
+            try:
+                got = await asyncio.get_running_loop().run_in_executor(
+                    self.s.ui_pool, randomplacemod.road_spot, md, lat, lon)
+            except Exception as e:
+                log.warning("road spot: %s: %s", type(e).__name__, e)
+                got = None
+            if got is not None:
+                out["lat"], out["lon"] = got[0], got[1]
+        self.send(out)
+
     async def where(self, msg):
         """The status bar's location {"id", "lat", "lon", "online"} -> where_result {"id", "street", "place", "region",
         "country"}: the street from the cached map cells (never waits for a download), the town, state and country from
@@ -8713,6 +8734,11 @@ class Connection:
             self.spawn(self.area_add(msg))
         elif kind == "area_cmd":                # a saved area paused, resumed or deleted
             self.spawn(self.area_cmd(msg))
+        elif kind == "prelaunch_status":        # the launcher's window before the game (prelaunch.py): no hello there
+            if self.s.cache is not None:
+                self.send(self.s.cache.message())
+            if self.s.areas is not None:
+                self.send(self.s.areas_message())
         elif kind == "preload_place":           # a destination picked on the map: loaded before the teleport
             self.preload_place(msg)
         elif kind == "stations":                # the station finder: the map's layers, Nearest (stationindex.py)
@@ -8729,6 +8755,8 @@ class Connection:
             self.on_map_focus(msg)
         elif kind == "random_place":            # the level select's "Random location" (randomplace.py)
             self.spawn(self.random_place(msg))
+        elif kind == "road_spot":               # the launcher's window: a prepared place's start on a road
+            self.spawn(self.road_spot(msg))
         elif kind == "place_previews":          # the level select's place pictures (placepreview.py)
             self.spawn(self.place_previews(msg))
         elif kind == "update_now":              # the update notice's "Update now" (selfupdate.py)

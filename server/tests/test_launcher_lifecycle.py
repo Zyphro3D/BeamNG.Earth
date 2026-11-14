@@ -447,7 +447,7 @@ class StartOrderTest(unittest.TestCase):
         order = []
         args = argparse.Namespace(user_dir="/u", build="native", keep_mod=True, game_dir=None, no_game=False, extra=[],
                                   cache_dir=None, clear_cache=False, no_gcpatch=True, gfx="", gpu="off",
-                                  no_update_check=True, no_beammp=False)
+                                  no_update_check=True, no_beammp=False, no_prepare=True)
         server = mock.Mock()
         server.poll.return_value = None
         with ExitStack() as st:
