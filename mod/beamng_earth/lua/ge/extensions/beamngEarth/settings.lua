@@ -133,6 +133,8 @@ M.SCHEMA = {
   -- Earth imagery on supported vehicle dashboard screens (dashboard.lua)
   dashboardSatellite = { kind = 'bool', default = true, label = 'Satellite on dashboard screens' },
   hudVisible = { kind = 'bool', default = false, label = 'Status HUD at level start' },
+  -- the screens' language (lang.lua: 'auto' = the game's own, French when it cannot be read; the France fork)
+  language = { kind = 'enum', default = 'auto', values = { 'auto', 'fr', 'en' }, label = 'Language' },
   -- the status bar at the top (statusbar.lua): street, town / state / country, loading, fps
   profilerMode = { kind = 'enum', default = 'essential', values = { 'essential', 'full' }, label = 'Profiler mode' },
   runtimeProfiler = { kind = 'bool', default = false, label = 'Detailed performance profiler' },
@@ -180,7 +182,7 @@ M.ORDER = { 'quality', 'terrainDetail', 'lodPx', 'groundPhoto', 'groundGrid', 't
   'viewDistanceMode', 'viewDistanceKm', 'hazeStrength', 'skyMode', 'clouds',
   'weatherMode', 'realGravity', 'lowFuelPrompt', 'groundCover', 'groundCoverDensity', 'rocks', 'roads', 'highwaySigns', 'directionSigns', 'roadSigns', 'germanJunctionSigns', 'rumbleStrips', 'softDrag', 'townSigns', 'adaptiveTraffic', 'models3dmr',
   'dashboardSatellite',
-  'hudVisible', 'statusBar', 'profilerMode', 'runtimeProfiler',
+  'language', 'hudVisible', 'statusBar', 'profilerMode', 'runtimeProfiler',
   'placeNamesOnline', 'telemetry', 'telemetryPerf', 'telemetryNet', 'mapStyle', 'creditsVisible', 'beammpOnLaunch',
   'creditsCorner', 'creditsSize', 'cacheCapGb', 'routeDownload', 'serverCores', 'serverPriority', 'teleportPriority', 'maxRamGb', 'devOutlineKm',
   'devMapKm' }

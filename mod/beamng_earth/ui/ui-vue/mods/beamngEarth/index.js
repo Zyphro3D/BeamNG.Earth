@@ -19,6 +19,7 @@ const LIFECYCLE = Symbol.for("beamngEarth.uiLifecycle")
 const LIFECYCLE_TIMEOUT_MS = 30_000
 const owner = {}
 let serversTab = null
+let i18n = null
 function enqueue(label, operation) {
   const lifecycle = window[LIFECYCLE] ||= { queue: Promise.resolve(), owner: null }
   const request = { owner }
@@ -177,6 +178,14 @@ async function loadUi(run) {
   try { await step(run, () => lua.extensions.ui_pause_actions.unregisterModButton("beamngEarth-map")) }
   catch (e) { if (!run.active) throw e /* otherwise no legacy button */ }
   await registerMapRoute(run)
+  // the screens in the player's language (i18n.js, lang.lua: the France fork); its failure leaves them in English
+  try {
+    i18n = await step(run, () => import("./i18n.js"))
+    i18n.start()
+  } catch (e) {
+    if (!run.active) throw e
+    console.error("BeamNG.Earth: language failed", e)
+  }
   // the BeamNG.Earth servers tab in BeamMP's server browser (earthServers.js); its failure costs nothing else
   try {
     serversTab = await step(run, () => import("./earthServers.js"))
@@ -190,6 +199,8 @@ async function loadUi(run) {
 async function unloadUi(run) {
   check(run)
   try { serversTab?.stop() } catch (e) { /* never started */ }
+  try { i18n?.stop() } catch (e) { /* never started */ }
+  i18n = null
   serversTab = null
   // Release local state first, and send both independent Lua removals without waiting on either callback.
   // A missing pause-tab reply must not prevent route cleanup (or a later UI load).

@@ -76,6 +76,8 @@ export const settingsSchema = [
   {
     name: "Interface",
     items: [
+      { id: "language", type: "select", default: "auto", name: "Language", desc: "The language of BeamNG.Earth's screens. Auto: the game's own language (French when it cannot be read).",
+        options: [ { label: "Auto (the game's language)", value: "auto" }, { label: "Français", value: "fr" }, { label: "English", value: "en" } ] },
       { id: "runtimeProfiler", type: "bool", default: false, name: "Detailed performance profiler", desc: "Continuously collects live frame, worker and network/disk feedback in a resizable window. Closing the window leaves a compact status panel; freezing only holds the display. Choose Essential for basic measurements or Full for detailed traces. Off stops collection." },
       { id: "profilerMode", type: "select", default: "essential", name: "Profiler mode", desc: "Essential keeps frame times, CPU/GPU totals, basic service traffic, average latency and disk space. Full adds detailed steps, worker traces, latency distributions and process I/O sampling.", options: [ { label: "Essential", value: "essential" }, { label: "Full", value: "full" } ] },
       { id: "statusBar", type: "bool", default: true, name: "Status bar", desc: "The bar at the top of the screen: the street and town you are in, loading progress and the frame rate." },

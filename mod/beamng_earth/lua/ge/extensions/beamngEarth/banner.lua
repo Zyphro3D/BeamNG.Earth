@@ -176,14 +176,20 @@ function M.place(px, py, vw, w)
   return px + (vw - w) / 2, py + M.TOP + M.PAD_Y
 end
 
+local trIn, trOut = nil, nil       -- (drawImgui: the last text and its translation)
 local function drawImgui(im, state)
+  if state.text ~= trIn then        -- (the player's language, lang.lua: once per new text, no per-frame garbage)
+    local okL, lang = pcall(require, 'beamngEarth/lang')
+    trIn, trOut = state.text, (okL and lang and lang.tr(state.text)) or state.text
+  end
+  local text = trOut
   local vp = im.GetMainViewport()
   if not vp then return false end
   local vw = vp.Size.x
   local L = layout
-  if not L or L.text ~= state.text or L.vw ~= vw then
-    local ts = im.CalcTextSize(state.text)
-    L = { text = state.text, vw = vw, w = ts.x, h = ts.y }
+  if not L or L.text ~= text or L.vw ~= vw then
+    local ts = im.CalcTextSize(text)
+    L = { text = text, vw = vw, w = ts.x, h = ts.y }
     layout = L
     M.measures = M.measures + 1
   end

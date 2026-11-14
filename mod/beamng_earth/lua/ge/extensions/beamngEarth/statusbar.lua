@@ -215,9 +215,15 @@ end
 
 -- Once per frame: draw the bar. active: our world is shown; hidden: the game's UI covers it; status: core's status
 -- text; line: the loading part (loadprogress.lua), see M.text. An error in the imgui calls turns the bar off (logged once).
+local trIn, trOut = nil, nil       -- (M.draw: the last loading line and its translation)
 function M.draw(active, hidden, status, line)
   if not M.enabled or not active or hidden then return false end
   local text, loading = M.text(status, line), M.loading(status, line)
+  if loading ~= trIn then       -- (the player's language, lang.lua: once per new line, no per-frame garbage)
+    local okL, lang = pcall(require, 'beamngEarth/lang')
+    trIn, trOut = loading, (okL and lang and lang.tr(loading)) or loading
+  end
+  loading = trOut
   if text == '' and loading == '' then return false end
   local im = rawget(_G, 'ui_imgui')
   if not im or not im.GetMainViewport then return false end
