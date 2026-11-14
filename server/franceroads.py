@@ -84,19 +84,51 @@ def french_feature(feats, i):
 
     Border-crossing/unknown features keep upstream geometry and paint. Testing
     vertices and segment midpoints also catches a road crossing a narrow enclave.
+    (The France fork: every feature of the layer at once, kept on it: french_features.)
     """
+    got = feats.__dict__.get("_bnge_french")
+    if got is None or len(got) != len(feats):
+        got = french_features(feats)
+        feats.__dict__["_bnge_french"] = got
+    return bool(got[i])
+
+
+def french_features(feats):
+    """french_feature of every feature of a layer (bool array), with one border lookup for all their points (the
+    France fork: a point at a time was 7.5 s of a dense Paris cell's 38 s of plans, 2026-11-14)."""
     import countrybounds
+    n = len(feats)
+    out = np.zeros(n, bool)
+    if not n:
+        return out
+    pts, owner = [], []
+    for i in range(n):
+        ll = _feature_points(feats, i)
+        if ll is not None:
+            pts.append(ll)
+            owner.append(np.full(len(ll), i))
+    if not pts:
+        return out
+    pts, owner = np.concatenate(pts), np.concatenate(owner)
+    codes = countrybounds.bundled().codes_at(np.c_[pts[:, 1], pts[:, 0]])
+    fr = np.array([c == "FR" for c in codes], bool)
+    out[np.unique(owner)] = True
+    bad = owner[~fr]
+    out[bad] = False
+    return out
+
+
+def _feature_points(feats, i):
+    """A feature's points and its segments' middles (lon, lat), or None when it is not wholly in France's box."""
     a = feats.coord_off[feats.ring_off[feats.part_off[i]]]
     b = feats.coord_off[feats.ring_off[feats.part_off[i + 1]]]
     ll = np.asarray(feats.lonlat[a:b])
     if len(ll) < 2 or not np.isfinite(ll).all():
-        return False
+        return None
     # Metropolitan France only; overseas territories keep their own codes.
     if not ((ll[:, 0] > -5.3) & (ll[:, 0] < 9.8) & (ll[:, 1] > 41.3) & (ll[:, 1] < 51.2)).all():
-        return False
-    idx = countrybounds.bundled()
-    return all(idx.at(float(lat), float(lon)) == "FR"
-               for lon, lat in np.vstack([ll, (ll[:-1] + ll[1:]) / 2]))
+        return None
+    return np.vstack([ll, (ll[:-1] + ll[1:]) / 2])
 
 
 def adjust_specs(feats, specs):
