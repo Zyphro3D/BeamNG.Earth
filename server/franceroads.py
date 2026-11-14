@@ -26,6 +26,11 @@ URBAN_WALK_M = 1.6
 THROUGH = {"primary", "secondary", "tertiary"}
 LANE_MIN_M = 3.0
 LANES_MAX_M = 12.0
+# A motorway carriageway: 3.5 m lanes, a 3 m hard shoulder on the right (bande d'arrêt d'urgence) and a 1 m strip on the
+# left (bande dérasée de gauche): ICTAAL / ICTAVRU. The class's default was the US interstate's (4 m lanes, 3 m both
+# sides: 18 m for three lanes, 14.5 here). (the France fork)
+MOTORWAY_LANE_M = 3.5
+MOTORWAY_SHOULDERS_M = 3.0 + 1.0
 SPLIT_PIECE_M = 150.0           # m: an unnamed one-way piece this short is part of a junction: no sidewalks on it
 WALK_STEP_M = 5.0               # m between the points a sidewalk's surroundings are read at (walks_in_town)
 WALK_TOWN_REACH_M = 20.0        # m each side of it the land cover is read
@@ -118,6 +123,8 @@ def adjust_specs(feats, specs):
             else:
                 width = 3.5 if sp.oneway else RURAL_WIDTH[sp.cls]
             sp = sp._replace(width=width)
+        if sp.cls == "motorway" and sp.oneway and not sp.link and mapped is None:
+            sp = sp._replace(width=min(sp.width, int(sp.lanes or 2) * MOTORWAY_LANE_M + MOTORWAY_SHOULDERS_M))
         if sp.urban:
             if (mapped is None and not sp.link and not sp.median and not roads.is_ring(feats, i)
                     and sp.cls in URBAN_WIDTH and not sp.lanes):

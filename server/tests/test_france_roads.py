@@ -60,6 +60,18 @@ class WidthTest(FrenchTest):
         self.assertTrue(all(roads.lane_layout(s)[1] == 2 for s in ss))
         self.assertTrue(fr.narrow(ss[1]))
 
+    def test_motorway_carriageway_french_width(self):
+        # 3.5 m lanes, a 3 m hard shoulder and a 1 m left strip: 14.5 m for three lanes, 11 m for two (the US default
+        # gave 18 and 14, #2374); a mapped width stands
+        f = french_features([[(0, 0), (300, 0)], [(0, 200), (300, 200)], [(0, 400), (300, 400)]], ["motorway"] * 3)
+        f.attrs["osm_lanes"] = np.array([3, None, 2], object)
+        f.rules["oneway"] = rules([(0, 1.0), (1, 1.0), (2, 1.0)], "float")
+        f.attrs["osm_width"] = np.array([None, "16", None], object)
+        ss = roads.road_specs(f)
+        self.assertAlmostEqual(ss[0].width, 14.5)
+        self.assertGreater(ss[1].width, 14.5, "a mapped width stands")
+        self.assertAlmostEqual(ss[2].width, 11.0)
+
     def test_width_and_lanes_from_map_win(self):
         f = french_features([[(0, 0), (200, 0)]] * 3, ["tertiary"] * 3, widths=[(0, 7.2)])
         f.attrs["osm_lanes"] = np.array([None, 3, 2], object)
