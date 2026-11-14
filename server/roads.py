@@ -250,14 +250,14 @@ SIDEWALK_CLASSES = {"residential", "tertiary", "secondary", "primary", "unclassi
 # busway (osmtags.busway_features): edge lines in every country (paints_edge_line), a centre line only when
 # two-way, dashes only from a mapped count (lane_layout). A painted bus lane on a normal road is markings.lane_plan.
 CENTRE_CLASSES = {"primary", "secondary", "tertiary", "trunk", "busway"}
-EDGE_LINE_CLASSES = {"primary", "secondary", "tertiary", "trunk", "motorway", "busway"}
+EDGE_LINE_CLASSES = {"primary", "secondary", "tertiary", "trunk", "motorway", "busway", "raceway"}   # (raceway: the France fork, a track's white edges)
 LANE_CLASSES = {"primary", "secondary", "tertiary", "trunk", "motorway", "busway"}
 
 
 def paints_edge_line(cls, style):
     """Whether a carriageway of this class gets edge lines in this country style. A busway does in every country:
     a style that lists its own classes (the US) would otherwise leave it out of the corners as well as the straights."""
-    return cls == "busway" or cls in (style.edge_classes or EDGE_LINE_CLASSES)
+    return cls in ("busway", "raceway") or cls in (style.edge_classes or EDGE_LINE_CLASSES)
 
 
 # urban arterials not lined by buildings (roadwidth.py measures those): 4 lanes (Moab's Main Street, US-191,
