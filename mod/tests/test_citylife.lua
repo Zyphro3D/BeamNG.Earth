@@ -55,4 +55,20 @@ for _, w in ipairs(W.slots) do
 end
 T.check(ok, 'every walker somewhere sensible')
 
+-- the game map's nodes (navgraph.toNodes' shape) back to the graph: each shared edge once
+local e1 = { inNode = 'a', outNode = 'b', oneWay = false, lanes = '-+', speedLimit = 13.9, drivability = 1, inRadius = 4 }
+local e2 = { inNode = 'b', outNode = 'c', oneWay = true, lanes = '++', speedLimit = 13.9, drivability = 1, inRadius = 4 }
+local mapNodes = {
+  a = { pos = { x = 0, y = 0, z = 1 }, radius = 4, links = { b = e1 } },
+  b = { pos = { x = 40, y = 0, z = 1 }, radius = 4, links = { a = e1, c = e2 } },
+  c = { pos = { x = 80, y = 0, z = 1 }, radius = 4, links = { b = e2 } },
+}
+local gm = C.graphOfMap(mapNodes)
+T.check(#gm.edges == 2, 'each map edge once (' .. #gm.edges .. ')')
+local one = nil
+for _, e in ipairs(gm.edges) do if e[1] == 'b' then one = e end end
+T.check(one and one[2] == 'c' and one[3] == 1 and one[4] == 2 and one[5] == 0, 'direction, one way and lanes kept')
+T.check(gm.nodes.b[1] == 40 and gm.nodes.b[4] == 4, 'node position and radius')
+T.check(#C.graphOfMap(nil).edges == 0, 'no map: no roads')
+
 T.done('test_citylife')

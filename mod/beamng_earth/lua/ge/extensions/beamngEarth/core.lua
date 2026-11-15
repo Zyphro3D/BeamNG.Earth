@@ -3035,7 +3035,7 @@ local function onUpdate(dtReal, dtSim)
     end
     t = mark('trafficvisuals', t)
     do                              -- (pedestrians, EarthNG's walkers: citylife.lua; the France fork)
-      local ok, err = pcall(M._citylife.update, dtReal, navgraph.currentGraph(), settings.get('pedestrians'), st.paused)
+      local ok, err = pcall(M._citylife.update, dtReal, st.anchorId, settings.get('pedestrians'), st.paused)
       if not ok then pcall(M._citylife.reset); log('E', 'beamngEarth', 'pedestrians: ' .. tostring(err)) end
     end
     t = mark('citylife', t)
@@ -3800,7 +3800,7 @@ M.onPreRender = onPreRender
 M.onUiChangedState = onUiChangedState
 M.onClientStartMission = onClientStartMission
 M.onClientPreStartMission = onClientPreStartMission
-M.onNavgraphReloaded = function() navgraph.onReloaded() end
+M.onNavgraphReloaded = function() navgraph.onReloaded(); pcall(M._citylife.onMapReloaded) end
 M.onVehicleMapmgrUpdate = function(id) gps.onVehicleMapmgrUpdate(id) end
 M.onAiRouteDone = function(id) gps.onAiRouteDone(id) end
 M.onVehicleSwitched = function(oldId, newId, player)

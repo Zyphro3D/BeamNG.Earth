@@ -3,10 +3,12 @@
 -- player's own computer, no physics, nothing sent to BeamMP, so a server carries no extra vehicles and every player
 -- sees their own crowd. Cars pass through them (no collision); a walker waits at the kerb while a car comes.
 --
--- The roads are BeamNG.Earth's own road graph (navgraph.lua: the server's graph of the roads round the car, the one
--- the game's traffic drives), turned into walkers.lua's segments by M.segments: the graph's edges chained through the
--- nodes where a road simply goes on. A new graph (every 400 m driven, a teleport) is synced in a coroutine, a few roads
--- a frame. Setting 'pedestrians' (off / few / normal / many); the Low preset turns them off.
+-- The roads are the game's road map as BeamNG.Earth applies it (navgraph.lua hands the server's graph of the roads
+-- round the car to map.reset: the map the game's traffic drives), read back with map.getMap() (M.graphOfMap) and
+-- turned into walkers.lua's segments by M.segments: the edges chained through the nodes where a road simply goes on.
+-- Read again each time the map is reloaded (onNavgraphReloaded: every 400 m driven, a teleport, a rebase), synced in a
+-- coroutine, a few roads a frame. (navgraph.currentGraph() is dropped when the anchor moves, until the next graph:
+-- the first try read it and found no roads, 2026-11-15.) Setting 'pedestrians' (off / few / normal / many); the Low preset turns them off.
 
 local M = {}
 local walkers = require('beamngEarth/walkers')
@@ -19,12 +21,14 @@ M.CARS_S = 0.25           -- s between the reads of the vehicles (the walkers wa
 M.SYNC_YIELD = 1          -- coroutine.yield at each pause walkers.sync asks for (a few roads a frame)
 
 local W, V = nil, nil     -- walkers.lua's state and its view
-local syncCo, syncedGraph, pendingGraph = nil, nil, nil
+local syncCo = nil
 local cars, carsAt = {}, -math.huge
 local clock = 0
 local at = nil            -- (a vec3 reused for the ground reads)
 local lastCount = nil
 local lastAnchor = nil
+local mapDirty = true      -- the game's road map reloaded since the last read
+local mapSerial = 0
 
 -- Pure: walkers.lua's segments ({[id] = {id, a, b, lanes, speed, half, drive, x, y, z, ...}}) of a road graph
 -- ({nodes = {name = {x, y, z, r}}, edges = {{in, out, oneway, lanes_out, lanes_in, speed, drivability, radius ...}}}).
@@ -99,6 +103,33 @@ function M.segments(g)
   return out
 end
 
+-- Pure: the road graph ({nodes = {name = {x, y, z, r}}, edges = {{in, out, oneway, lanes_out, lanes_in, speed, driv,
+-- radius}}}) of the game map's nodes ({name = {pos = {x, y, z}, radius, links = {other = edge}}}, navgraph.toNodes:
+-- an edge {inNode, outNode, oneWay, lanes '--++', speedLimit, drivability, inRadius} shared by both its nodes).
+function M.graphOfMap(mapNodes)
+  local g = { nodes = {}, edges = {} }
+  if type(mapNodes) ~= 'table' then return g end
+  local seen = {}
+  for name, n in pairs(mapNodes) do
+    local p = n.pos
+    if p then g.nodes[name] = { p.x, p.y, p.z, n.radius or 3 } end
+  end
+  for name, n in pairs(mapNodes) do
+    for other, e in pairs(n.links or {}) do
+      if type(e) == 'table' and not seen[e] then
+        seen[e] = true
+        local a, b = e.inNode or name, e.outNode or other
+        local lanes = type(e.lanes) == 'string' and e.lanes or ''
+        local fwd, back = select(2, lanes:gsub('%+', '')), select(2, lanes:gsub('%-', ''))
+        if fwd + back == 0 then fwd, back = 1, e.oneWay and 0 or 1 end
+        g.edges[#g.edges + 1] = { a, b, e.oneWay and 1 or 0, fwd, back, tonumber(e.speedLimit) or 13,
+          tonumber(e.drivability) or 1, tonumber(e.inRadius) or n.radius or 3 }
+      end
+    end
+  end
+  return g
+end
+
 -- Pure: the walkers asked for a setting value.
 function M.countOf(value) return M.COUNTS[value] or M.COUNTS.normal end
 
@@ -163,14 +194,18 @@ end
 
 function M.reset()
   if W then pcall(walkers.clear, W, V) end
-  W, V, syncCo, syncedGraph, pendingGraph, lastCount = nil, nil, nil, nil, nil, nil
+  W, V, syncCo, lastCount = nil, nil, nil, nil
+  mapDirty = true
   local g = scenetree and scenetree.findObject and scenetree.findObject(M.GROUP)
   if g then pcall(function() g:delete() end) end
 end
 
--- Every frame (core.lua, our level): the count from the setting, the graph synced when it changed, the walkers moved
--- and drawn. graph: navgraph.currentGraph(); paused: the game paused (the walkers stop).
-function M.update(dtReal, graph, setting, paused)
+-- The game's road map was reloaded (core.lua onNavgraphReloaded): read it again.
+function M.onMapReloaded() mapDirty, mapSerial = true, mapSerial + 1 end
+
+-- Every frame (core.lua, our level): the count from the setting, the road map synced when it changed, the walkers
+-- moved and drawn. anchorId: the world origin (a new one: the walkers start again); paused: the game paused.
+function M.update(dtReal, anchorId, setting, paused)
   local want = M.countOf(setting)
   if want == 0 then
     if W then M.reset() end
@@ -180,25 +215,31 @@ function M.update(dtReal, graph, setting, paused)
   local fx, fy = focus()
   if not fx then return end
   -- (a new anchor, a rebase or a teleport: the world's coordinates moved, the walkers start again in the new frame)
-  if graph and W and graph.anchor ~= lastAnchor then M.reset() end
-  if graph then lastAnchor = graph.anchor end
+  if W and anchorId ~= lastAnchor then M.reset() end
+  lastAnchor = anchorId
   if not W then
     W = walkers.new({ seed = 4242 })
     V = walkers.view(W, shapes(), group())
+    mapDirty = true
   end
   if want ~= lastCount then walkers.setTarget(W, want); lastCount = want end
-  -- a new graph: synced over a few frames
-  if graph and graph ~= syncedGraph and graph ~= pendingGraph then
-    pendingGraph = graph
-    local segs = M.segments(graph)
-    syncCo = coroutine.create(function()
-      walkers.sync(W, segs, fx, fy, M.SYNC_YIELD and coroutine.yield or nil)
-    end)
+  -- the road map: read again when it changed, synced over a few frames
+  if mapDirty and not syncCo then
+    mapDirty = false
+    local m = map and map.getMap and map.getMap()
+    local segs = M.segments(M.graphOfMap(m and m.nodes))
+    if next(segs) then
+      syncCo = coroutine.create(function()
+        walkers.sync(W, segs, fx, fy, M.SYNC_YIELD and coroutine.yield or nil)
+      end)
+    else
+      mapDirty = true           -- (no roads yet: the map comes with the level's first graph)
+    end
   end
   if syncCo then
     local ok, err = coroutine.resume(syncCo)
     if not ok then log('W', 'beamngEarth', 'pedestrians: sync: ' .. tostring(err)); syncCo = nil end
-    if syncCo and coroutine.status(syncCo) == 'dead' then syncCo, syncedGraph = nil, pendingGraph end
+    if syncCo and coroutine.status(syncCo) == 'dead' then syncCo = nil end
   end
   if paused then return end
   walkers.step(W, dtReal, fx, fy, readCars(), nil)
