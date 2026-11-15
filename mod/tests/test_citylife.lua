@@ -207,4 +207,38 @@ local still = false
 for _, link in pairs(FS.links) do if type(link.light) == 'table' and link.light.bne then still = true end end
 T.check(not still, 'a signal gone: its link unlit')
 
+-- the ring found as a loop of one-way links (whatever the entries' angle: drawn tangent to it at Seilh, the
+-- straightest link in was an entry), an arm's exit and entry no ring
+local rt = { nodes = {}, edges = {} }
+for k = 0, 3 do
+  local a = k * math.pi / 2
+  rt.nodes['r' .. k] = { 20 * math.cos(a - 0.3), 20 * math.sin(a - 0.3), 0, 4 }   -- (the entry's node, before the arm)
+  rt.nodes['x' .. k] = { 20 * math.cos(a + 0.3), 20 * math.sin(a + 0.3), 0, 4 }    -- (the exit's, after it)
+  rt.nodes['m' .. k] = { 20 * math.cos(a + math.pi / 4), 20 * math.sin(a + math.pi / 4), 0, 4 }
+  rt.nodes['j' .. k] = { 45 * math.cos(a), 45 * math.sin(a), 0, 4 }
+  rt.nodes['e' .. k] = { 170 * math.cos(a), 170 * math.sin(a), 0, 4 }
+end
+for k = 0, 3 do
+  local nx = (k + 1) % 4
+  rt.edges[#rt.edges + 1] = { 'r' .. k, 'x' .. k, 1, 1, 0, 8, 1, 4 }
+  rt.edges[#rt.edges + 1] = { 'x' .. k, 'm' .. k, 1, 1, 0, 8, 1, 4 }
+  rt.edges[#rt.edges + 1] = { 'm' .. k, 'r' .. nx, 1, 1, 0, 8, 1, 4 }
+  rt.edges[#rt.edges + 1] = { 'j' .. k, 'r' .. k, 1, 1, 0, 8, 1, 3 }
+  rt.edges[#rt.edges + 1] = { 'x' .. k, 'j' .. k, 1, 1, 0, 8, 1, 3 }
+  rt.edges[#rt.edges + 1] = { 'e' .. k, 'j' .. k, 0, 1, 1, 13.9, 1, 4 }
+end
+local FT = flow.new({ leftHand = false, seed = 6, paints = flow.SHARE, bodies = flow.BODY_SHARE })
+flow.sync(FT, C.segments(rt, false), 0, 0, {}, {})
+flow.setTarget(FT, 40)
+for k = 1, 12000 do flow.step(FT, 0.05, 0, 0, {}, k * 0.05, nil) end
+local ringLinks, armRing = 0, false
+for _, link in pairs(FT.links) do
+  if link.ring then
+    ringLinks = ringLinks + 1
+    if link.from:sub(1, 1) == 'j' or link.to:sub(1, 1) == 'j' then armRing = true end
+  end
+end
+T.check(ringLinks == 8 and not armRing, 'the ring found (two links a quarter), its arms not (' .. ringLinks .. ' ring links)')
+T.check((FT.stats.gaveUp or 0) <= 2, 'tangent entries: it flows (' .. tostring(FT.stats.gaveUp) .. ' given up)')
+
 T.done('test_citylife')

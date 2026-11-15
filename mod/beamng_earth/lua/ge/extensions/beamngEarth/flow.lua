@@ -191,7 +191,7 @@ local function removeLink(F, link)
   end
 end
 
-local turn
+local turn, markRings
 -- (the France fork) the links a car on link may take at its end: not its own road back, and no U-turn onto another
 -- one (an arm's exit straight back into its entry); none but those: then the U-turns
 local U_TURN = math.rad(135)
@@ -247,25 +247,62 @@ end
 
 -- a junction's main road: the strongest in-links when at most two roads (both ways of one
 -- street) have that weight; otherwise all roads are equal and every car stops
-local function mainRoad(F, n)
-  if n.mainAt == F.version then return n.main end
-  -- (the France fork: a roundabout's ring has the way, the cars on it going on and those coming in giving way. Of the
-  -- one-way links in, the ring's is the one going on straightest into a one-way link out (an arm's entry, one-way too
-  -- where the arm splits, turns into the ring). By the links' weights a bigger arm had the way and the ring stood still,
-  -- a heap of cars at Seilh's roundabout, 2026-11-15)
-  local ringIn, ringTurn = nil, math.rad(60)
-  for _, link in ipairs(n.inn) do
-    if link.oneWay then
-      for _, out in ipairs(n.out) do
-        if out.oneWay and out.sid ~= link.sid then
-          local t = turn(link, out)
-          if t < ringTurn then ringIn, ringTurn = link, t end
+-- (the France fork) the links of roundabout rings: one-way links that lead back to their own start through one-way
+-- links within RING_MAX_M and RING_MAX_LINKS, marked link.ring; once per sync (F.version)
+local RING_MAX_M, RING_MAX_LINKS = 500, 12
+function markRings(F)
+  if F.ringsAt == F.version then return end
+  F.ringsAt = F.version
+  for _, link in pairs(F.links) do link.ring = nil end
+  for _, start in pairs(F.links) do
+    if start.oneWay and not start.ring then
+      -- depth-first along one-way links out, back to start.from
+      local path, found = {start}, false
+      local function walk(link, len, depth)
+        if found then return end
+        local n = F.nodes[link.to]
+        if not n then return end
+        for _, out in ipairs(n.out) do
+          -- (no U-turn on the way: an arm's exit and entry make no ring with the ring's piece between them)
+          if out.oneWay and out.sid ~= link.sid and turn(link, out) < U_TURN then
+            if out.to == start.from and out ~= start and turn(out, start) < U_TURN then
+              path[#path + 1] = out
+              found = true
+              return
+            end
+            local l2 = len + (out.len or 0)
+            if depth < RING_MAX_LINKS and l2 <= RING_MAX_M then
+              local seen = false
+              for _, p in ipairs(path) do if p == out then seen = true; break end end
+              if not seen then
+                path[#path + 1] = out
+                walk(out, l2, depth + 1)
+                if found then return end
+                path[#path] = nil
+              end
+            end
+          end
         end
       end
+      if start.from ~= start.to then walk(start, start.len or 0, 1) end
+      if found then for _, l in ipairs(path) do l.ring = true end end
     end
   end
-  if ringIn and #n.inn >= 2 then
-    n.main, n.mainAt = {[ringIn.sid] = true}, F.version
+end
+
+local function mainRoad(F, n)
+  if n.mainAt == F.version then return n.main end
+  -- (the France fork: a roundabout's ring has the way, the cars on it going on and those coming in giving way. A ring
+  -- is a loop of one-way links back to where it started within RING_MAX_M (markRings); by the links' weights a bigger
+  -- arm had the way and the ring stood still, a heap of cars at Seilh's roundabout, 2026-11-15; by the straightest
+  -- one-way link in, its entries, drawn tangent to the ring, had it)
+  markRings(F)
+  local ring = nil
+  for _, link in ipairs(n.inn) do
+    if link.ring then ring = ring or {}; ring[link.sid] = true end
+  end
+  if ring and #n.inn >= 2 then
+    n.main, n.mainAt = ring, F.version
     return n.main
   end
   local best, sids, count = 0, {}, 0
