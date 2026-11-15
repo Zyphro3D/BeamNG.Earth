@@ -27,5 +27,5 @@ server.
 **Updating:** the game tells you when a new version is out. Click **Update now** in that notice, and the next time
 you start the app it runs the new version. Or download the new file from the releases page and run it the same way.
 
-**Need help?** Ask in the TGForever Discord: [discord.gg/tgf](https://discord.gg/tgf). More detail is in the
-[README](https://github.com/TecnaGamer/BeamNG.Earth#install-and-play).
+**Need help?** Ask in the Zyphro Discord: [discord.gg/bqfRZhG5MS](https://discord.gg/bqfRZhG5MS). More detail is in
+the [README](https://github.com/Zyphro3D/BeamNG.Earth#install-and-play).
