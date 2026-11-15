@@ -136,7 +136,9 @@ OPEN_PREFIX = f"https://github.com/{REPO}/"
 # ... and the settings page's About links (the game's openWebBrowser refuses every site outside its own domain filter:
 # "unable to open webpage due to domain filter", 2026-11-05): the project's Discord and Ko-fi, exactly, and a
 # contributor's GitHub profile (github.com/<login>, nothing after it)
-OPEN_EXACT = ("https://discord.gg/tgf", "https://ko-fi.com/tecnagamer", f"https://github.com/{REPO}")
+# (the France fork: Zyphro's Discord and site, and the original project's GitHub and Ko-fi, credited in About)
+OPEN_EXACT = ("https://discord.gg/bqfRZhG5MS", "https://beammp.zyphro.fr", "https://github.com/TecnaGamer/BeamNG.Earth", "https://ko-fi.com/tecnagamer",
+              f"https://github.com/{REPO}")
 _PROFILE = re.compile(r"https://github\.com/[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?")
 
 

@@ -149,8 +149,9 @@ export const settingsSchema = [
   {
     name: "About",
     items: [
-      { id: "links", type: "links", name: "BeamNG.Earth", desc: "The project on GitHub (code, releases, issues), the TGForever Discord (help and news) and Ko-fi (support the development). Opens in your browser.",
-        links: [ { label: "GitHub", url: "https://github.com/TecnaGamer/BeamNG.Earth" }, { label: "Discord", url: "https://discord.gg/tgf" }, { label: "Ko-fi", url: "https://ko-fi.com/tecnagamer" } ] },
+      { id: "links", type: "links", name: "BeamNG.Earth", desc: "BeamNG.Earth France on GitHub (code, releases, issues), the Zyphro Discord (help and news) and its multiplayer server's page; the original BeamNG.Earth by TecnaGamer and its Ko-fi. Opens in your browser.",
+        links: [ { label: "GitHub", url: "https://github.com/Zyphro3D/BeamNG.Earth" }, { label: "Discord", url: "https://discord.gg/bqfRZhG5MS" }, { label: "Server page", url: "https://beammp.zyphro.fr" },
+                 { label: "Original BeamNG.Earth", url: "https://github.com/TecnaGamer/BeamNG.Earth" }, { label: "Ko-fi (TecnaGamer)", url: "https://ko-fi.com/tecnagamer" } ] },
       { id: "connection", type: "info", name: "Companion app", desc: "The connection to the BeamNG.Earth app (127.0.0.1:47613) that builds the world, and the session id it gave this game." },
       { id: "anchor", type: "info", name: "World origin", desc: "The current world origin (anchor) and its latitude / longitude. A rebase moves it under you." },
       { id: "player", type: "info", name: "Your position", desc: "Your latitude / longitude and the distance from the world origin." },

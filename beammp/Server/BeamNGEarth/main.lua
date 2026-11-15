@@ -53,12 +53,12 @@ G.clock = 0
 
 -- The notice printed when the server starts (the BeamMP team, 2026-10-27: players kept asking them for help with
 -- BeamNG.Earth): where to get help, and why players without BeamNG.Earth never see this server.
-G.DISCORD = 'https://discord.gg/tgf'
+G.DISCORD = 'https://discord.gg/bqfRZhG5MS'     -- (the France fork: Zyphro's Discord, 2026-11-15)
 function G.supportNotice()
   local bar = string.rep('=', 78)
   return {
     bar,
-    'Join the TGForever Discord to get help with this server, ask questions,',
+    'Join the Zyphro Discord to get help with this server, ask questions,',
     'report bugs, chat with other players or help develop the mod:',
     '    ' .. G.DISCORD,
     '',

@@ -31,7 +31,7 @@ T.check(G.onPose(2, { v = G.PROTO, aLat = 0, aLon = -179.995, lat = 0, lon = -17
 
 -- the startup notice: the Discord for help, not BeamMP's developers; why the server is hidden from other players
 local notice = table.concat(G.supportNotice(), '\n')
-T.check(notice:find('discord.gg/tgf', 1, true) and notice:find('do NOT contact the BeamMP team', 1, true)
+T.check(notice:find('discord.gg/bqfRZhG5MS', 1, true) and notice:find('do NOT contact the BeamMP team', 1, true)
   and notice:find('hidden from players who do not run BeamNG.Earth', 1, true), 'startup notice: ' .. notice)
 for _, line in ipairs(G.supportNotice()) do T.check(#line <= 80, 'notice lines fit a console: ' .. line) end
 

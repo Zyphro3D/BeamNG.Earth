@@ -6,7 +6,7 @@
 
 local M = {}
 
-M.DISCORD = 'discord.gg/tgf'
+M.DISCORD = 'discord.gg/bqfRZhG5MS'     -- (the France fork: Zyphro's Discord)
 
 -- Pure: is app version v a development build ("1.7.2-beta.dev.37")?
 function M.isDev(v)

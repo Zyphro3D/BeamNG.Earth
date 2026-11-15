@@ -435,7 +435,6 @@
   "The mini-map's initial zoom.": "Le zoom initial de la mini-carte.",
   "The most memory the BeamNG.Earth app may use to build the world, all its processes together; the game's own memory is not counted. Auto: a third of your computer's memory below 24 GB (5 GB on a 16 GB PC, at least 1.5 GB), and 60 % of it on a bigger computer, at most 24 GB (19 GB on a 32 GB PC). Near the limit the app drops its caches and restarts its busiest helper processes, and it uses less while your computer is short of memory. Lower it if the game stutters while other programs are open; the world then loads more slowly. More than Auto rarely loads faster.": "La quantité maximale de mémoire que l'app BeamNG.Earth peut utiliser pour construire le monde, tous ses processus ensemble ; la mémoire du jeu lui-même n'est pas comptée. Auto : un tiers de la mémoire de votre ordinateur en dessous de 24 Go (5 Go sur un PC de 16 Go, au moins 1,5 Go), et 60 % sur un ordinateur plus grand, au plus 24 Go (19 Go sur un PC de 32 Go). Près de la limite, l'app vide ses caches et redémarre ses processus auxiliaires les plus sollicités, et elle en utilise moins tant que votre ordinateur manque de mémoire. Diminuez-la si le jeu saccade pendant que d'autres programmes sont ouverts ; le monde se charge alors plus lentement. Plus qu'Auto charge rarement plus vite.",
   "The most the download cache may use, in GB: type a number and press Enter (0: no limit). Over the limit the files used longest ago are removed (never what this session used in the last hour), and pre-cached areas and routes are kept.": "Le maximum que le cache de téléchargement peut utiliser, en Go : saisissez un nombre et appuyez sur Entrée (0 : aucune limite). Au-delà de la limite, les fichiers utilisés le plus anciennement sont supprimés (jamais ceux utilisés par cette session durant la dernière heure), et les zones et itinéraires préparés à l'avance sont conservés.",
-  "The project on GitHub (code, releases, issues), the TGForever Discord (help and news) and Ko-fi (support the development). Opens in your browser.": "Le projet sur GitHub (code, versions, tickets), le Discord TGForever (aide et actualités) et Ko-fi (soutenir le développement). S'ouvre dans votre navigateur.",
   "The screen corner of the data credits.": "Le coin de l'écran des crédits de données.",
   "The sharpness of the aerial photo and the painted roads on the ground around you (each 1 km square). 1024: 1 m a pixel, the lightest (handhelds). 2048: 0.5 m, the default. 4096: 0.25 m, the crispest road edges and markings in the ground, but each square takes 1-3 s longer to make on a fast PC (much longer on a handheld) and uses 4 times the video memory.": "La netteté de la photo aérienne et des routes peintes sur le sol autour de vous (chaque carré de 1 km). 1024 : 1 m par pixel, le plus léger (consoles portables). 2048 : 0,5 m, par défaut. 4096 : 0,25 m, les bords de route et marquages les plus nets dans le sol, mais chaque carré met 1 à 3 s de plus à se générer sur un PC rapide (beaucoup plus sur une console portable) et utilise 4 fois plus de mémoire vidéo.",
   "The world is": "Le monde est",
@@ -582,7 +581,10 @@
   "Saved / recent": "Enregistrés / récents",
   "Category places": "Lieux de la catégorie",
   "Name match": "Par le nom",
-  "Address": "Adresse"
+  "Address": "Adresse",
+  "BeamNG.Earth France on GitHub (code, releases, issues), the Zyphro Discord (help and news) and its multiplayer server's page; the original BeamNG.Earth by TecnaGamer and its Ko-fi. Opens in your browser.": "BeamNG.Earth France sur GitHub (code, versions, signalements), le Discord Zyphro (aide et nouvelles) et la page de son serveur multijoueur ; le BeamNG.Earth d'origine de TecnaGamer et son Ko-fi. S'ouvre dans votre navigateur.",
+  "Server page": "Page du serveur",
+  "Original BeamNG.Earth": "BeamNG.Earth d'origine"
  },
  "subs": [
   [

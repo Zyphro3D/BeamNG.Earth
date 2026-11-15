@@ -215,7 +215,7 @@ jobs:
             echo "> [!WARNING]"
             echo "> **Development build.** This version is built automatically from the \`dev\` branch and has **not been"
             echo "> thoroughly tested**: expect bugs, and things may change or break between builds. For a tested version,"
-            echo "> use the latest beta release. Please report problems on [Discord](https://discord.gg/tgf) or in the"
+            echo "> use the latest beta release. Please report problems on [Discord](https://discord.gg/bqfRZhG5MS) or in the"
             echo "> GitHub issues, with this version number ($v)."
             echo
             echo "**Download** the file for your system (Windows: \`BeamNG.Earth-$v.exe\`, Linux:"
