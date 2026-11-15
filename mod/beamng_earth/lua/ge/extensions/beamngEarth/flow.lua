@@ -1,6 +1,7 @@
 -- From EarthNG (github.com/Alezx311/earthng, mod/lua/ge/extensions/e2r/flow.lua at bd9a054), by Alezx311, MIT License
 -- (credited in CREDITS.md). Brought in by the France fork (the user, 2026-11-15: "traffic, light and multiplayer-
--- friendly"): unchanged but for this note. Cars without physics drawn on this computer only (citylife.lua feeds it
+-- friendly"): unchanged but for this note and two marked changes (the France fork: a roundabout's ring has the
+-- way, mainRoad; the stop line before a junction's widest road, stopGap). Cars without physics drawn on this computer only (citylife.lua feeds it
 -- the game's road map); EarthNG's handoff to real cars (handoff.lua) is not brought in: they would be synced to BeamMP.
 --
 -- Traffic flow: hundreds of cars without physics on the navgraph of the loaded tiles (S.nav).
@@ -123,6 +124,7 @@ local function makeLink(F, sid, dir, s, lanes, total, halfWidth)
     pts = pts, cum = cum, len = cum[n], lanes = lanes, laneWidth = width, oneWay = total == lanes,
     speed = math.max(4, s[5] or 13), drive = s[7] or .7, cars = {}}
   link.weight = link.drive * lanes * link.speed
+  link.halfWidth = halfWidth      -- (the France fork: the stop line before a junction's widest road, stopGap)
   for l = 1, lanes do link.cars[l] = {} end
   return link
 end
@@ -221,6 +223,21 @@ end
 -- street) have that weight; otherwise all roads are equal and every car stops
 local function mainRoad(F, n)
   if n.mainAt == F.version then return n.main end
+  -- (the France fork: a roundabout's ring has the way, the cars on it going on and those coming in giving way. The ring
+  -- of a graph split at every arm has one one-way link in and a one-way link out at each arm; by the links' weights a
+  -- bigger arm had the way and the ring stood still, a heap of cars at Seilh's roundabout, 2026-11-15)
+  local ringIn, ringOut = nil, false
+  for _, link in ipairs(n.inn) do
+    if link.oneWay then
+      if ringIn then ringIn = false; break end
+      ringIn = link
+    end
+  end
+  for _, link in ipairs(n.out) do if link.oneWay and ringIn and link.sid ~= ringIn.sid then ringOut = true end end
+  if ringIn and ringOut and #n.inn >= 2 then
+    n.main, n.mainAt = {[ringIn.sid] = true}, F.version
+    return n.main
+  end
   local best, sids, count = 0, {}, 0
   for _, link in ipairs(n.inn) do best = math.max(best, link.weight) end
   for _, link in ipairs(n.inn) do
@@ -241,6 +258,20 @@ local function turn(link, next)
   local b = math.atan2(q[5] - q[2], q[4] - q[1])
   local d = math.abs(b - a) % (2 * math.pi)
   return d > math.pi and 2 * math.pi - d or d
+end
+
+-- (the France fork) how far before the end of link a waiting car stops: the junction's widest road's half width and a
+-- metre at a junction of three roads or more (the graph's links end at its middle: every queue stopped there, the cars
+-- of the arms on top of each other at Seilh's roundabout, 2026-11-15), else STOP_GAP
+local function stopGap(F, link)
+  local n = F.nodes[link.to]
+  if not n or n.segs < 3 then return STOP_GAP end
+  if n.gapAt == F.version then return n.gap end
+  local w = 0
+  for _, l in ipairs(n.inn) do w = math.max(w, l.halfWidth or 0) end
+  for _, l in ipairs(n.out) do w = math.max(w, l.halfWidth or 0) end
+  n.gap, n.gapAt = math.max(STOP_GAP, w + 1.0), F.version
+  return n.gap
 end
 
 -- whether car stops at the end of its link: at a junction a car waits for its turn, but the
@@ -674,7 +705,7 @@ local function ahead(F, car, list, k)
   if gap then return gap, v end
   local toEnd = link.len - car.s
   if not car.next then return nil end
-  if mustStop(F, car) then return toEnd - STOP_GAP, 0 end
+  if mustStop(F, car) then return toEnd - stopGap(F, car.link), 0 end
   local nextList = car.next.cars[car.nextLane]
   local first = nextList and nextList[1]
   if first then return toEnd + first.s - LEN, first.v end

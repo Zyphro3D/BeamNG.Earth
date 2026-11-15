@@ -138,4 +138,25 @@ for _, piece in ipairs(Wm.list) do
 end
 T.check(n > 0 and okSide, 'pieces only on the measured side, at its offset (' .. n .. ')')
 
+-- a roundabout (one-way ring split at its four arms): the ring has the way, no gridlock (the original rules gave
+-- 18 of 40 cars up in 10 minutes, Seilh 2026-11-15)
+local rg = { nodes = {}, edges = {} }
+for k = 0, 3 do
+  local a = k * math.pi / 2
+  rg.nodes['r' .. k] = { 20 * math.cos(a), 20 * math.sin(a), 0, 4 }
+  rg.nodes['m' .. k] = { 20 * math.cos(a + math.pi / 4), 20 * math.sin(a + math.pi / 4), 0, 4 }
+  rg.nodes['e' .. k] = { 170 * math.cos(a), 170 * math.sin(a), 0, 4 }
+end
+for k = 0, 3 do
+  local nx = (k + 1) % 4
+  rg.edges[#rg.edges + 1] = { 'r' .. k, 'm' .. k, 1, 1, 0, 8, 1, 4 }
+  rg.edges[#rg.edges + 1] = { 'm' .. k, 'r' .. nx, 1, 1, 0, 8, 1, 4 }
+  rg.edges[#rg.edges + 1] = { 'e' .. k, 'r' .. k, 0, 1, 1, 13.9, 1, 4 }
+end
+local FR = flow.new({ leftHand = false, seed = 3, paints = flow.SHARE, bodies = flow.BODY_SHARE })
+flow.sync(FR, C.segments(rg, false), 0, 0, {}, {})
+flow.setTarget(FR, 40)
+for k = 1, 12000 do flow.step(FR, 0.05, 0, 0, {}, k * 0.05, nil) end
+T.check((FR.stats.gaveUp or 0) == 0 and FR.count >= 35, 'a roundabout flows (' .. tostring(FR.stats.gaveUp) .. ' given up)')
+
 T.done('test_citylife')
