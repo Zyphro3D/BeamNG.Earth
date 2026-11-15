@@ -352,6 +352,55 @@ def _open_floor(parts, points):
     return bool(points) and any(all(_deck_z({None: [part]}, None, *p) is not None for p in points) for part in parts)
 
 
+WALKWAY_CLASSES = {"pedestrian"}   # (the France fork: the streets for walkers only, citylife.lua)
+WALKWAY_WIDTH_M = 6.0               # m: a pedestrian street without a mapped width
+WALKWAY_MAX = 400                   # pedestrian streets in a graph at most
+
+
+def _walkways(frame, feats_list, elev, cx, cy, window):
+    """The pedestrian streets round (cx, cy) for the France fork's walkers (citylife.lua; they are in no road graph:
+    Toulouse's rue d'Alsace-Lorraine had nobody in it, 2026-11-15): [[width m, x, y, z, x, y, z, ...]], each its line
+    in the anchor frame on the ground, within window (+ 200 m). Pure given its inputs."""
+    out, seen = [], set()
+    for feats in feats_list:
+        if feats is None or len(feats) == 0 or "class" not in feats.attrs:
+            continue
+        cls = feats.attrs["class"]
+        widths = feats.attrs.get("osm_width")
+        for i in range(len(feats)):
+            if str(cls[i]) not in WALKWAY_CLASSES or len(out) >= WALKWAY_MAX:
+                continue
+            fid = str(feats.ids[i])
+            if fid in seen:
+                continue
+            seen.add(fid)
+            parts = feats.parts(i)
+            if not parts or not parts[0]:
+                continue
+            ll = np.asarray(parts[0][0], np.float64)
+            if len(ll) < 2 or not np.isfinite(ll).all():
+                continue
+            e, n, _ = frame.geodetic_to_enu(ll[:, 1], ll[:, 0], 0.0)
+            if (max(e) < cx - window - 200 or min(e) > cx + window + 200 or
+                    max(n) < cy - window - 200 or min(n) > cy + window + 200):
+                continue
+            z = np.asarray(frame.geodetic_to_enu(ll[:, 1], ll[:, 0],
+                                                 np.asarray(elev(ll[:, 1], ll[:, 0]), np.float64))[2], np.float64)
+            w = WALKWAY_WIDTH_M
+            if widths is not None:
+                try:
+                    w = float(str(widths[i]).split()[0].replace(",", "."))
+                except (TypeError, ValueError, IndexError):
+                    w = WALKWAY_WIDTH_M
+                if not (2.0 <= w <= 40.0):
+                    w = WALKWAY_WIDTH_M
+            row = [round(w, 1)]
+            for k in range(len(ll)):
+                row += [round(float(e[k]), 2), round(float(n[k]), 2), round(float(z[k]), 2)]
+            out.append(row)
+    return out
+
+
 def _sidewalk_width(spec):
     """How far (m) from a road's centre line the middle of the sidewalk the road tiles draw lies (roads.has_sidewalks:
     the carriageway's half width spec.width / 2 plus half the sidewalk, spec.walk / 2), or 0.0 for none: the graph's
@@ -763,7 +812,8 @@ def build(frame, feats_list, elev, centre, urban_fn=None, window=WINDOW_M, decks
                 e.append(False)
             e.append(walk)
     lines = [ln for ln in lines if max(abs(ln[0] - cx), abs(ln[1] - cy), abs(ln[2] - cx), abs(ln[3] - cy)) <= window]
-    return {"nodes": nodes, "edges": uniq, "signals": signals, "lines": lines,
+    walkways = _walkways(frame, feats_list, elev, cx, cy, window)
+    return {"nodes": nodes, "edges": uniq, "signals": signals, "lines": lines, "walkways": walkways,
             "trafficProfile": _traffic_profile(frame, density_lines, cx, cy), "mph": bool(mph)}
 
 

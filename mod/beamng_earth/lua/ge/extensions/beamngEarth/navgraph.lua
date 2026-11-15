@@ -128,6 +128,7 @@ M.LAUNCH_TIMEOUT_S = 6
 M.EXTENSIONS = { 'core_multiSpawn', 'gameplay_traffic', 'gameplay_walk' }
 
 local graph = nil       -- the server's last graph {anchor, nodes, edges}
+local walkways = nil    -- (the France fork) its pedestrian streets {anchor, list} (M.walkways)
 local applied = nil     -- {anchor, serial, box} of the graph in the game's map now
 local dirty = false
 local lastApply = -math.huge
@@ -370,6 +371,8 @@ function M.onMessage(msg, currentAnchor)
             lines = type(g.lines) == 'table' and g.lines or nil,      -- (tunnel stretches: the minimap's, minimaproads)
             trafficProfile = type(g.trafficProfile) == 'table' and g.trafficProfile or nil,  -- (M.ADAPTIVE)
             mph = g.mph }       -- (the country's speed signs: api.speedLimit)
+  -- (the France fork: the pedestrian streets, for the walkers only, citylife.lua; kept past the graph's own drop)
+  walkways = { anchor = msg.anchorId, list = type(g.walkways) == 'table' and g.walkways or {} }
   dirty = true
   return true
 end
@@ -1170,6 +1173,8 @@ function M.transform(xf, anchorId)
 end
 
 function M.currentGraph() return graph end      -- (tests)
+-- (the France fork) the last graph's pedestrian streets {[width, x, y, z, ...] ...} for this anchor, or {} (citylife.lua)
+function M.walkways(anchorId) return walkways and walkways.anchor == anchorId and walkways.list or {} end
 function M._startTraffic() return startTraffic() end    -- (tests: the level start's traffic, by hand)
 function M._cuts() return cuts end      -- (probes: the clip's cut nodes)
 

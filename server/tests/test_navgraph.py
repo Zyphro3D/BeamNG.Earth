@@ -1031,3 +1031,37 @@ class SidewalkWidthTest(unittest.TestCase):
         self.assertEqual(ng._sidewalk_width(SimpleNamespace(street=None, sides=(), kind="paved", walk=1.8, width=9.0)), 0.0)
         self.assertEqual(ng._sidewalk_width(None), 0.0)
         self.assertEqual(ng._sidewalk_width(SimpleNamespace()), 0.0)
+
+
+class WalkwaysTest(unittest.TestCase):
+    """The graph's walkways (the France fork's walkers in pedestrian streets, citylife.lua): the class "pedestrian"
+    features near the centre, their width (mapped, else the default), on the ground; nothing else."""
+
+    def test_pedestrian_streets_only(self):
+        import geodesy
+        import navgraph as ng
+        frame = geodesy.EnuFrame(43.6, 1.44)
+        lines = {"p1": [(1.4400, 43.6000), (1.4410, 43.6000)], "r1": [(1.4400, 43.6005), (1.4410, 43.6005)],
+                 "p2": [(1.4400, 43.6010), (1.4405, 43.6010)], "far": [(1.60, 43.70), (1.61, 43.70)]}
+        ids = list(lines)
+
+        class Feats:
+            attrs = {"class": np.array(["pedestrian", "residential", "pedestrian", "pedestrian"]),
+                     "osm_width": np.array(["", "", "9", ""], dtype=object)}
+
+            def __init__(self):
+                self.ids = ids
+
+            def __len__(self):
+                return len(ids)
+
+            def parts(self, i):
+                return [[lines[ids[i]]]]
+
+        out = ng._walkways(frame, [Feats()], lambda la, lo: np.full(np.shape(la), 150.0), 0.0, 0.0, 800.0)
+        self.assertEqual(len(out), 2)                       # (the residential street and the far one left out)
+        self.assertEqual(out[0][0], ng.WALKWAY_WIDTH_M)
+        self.assertEqual(out[1][0], 9.0)
+        self.assertEqual(len(out[0]), 1 + 3 * 2)
+        self.assertAlmostEqual(out[0][3], 150.0, delta=0.5)  # (on the ground)
+        self.assertAlmostEqual(out[0][4] - out[0][1], 80.5, delta=1.0)   # (0.001 deg of longitude at 43.6 N)

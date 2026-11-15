@@ -241,4 +241,16 @@ end
 T.check(ringLinks == 8 and not armRing, 'the ring found (two links a quarter), its arms not (' .. ringLinks .. ' ring links)')
 T.check((FT.stats.gaveUp or 0) <= 2, 'tangent entries: it flows (' .. tostring(FT.stats.gaveUp) .. ' given up)')
 
+-- pedestrian streets (navgraph.walkways): walkers along both sides, WALKWAY_IN off the walls, nothing measured
+local ws = C.walkwaySegments({ { 8, 0, 0, 0, 60, 0, 0 }, { 6, 0, 0 } })
+local nW, one = 0, nil
+for _, sw in pairs(ws) do nW = nW + 1; one = sw end
+T.check(nW == 1 and one.walkway and math.abs(one.off[1] - (4 - C.WALKWAY_IN)) < 1e-9 and one.off[-1] == one.off[1],
+  'a pedestrian street: both sides, off the walls (a too-short one left out)')
+local Ww = walkers.new({ seed = 2 })
+walkers.sync(Ww, ws, 30, 0)
+local sides = {}
+for _, piece in ipairs(Ww.list) do sides[piece.side] = true end
+T.check(sides[1] and sides[-1], 'walkers on both sides of it')
+
 T.done('test_citylife')

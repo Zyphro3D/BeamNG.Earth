@@ -31,6 +31,7 @@ M.WALK_MAX_SPEED = 16.7   -- m/s: walkers.lua's MAX_SPEED (faster roads have no 
 M.KERB_MIN = 0.07          -- m: a step up this high from the road is a kerb (the drawn ones are 12-15 cm)
 M.KERB_STEP = 0.25         -- m between the height reads across a street ...
 M.KERB_MAX = 12            -- ... out to this far from its centre line
+M.WALKWAY_IN = 1.2          -- m off a pedestrian street's walls its walkers walk
 M.WALK_IN = 0.8            -- m past the kerb a walker walks
 M.KERB_AT = { 0.25, 0.5, 0.75 }   -- where along a street its kerbs are looked for (two of three must agree)
 M.REMEASURE_S = { 15, 45 } -- s after a sync the kerbs are measured again (the road tiles come after the graph)
@@ -229,6 +230,25 @@ function M.measureSides(s, height)
   return out
 end
 
+-- Pure: walkers.lua's segments of the pedestrian streets (navgraph.walkways: {{width, x, y, z, ...}}), ids from
+-- `first` on, walkers along both sides WALKWAY_IN m off the walls (s.off: no kerb to measure there; s.walkway: not for
+-- the traffic). A pedestrian street is a slow road of half width 0.5 to the walkers (it hardly cuts their sidewalks).
+function M.walkwaySegments(list, first)
+  local out, id = {}, first or 1000000
+  for k, row in ipairs(list or {}) do
+    local w = tonumber(row[1]) or 6
+    if #row >= 7 then
+      local s = { id, 'w' .. k .. 'a', 'w' .. k .. 'b', '', 1.4, 0.5, 0.3 }
+      for i = 2, #row do s[#s + 1] = tonumber(row[i]) or 0 end
+      local off = math.max(0.6, w / 2 - M.WALKWAY_IN)
+      s.off, s.walkway = { [1] = off, [-1] = off }, true
+      out[id] = s
+      id = id + 1
+    end
+  end
+  return out
+end
+
 -- Pure: the walkers asked for a setting value.
 function M.countOf(value) return M.COUNTS[value] or M.COUNTS.normal end
 
@@ -378,7 +398,7 @@ function startSync(segs, fx, fy, onlyIfChanged)  -- (local: declared above)
   return coroutine.create(function()
     local sig = {}
     for id, sg in pairs(segs) do
-      if sg[5] <= M.WALK_MAX_SPEED then
+      if sg[5] <= M.WALK_MAX_SPEED and not sg.walkway then
         local got = M.measureSides(sg, ground)
         if got then
           sg.off = got
@@ -460,6 +480,10 @@ function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
       end
       if W then
         local segs = M.segments(g)
+        local okN, ng = pcall(require, 'beamngEarth/navgraph')
+        if okN and ng.walkways then
+          for id, sw in pairs(M.walkwaySegments(ng.walkways(anchorId))) do segs[id] = sw end
+        end
         remeasure = 1
         remeasureAt = clock + M.REMEASURE_S[1]
         syncCo = startSync(segs, fx, fy)
@@ -476,6 +500,10 @@ function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
   if W and not syncCo and not mapDirty and remeasure and clock >= remeasureAt then
     local m = map and map.getMap and map.getMap()
     local segs = M.segments(M.graphOfMap(m and m.nodes))
+    local okN, ng = pcall(require, 'beamngEarth/navgraph')
+    if okN and ng.walkways then
+      for id, sw in pairs(M.walkwaySegments(ng.walkways(anchorId))) do segs[id] = sw end
+    end
     remeasure = remeasure + 1
     remeasureAt = M.REMEASURE_S[remeasure] and (clock + M.REMEASURE_S[remeasure] - M.REMEASURE_S[remeasure - 1]) or nil
     if not remeasureAt then remeasure = nil end
