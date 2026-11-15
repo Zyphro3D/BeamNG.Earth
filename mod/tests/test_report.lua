@@ -100,7 +100,7 @@ ui_imgui = {
   WindowFlags_AlwaysAutoResize = 0, WindowFlags_NoInputs = 0,
 }
 report.onUpdate()
-T.check(#pages == 1 and pages[1]:find('https://github.com/TecnaGamer/BeamNG.Earth/issues/new?', 1, true) == 1,
+T.check(#pages == 1 and pages[1]:find('https://github.com/Zyphro3D/BeamNG.Earth/issues/new?', 1, true) == 1,
   'the saved issue URL goes through core.openPage')
 T.check(#browserPages == 0, 'the report does not bypass the companion with the game browser')
 beamngEarth_core = nil

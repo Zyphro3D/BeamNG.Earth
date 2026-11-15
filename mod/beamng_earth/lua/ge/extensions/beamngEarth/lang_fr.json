@@ -584,7 +584,9 @@
   "Address": "Adresse",
   "BeamNG.Earth France on GitHub (code, releases, issues), the Zyphro Discord (help and news) and its multiplayer server's page; the original BeamNG.Earth by TecnaGamer and its Ko-fi. Opens in your browser.": "BeamNG.Earth France sur GitHub (code, versions, signalements), le Discord Zyphro (aide et nouvelles) et la page de son serveur multijoueur ; le BeamNG.Earth d'origine de TecnaGamer et son Ko-fi. S'ouvre dans votre navigateur.",
   "Server page": "Page du serveur",
-  "Original BeamNG.Earth": "BeamNG.Earth d'origine"
+  "Original BeamNG.Earth": "BeamNG.Earth d'origine",
+  "Report on Discord": "Signaler sur Discord",
+  "\"Report on Discord\" opens the Zyphro Discord: post what happened there, with screenshot.jpg and issue.md from the folder (\"Open folder\"). Or post it yourself on GitHub: \"Open GitHub issue page\" fills in the text; drag screenshot.jpg into it. If the page opens empty, paste issue.md's text into it.": "« Signaler sur Discord » ouvre le Discord Zyphro : racontez-y ce qui s'est passé, avec screenshot.jpg et issue.md du dossier (« Ouvrir le dossier »). Ou publiez-le vous-même sur GitHub : « Ouvrir la page de signalement GitHub » remplit le texte ; glissez-y screenshot.jpg. Si la page s'ouvre vide, collez-y le texte d'issue.md."
  },
  "subs": [
   [

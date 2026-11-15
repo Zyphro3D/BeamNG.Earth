@@ -41,6 +41,7 @@ M.SAVED_S = 30          -- the "report saved" window closes itself after this lo
 
 local fmt = require('beamngEarth/issuefmt')
 local sender = require('beamngEarth/reportsend')
+M.DISCORD = 'https://discord.gg/bqfRZhG5MS'   -- (the France fork: where reports go, 2026-11-15)
 M.RING60 = 12000        -- frames kept for the last 60 s (reportsend.frames: 200 fps for 60 s)
 local im = nil
 local ffi = require('ffi')
@@ -423,18 +424,19 @@ local function drawSaved()
     im.TextUnformatted(saved.folder)
     -- (no "python3 tools/reports.py" here: the packaged app has no Python or tools folder for players to run, and
     -- one tried to and asked how to fix Python, GitHub #744)
-    wrapped('"Send to the developers" sends it privately to the BeamNG.Earth developers (not published; you see '
-      .. 'what is sent first). Or post it yourself: issue.md there is a ready-to-post GitHub issue: "Open GitHub '
-      .. 'issue page" fills in the text; drag screenshot.jpg from the folder into it. If the page opens empty, paste '
-      .. 'issue.md\'s text into it.')
+    -- (the France fork, the user 2026-11-15: reports go to Zyphro's Discord, not to the original project's collector)
+    wrapped('"Report on Discord" opens the Zyphro Discord: post what happened there, with screenshot.jpg and '
+      .. 'issue.md from the folder ("Open folder"). Or post it yourself on GitHub: "Open GitHub issue page" fills in '
+      .. 'the text; drag screenshot.jpg into it. If the page opens empty, paste issue.md\'s text into it.')
     local st = sender.status(saved.dir:match('([^/]+)/?$'))
     if st and st.state == 'sent' then
       im.TextUnformatted('Sent to the developers. Report id: ' .. tostring(st.id or '?'))
     elseif st and st.state and st.state ~= '' then
       im.TextUnformatted('Send: ' .. st.state .. (st.text and (' (' .. st.text .. ')') or ''))
     end
-    if im.Button('Send to the developers') then
-      sender.open(saved.dir, saved.data)
+    if im.Button('Report on Discord') then
+      local core = rawget(_G, 'beamngEarth_core')
+      if core and core.openPage then pcall(core.openPage, M.DISCORD) else pcall(openWebBrowser, M.DISCORD) end
       saved.untilT = now() + M.SAVED_S
     end
     im.SameLine()
