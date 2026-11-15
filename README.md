@@ -1,4 +1,100 @@
-# BeamNG.Earth
+# BeamNG.Earth France
+
+![BeamNG.Earth France: the real world in BeamNG.drive, together on BeamMP](docs/fr/img/banner.png)
+
+**BeamNG.Earth France** brings the real world to [BeamNG.drive](https://www.beamng.com/), built for driving it
+**together** on [BeamMP](https://beammp.com/) and for **modest computers too**. It is a fork that brings two open-source
+projects together, taking the best of each, with our own work on top:
+
+- **[BeamNG.Earth](https://github.com/TecnaGamer/BeamNG.Earth)** by TecnaGamer and its contributors (MIT): the base. The
+  whole planet at 1:1 scale, real elevation and aerial photos, roads, bridges, tunnels and buildings, multiplayer.
+- **[EarthNG](https://github.com/Alezx311/earthng)** by Alezx311 (MIT): city life. Being ported, in a light version that
+  stays fluid and multiplayer-friendly: pedestrians, traffic and traffic lights drawn on each player's computer, with no
+  extra vehicles sent to the server.
+- **Our additions** (Zyphro): France at its best and a smoother start. Details below.
+
+What we aim for: **beautiful, playable in multiplayer, fast, and able to run on a small setup.**
+
+| | |
+|---|---|
+| **Download** | [Latest release](https://github.com/Zyphro3D/BeamNG.Earth/releases/latest) (Windows app, free) |
+| **Discord** | [discord.gg/bqfRZhG5MS](https://discord.gg/bqfRZhG5MS): help, news, bug reports |
+| **Multiplayer server** | Zyphro's BeamMP server, see [beammp.zyphro.fr](https://beammp.zyphro.fr) |
+| **Original project** | [TecnaGamer/BeamNG.Earth](https://github.com/TecnaGamer/BeamNG.Earth) (please don't send them bugs from this fork) |
+
+### What this fork adds
+
+**France, as it really is**
+- French official map data (IGN BD TOPO): building footprints and heights, real carriageway widths, walls and
+  hedges, French place names.
+- French road rules: town street widths and lanes, motorway lanes (3.5 m) with their shoulders, sidewalks round
+  roundabouts, French road paint and signs.
+- Race tracks that look like race tracks: red and white kerbs in the bends, white edge lines, buildings over a
+  track lifted so you can drive under them.
+
+**A smoother start**
+- A window before the game: pick a town or a route, see what it will cost, **prepare it in advance**, see and delete
+  what is already prepared. Prepared places become teleport points in the game.
+- Faster first visits in dense cities (Paris's planning 35 s to 25 s, same result to the bit) and fixes for grass
+  showing through roads while a place loads.
+
+**For everyone**
+- The interface in **French or English** (automatic, or chosen in the settings).
+- Built on BeamNG.Earth 1.10 and kept up to date with it.
+
+**Coming next**
+- City life from EarthNG (pedestrians, traffic, traffic lights), light and multiplayer-safe.
+- If the whole world stays too slow on small computers: regional editions (France and its neighbours: Spain,
+  Portugal, Italy, Switzerland, Germany ...), each with its own server and app.
+
+### Performance: what to expect
+
+Measured on **2026-11-15** with **everything at its highest**, so the numbers are the worst case: lower settings
+load faster.
+
+**The computer**: Intel Core i5-13600K, NVIDIA GeForce RTX 3070 (8 GB), 32 GB RAM, Samsung 980 PRO NVMe SSD,
+Windows 11, 2560x1440, fibre internet.
+
+**The settings**
+- BeamNG.Earth app: **Extreme** quality preset (objects, terrain, trees: Extreme; buildings and trees at Max distance;
+  grass Far; roads Full detail; view distance 100 km, horizon).
+- BeamNG.drive: custom, mostly **Ultra / High** (meshes, lighting, clustered lighting: Ultra; shadows, shaders, terrain,
+  post-processing, clouds: High; textures: Normal), DLSS, 16x anisotropic filtering, borderless 2560x1440.
+
+| Place (first visit after a teleport) | Roads ready | Everything ready | Frame rate |
+|---|---|---|---|
+| Seilh, Toulouse suburbs (residential) | 36 s | 101 s | 73 fps |
+| Lyon, Presqu'ile (dense city centre) | 61 s | 220 s | 61-64 fps |
+| A place you have visited before | 7-10 s | | |
+
+"Roads ready" is when you can drive; buildings, trees and distant scenery keep filling in around you after that.
+A first visit downloads that place's data (elevation, photos, map data); the next visits come from your disk.
+**Prepare a place in advance** from the window before the game and the first visit is like a second one.
+
+| Seilh, from above | Seilh, at street level | Lyon, from above |
+|---|---|---|
+| ![Seilh roundabout from above](docs/fr/img/seilh-roundabout-above.jpg) | ![Seilh roundabout at street level](docs/fr/img/seilh-roundabout-street.jpg) | ![Lyon's Presqu'ile from above](docs/fr/img/lyon-presquile-above.jpg) |
+
+(Screenshots straight from the game at the settings above, nothing retouched.)
+
+### Multiplayer on Zyphro's server
+
+Every player needs the **BeamNG.Earth France app** running (it builds the world on your own computer, so the server
+stays light). Start the app: it starts BeamMP with the game. Then find the server in the **BeamNG.Earth** tab of
+BeamMP's server browser. Joining without the app: a window tells you where to get it, and the world stays empty
+until you do. Help: [our Discord](https://discord.gg/bqfRZhG5MS), not the BeamMP team.
+
+### Credits
+
+BeamNG.Earth is by TecnaGamer and its many contributors (MIT); EarthNG is by Alezx311 (MIT). French data: IGN (BD
+TOPO, Licence Ouverte 2.0). Everything else as in the original documentation below.
+
+---
+
+*The original BeamNG.Earth documentation follows. It describes the base this fork is built on; where it says
+TGForever's Discord, ask on [ours](https://discord.gg/bqfRZhG5MS) for this fork.*
+
+## About the original BeamNG.Earth
 
 A 1:1 scale, streamed Earth for [BeamNG.drive](https://www.beamng.com/): drive anywhere on the
 planet on real elevation data and satellite imagery, with distance-based level of detail and the
