@@ -73,7 +73,7 @@ NET_RETRY_S = 60.0              # ... after a network error
 FETCH_WAIT_S = 20.0             # s a process waits for another downloading the same block
 MAX_BLOCK_BYTES = 96 << 20
 MEM_BLOCKS = 6                  # blocks kept in memory per process
-WEEKLY = ("rails", "lanes", "stations")     # versions() keys left out of the vkey (per item instead: slice_digest)
+WEEKLY = ("rails", "lanes", "stations", "osmyears", "osmcolours")     # versions() keys left out of the vkey (per item instead: slice_digest)
 PINS = "pins.json"
 
 
@@ -713,7 +713,7 @@ def ask_build(cache_dir, vk, bx, by):
         req = urllib.request.Request(REQUEST_URL, body, {"Content-Type": "application/json",
                                                          "User-Agent": "BeamNG.Earth"})
         try:
-            with urllib.request.urlopen(req, timeout=8.0) as r:
+            with urllib.request.urlopen(req, timeout=8.0, context=netfetch.windows_ssl_context()) as r:
                 r.read(4096)
             log.info("decisions: build of block %s/%s asked", bx, by)
         except Exception as e:

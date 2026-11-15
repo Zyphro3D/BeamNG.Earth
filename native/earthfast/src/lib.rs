@@ -6,6 +6,7 @@ mod devctx;
 mod reach;
 mod devraster;
 mod roofs;
+mod domes;
 mod roofphoto;
 mod gravity;
 mod polyproject;
@@ -108,6 +109,8 @@ mod roadwear;
 mod roadtone;
 mod railbeds;
 mod osmtagshards;
+mod buildyears;
+mod buildcolours;
 mod gradebins;
 mod par;
 mod bc1fast;
@@ -6430,9 +6433,21 @@ fn earthfast(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // PaintPolys, PaintFields, paint_photo, pil_raster; server/paintlist.py, surface.paint_square), roadtone's coverage
     // loop shared with it
     paintlist::register(m)?;
-    // 296 (the France fork, on 295): IGN BD TOPO widths matched to a cell's roads in one call (ignwidths::ign_join,
+    // 296 (on 295; written as 294 on 290): the stage claims with an owner token, the process's start time and an
+    // uptime lease, changed only under the folder's lock; a damaged stage file written again (stage_claim / stage_wait
+    // repair; stage_put and stage_release take the token)
+    // 297: domes::dome_roof (a dome over any outline from its centroid or pole of inaccessibility: Streets GL's
+    // CurvedRoofBuilder, MIT; server/buildings.py _dome)
+    domes::register(m)?;
+    // 298: buildyears::oby_decode (a tile of the OSM building construction years, tools/build_osm_building_years.py,
+    // server/osmyears.py: the towers' facades by era, buildings.plan)
+    buildyears::register(m)?;
+    // 301 (299 is the detail packs' branch, 300 a shelved branch's): buildcolours::obc_decode (a tile of the OSM
+    // building and part colours, tools/build_osm_building_colours.py, server/osmcolours.py: the colours Overture drops)
+    buildcolours::register(m)?;
+    // 302 (the France fork, on 301): IGN BD TOPO widths matched to a cell's roads in one call (ignwidths::ign_join,
     // server/ign_largeur.py)
     m.add_function(wrap_pyfunction!(ignwidths::ign_join, m)?)?;
-    m.add("VERSION", 296)?;
+    m.add("VERSION", 302)?;
     Ok(())
 }

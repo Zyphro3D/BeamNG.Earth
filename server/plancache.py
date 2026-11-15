@@ -31,6 +31,10 @@ import xproc
 log = logging.getLogger("earthd.plancache")
 
 WAIT_S = 90.0
+LIVE_WAIT_S = 240.0         # s: past WAIT_S a holder still at work is waited for this long by a thread holding no claim
+                            # (xproc.once live_s): central London's cells took 2-4 minutes on a busy PC's four server
+                            # threads, and each process that stopped waiting at WAIT_S planned them again beside their
+                            # planner, slower still for all (a road tile past 300 s, its road processes restarted, 2026-11-13)
 LONG_WAIT_S = 20.0          # s: a wait for another process's plans this long is logged (claim)
 KEEP_S = 6 * 3600.0         # run folders untouched this long are removed (prune)
 VERSIONS_RECHECK_S = 2.0    # s between reads of the map data's versions for the revisit keys (PlanCache.persist)
@@ -43,11 +47,11 @@ STAGE_SLICE_MS = 200        # ms of that wait between two looks at the waiting j
 
 
 def _stage_ef():
-    """The native module's stage functions (earthfast 290), or None when the sharing is off."""
+    """The native module's stage functions (earthfast 296), or None when the sharing is off."""
     if not STAGE_ON:
         return None
     import fast
-    return fast.native(290, "shared road stages")
+    return fast.native(296, "shared road stages")
 
 
 def _pack(arrays, g, items):
@@ -81,7 +85,7 @@ def start_run(cache_dir):
 # The plans' output format: their key in the revisit cache (kept across updates) and in baked packs (bakepack.py), in
 # place of the code hash. Bump it whenever a change makes other plans (grading, its inputs' rules), or players keep the
 # old ones; tests/test_bake_formats.py fails until it is bumped (its fixture's digest is stored with the number).
-PLANS_FORMAT = 67     # 67 (the France fork): FACTS_FORMAT 28 (French motorway carriageways: 3.5 m lanes and their shoulders, franceroads.MOTORWAY_*); 66 (the France fork, on 65): FACTS_FORMAT 27 (France: IGN BD TOPO carriageway widths, ign_largeur.py; its town street widths and lanes, franceroads.py; a mapped width never over the other carriageway, specs.rs dual_width), 2026-11-14; 65: a rail bed coupled to the roads beside it keeps each vertex within its own roads' band after the run-out along the track (earthfast railseam: a move down to a bus lane the track lies in no longer carries 2 m onto a street it crosses 30 m on), and a lower road crossing a tunnel part the elevation shows open all along eases onto its carriageway whatever the class gap (gradebins OPEN_TUNNEL, Plan.open_tunnel): Kennedybruecke in Vienna stepped 2.65 m and 1.2 m (GitHub #1169), 2026-11-13; 64: a street closed to cars (a cycleway with its sidewalks mapped on it) is a road of the plans (roads.STYLE "cycleway": London's filtered Warren Street, the user's report 2026-11-12), FACTS_FORMAT 26; 63: a track running down a street inside its carriageway (railways.street_along, STREET_ALONG_M) cuts the 3D track there and is flush with the street, like a crossing road (Fells Point's Thames Street trolley tracks, the user's report 16), and roads.FACTS_FORMAT 25 (the widths of laned town streets between buildings), 2026-11-12; 61: deterministic maths (GitHub #1169: the kernels' and the server's sin / atan2 / hypot / exp / pow / dot / norm from the libm crate and exact formulations, dm.rs / dnp.py / dmath.py: Windows, Linux and every glibc / CPU plan the same roads), FACTS_FORMAT 23, 2026-11-12; 60: a short rail bridge over a road (10-12 m) dips the road under it (grading RAIL_MIN_CROSS_M), to the height limit the road signs (max_height_m, RAIL_SIGNED_ON) at most 2.5 m, and the rail bridges of a long segment are kept (railways MIN_PART_M, were dropped under 0.1 % of it) and on their place (pmtiles anchors, pmtiles.FORMAT 2; Robitnik's PR #1193), FACTS_FORMAT 22; 59: a motorway's or trunk road's built-up test 90 m out (roads.URBAN_HIGHWAY_BESIDE_M, wyo-backroads' PR #1117: its urban flag and widths); 58: plans independent of the order cells are planned in (a road width per copy of the road, roadwidth._memo_key; railway ground per centimetre at its own point; pin heights per candidate copy and context, _stronger_zs; the decks round a point past the cell being planned, _near_pack, each deck its home cell's copy, _decks_in), FACTS_FORMAT 20, 2026-11-12; 57 (56 not used): one source per tunnel network (the grading takes a tunnel's floor and sections from the tunnel networks' solve, their portals graded by the roads' plans alone), tunnels under flat ground buried by default (not in a trench the ground shows, not beside a slip road joining), only a street lower than the bare ground kept off a tube's cover, 2026-11-12; 55: tunnels as networks: a tunnel's joints at the floor of the whole tunnel (earthfast tunnel_chain_nodes, GitHub #1160 #1161 #490, Tromsø), the tube fitted under a road over a short section, opt-in burial under flat ground (BNE_TUNNEL_BURY), 2026-11-12; 54: FACTS_FORMAT 18 (town streets narrowed to the walls along them, roads._wall_capped: the graded corridors with them); 53: two carriageways overlapping in plan at other levels: the point is the road's it lies deeper in (earthfast gradebins, the S1's east lanes under Rautenweg's bank ramp, GitHub #1083), 2026-11-12; 52: lid junctions (GitHub #1083: Vienna's S1 under Rautenweg and Suedtiroler Platz, Porte Maillot) and slip roads at raised junctions (#960): a ground road that ends at a deck joint is no road under the deck (grading.JOINT_ROADS: the junction's own arms asked 8 m of clearance over themselves); an abutment's lift from the bridge whose end is nearest (NEAREST_END); an approach fill is a surface, the road's own climb taken off it and smoothed (APPROACH_FILL, approach.rs FILL_SMOOTH_M: no sag where a ramp meets a road climbing away, the A6 at Heilbronn #1176); a dipped road no longer holds its whole length beside other roads (DIP_HOLDS off: an M1 slip road stepped 1.4 m off the raised road it forks from); FACTS_FORMAT 17 (a junction over a tunnel in the open is an underpass, gradesep JOINED_ENDS); and each joint of a deck chain at one height (roads.DECK_WELD); 51: a raised junction is a height, not an offset (grading JR_FILL: an arm end above the junction rises only to its height, an arm filled to the ramp's surface, the ramp's remainder less what the stub climbs out of its abutment's cut; Wesley Chapel's SR 56 decks 13 m over I-75 for the real 7 m, GitHub #1043), and the dips under a deck see it climb from its ends and the junction raise carry its abutments (UNDER_CLIMB, JR_CARRY: I-75 dipped 1.6 m under them, now 0.4 m); 50: roads side by side agree in height (grading.share_corridors: a fork's branches, a slip road beside the road it joins, a road dipped under a deck and the ramp beside it; 0.4-0.8 m ramps across the lanes at Wesley Chapel #1043 and Findlay #1045; dirt roads without synthetic damage, smoothed as their class, and not eased flat onto a paved shoulder they leave; tunnel mouth plans without grade rank; a rail line from its longest copy); 49: FACTS_FORMAT 16 (lane sections of merged highways with one-sided auxiliary-lane tapers graded, PR #880; measured default widths, narrow winding rural roads); 48: both 47s merged; 47 (bumps): a rail bed's plan cut out of the carriageway of a road it crosses at grade (grading.rail_yield_pieces: a 0.3-0.7 m dip across the road at level crossings, Fells Point's streets with their tracks), and the deck-ground correction faded in from a deck end on the ground (grading.deck_ground_abut_taper: I-405's overpass ends read 5 m low off their fill); 47 (curves): the road centrelines rounded and curvature continuous by default (roadsmooth.py ON, G2 spirals, raceways included, interior connectors pinned: the user 2026-11-12, banked ovals ridden over their chords); 46: a side road trimmed at its mouth has its bank and widen cut with its line (they were left as long as the untrimmed line, and every later plan in the set read shifted bank values: 289 of 905 banked plans in 87 captured sets); 45: both of the 2026-11-11 night's 44s at once (the small and big PR batches each bumped to 44): one road planned in pieces meets itself at one height (grading.weld_continuations), a side road's mouth ends at the painted edge with a 20 m Hermite ramp (grading.trim_side_mouths), a rural minor road's flat verge is 1 m, and unclassified side roads get the gentle rank side ease (RANK_SIDE_MAX_DIFF 6) (PR #1107); and railway beds from one lattice of node profiles (railprofile.py: the same bed in every tile and grading cell), long smoothing of ground beds and rounded bends, switches brought to the lines they join, a road crossing a track at grade flush with it, a short rail bridge over a road on level ground a level crossing, a road under a rail bridge on lidar lowered at most 1 m (BNE_RAIL_UNDER_LIDAR_DROP) (PR #1106); 43: the plans' elevation has the bridges it holds under mapped decks taken out (grading.DECK_GROUND_*: the Pont de Normandie's 60-150 m ridge under its deck, GitHub #1098); 42: an overpass's abutment lift reads the road under beside the deck, as that road's own plan reads it (grading.ground_under_deck, LIFT_UNDER_BESIDE: an elevation holding the deck over a motorway cut asked 6.7-8.5 m at Albox, GitHub #1086, PR #1090); 41: a short road tunnel grade separation made ground still holds the railway over it at underpass clearance (railways.road_underpasses reads the map's tunnel ranges too: Nashville, PR #1094); 40: no junction raise at a freeway's own deck, nor for a lift only an elevation model holding the deck over the road under asks (grading JR_OWN_CLASS / JR_TRUSTED: Andalusia's roundabouts and slip roads stood 5-8 m over the ground, GitHub #1077); 39: road grading ranks: a built (paved / cobble) road keeps its own ground where a dirt road runs beside it, the dirt road adapting; a side road eases onto the higher road's ground (RANK_SIDE_FADE_M, RANK_HEIGHT_FADE_M) and the blend starts at the painted asphalt edge; a road with no equal-ranked road at a point holds its own carriageway, and a junction pad takes only the highest-ranked branch (GitHub #771, PR #1050); 38: a road under a measured deck needs only real headroom under it, the deck as measured over it (grading UNDER_MEASURED_ON: I-75 dipped 1.5 m under an overpass at Findlay); 37: the ramp envelope only where the geometry breaks (a step of 0.3 m or more where roads meet, a raised road steeper than 12 % and than before), else nothing changes; 36: the roads round a raised junction and a freeway overpass's approaches on ramps no steeper than 6 % (grading.ramp_envelope: steps of 45-58 % at Findlay's diverging diamond), freeway links rise with their junction; 35: an approach's junction rises with it (grading JUNCTION_RAISE_ON: the junction's roads no longer cap its ramp; GitHub #1043, #1045); 34: a ground track takes a distant deck's rise over its own bed, not its height (railways.profile: a mountain line's deck carried down at 2 % stood Andermatt's station 14 m up, GitHub #1051); 33: a small roundabout's ring wider by its fitted radius (roads.ring_width, PR #1048); 32: a measured deck on the ground where clearance needs a lift is stale (grading OBS_STALE_LIFT_M, roads OBS_STALE_M: GitHub #1045), and 31's tunnel end rule taken back (it pushed portals out of approach cuts at Caldecott, Tom Lantos, the Gotthard); 31: a tunnel's short open end run over a drop is tube (roads.portal_cover: Fort Pitt's east portal onto its bridge); 30: FACTS_FORMAT 13 (skew crossings' grade-separation bridges long enough for the road under them, GitHub #1020); 29: FACTS_FORMAT 12 (a long road's copies far from its home agree on its bridges over underpasses, GitHub #1020); 28: a rail bed beside a road that crosses under it (a bridge, SEAM_CROSS_M of height at a
+PLANS_FORMAT = 68     # 68 (the France fork, on 66): FACTS_FORMAT 28 (French motorway carriageways: 3.5 m lanes and their shoulders, franceroads.MOTORWAY_*; France: IGN BD TOPO carriageway widths, ign_largeur.py; its town street widths and lanes, franceroads.py; a mapped width never over the other carriageway, specs.rs dual_width), 2026-11-15; 66: a road with a height limit (max_height_m, a maxheight sign) under a road bridge gets that limit under the girders, not the 6 m guess: its dip (grading), the deck's profile and its abutments' lifts (roads.road_sign_at, BNE_ROAD_SIGNED_UNDER; after PR #922); a road under a deck is not raised to the road beside it (grading.share_corridors, CORRIDOR_UNDER_RAISE_M), 2026-11-13; 65: a rail bed coupled to the roads beside it keeps each vertex within its own roads' band after the run-out along the track (earthfast railseam: a move down to a bus lane the track lies in no longer carries 2 m onto a street it crosses 30 m on), and a lower road crossing a tunnel part the elevation shows open all along eases onto its carriageway whatever the class gap (gradebins OPEN_TUNNEL, Plan.open_tunnel): Kennedybruecke in Vienna stepped 2.65 m and 1.2 m (GitHub #1169), 2026-11-13; 64: a street closed to cars (a cycleway with its sidewalks mapped on it) is a road of the plans (roads.STYLE "cycleway": London's filtered Warren Street, the user's report 2026-11-12), FACTS_FORMAT 26; 63: a track running down a street inside its carriageway (railways.street_along, STREET_ALONG_M) cuts the 3D track there and is flush with the street, like a crossing road (Fells Point's Thames Street trolley tracks, the user's report 16), and roads.FACTS_FORMAT 25 (the widths of laned town streets between buildings), 2026-11-12; 61: deterministic maths (GitHub #1169: the kernels' and the server's sin / atan2 / hypot / exp / pow / dot / norm from the libm crate and exact formulations, dm.rs / dnp.py / dmath.py: Windows, Linux and every glibc / CPU plan the same roads), FACTS_FORMAT 23, 2026-11-12; 60: a short rail bridge over a road (10-12 m) dips the road under it (grading RAIL_MIN_CROSS_M), to the height limit the road signs (max_height_m, RAIL_SIGNED_ON) at most 2.5 m, and the rail bridges of a long segment are kept (railways MIN_PART_M, were dropped under 0.1 % of it) and on their place (pmtiles anchors, pmtiles.FORMAT 2; Robitnik's PR #1193), FACTS_FORMAT 22; 59: a motorway's or trunk road's built-up test 90 m out (roads.URBAN_HIGHWAY_BESIDE_M, wyo-backroads' PR #1117: its urban flag and widths); 58: plans independent of the order cells are planned in (a road width per copy of the road, roadwidth._memo_key; railway ground per centimetre at its own point; pin heights per candidate copy and context, _stronger_zs; the decks round a point past the cell being planned, _near_pack, each deck its home cell's copy, _decks_in), FACTS_FORMAT 20, 2026-11-12; 57 (56 not used): one source per tunnel network (the grading takes a tunnel's floor and sections from the tunnel networks' solve, their portals graded by the roads' plans alone), tunnels under flat ground buried by default (not in a trench the ground shows, not beside a slip road joining), only a street lower than the bare ground kept off a tube's cover, 2026-11-12; 55: tunnels as networks: a tunnel's joints at the floor of the whole tunnel (earthfast tunnel_chain_nodes, GitHub #1160 #1161 #490, Tromsø), the tube fitted under a road over a short section, opt-in burial under flat ground (BNE_TUNNEL_BURY), 2026-11-12; 54: FACTS_FORMAT 18 (town streets narrowed to the walls along them, roads._wall_capped: the graded corridors with them); 53: two carriageways overlapping in plan at other levels: the point is the road's it lies deeper in (earthfast gradebins, the S1's east lanes under Rautenweg's bank ramp, GitHub #1083), 2026-11-12; 52: lid junctions (GitHub #1083: Vienna's S1 under Rautenweg and Suedtiroler Platz, Porte Maillot) and slip roads at raised junctions (#960): a ground road that ends at a deck joint is no road under the deck (grading.JOINT_ROADS: the junction's own arms asked 8 m of clearance over themselves); an abutment's lift from the bridge whose end is nearest (NEAREST_END); an approach fill is a surface, the road's own climb taken off it and smoothed (APPROACH_FILL, approach.rs FILL_SMOOTH_M: no sag where a ramp meets a road climbing away, the A6 at Heilbronn #1176); a dipped road no longer holds its whole length beside other roads (DIP_HOLDS off: an M1 slip road stepped 1.4 m off the raised road it forks from); FACTS_FORMAT 17 (a junction over a tunnel in the open is an underpass, gradesep JOINED_ENDS); and each joint of a deck chain at one height (roads.DECK_WELD); 51: a raised junction is a height, not an offset (grading JR_FILL: an arm end above the junction rises only to its height, an arm filled to the ramp's surface, the ramp's remainder less what the stub climbs out of its abutment's cut; Wesley Chapel's SR 56 decks 13 m over I-75 for the real 7 m, GitHub #1043), and the dips under a deck see it climb from its ends and the junction raise carry its abutments (UNDER_CLIMB, JR_CARRY: I-75 dipped 1.6 m under them, now 0.4 m); 50: roads side by side agree in height (grading.share_corridors: a fork's branches, a slip road beside the road it joins, a road dipped under a deck and the ramp beside it; 0.4-0.8 m ramps across the lanes at Wesley Chapel #1043 and Findlay #1045; dirt roads without synthetic damage, smoothed as their class, and not eased flat onto a paved shoulder they leave; tunnel mouth plans without grade rank; a rail line from its longest copy); 49: FACTS_FORMAT 16 (lane sections of merged highways with one-sided auxiliary-lane tapers graded, PR #880; measured default widths, narrow winding rural roads); 48: both 47s merged; 47 (bumps): a rail bed's plan cut out of the carriageway of a road it crosses at grade (grading.rail_yield_pieces: a 0.3-0.7 m dip across the road at level crossings, Fells Point's streets with their tracks), and the deck-ground correction faded in from a deck end on the ground (grading.deck_ground_abut_taper: I-405's overpass ends read 5 m low off their fill); 47 (curves): the road centrelines rounded and curvature continuous by default (roadsmooth.py ON, G2 spirals, raceways included, interior connectors pinned: the user 2026-11-12, banked ovals ridden over their chords); 46: a side road trimmed at its mouth has its bank and widen cut with its line (they were left as long as the untrimmed line, and every later plan in the set read shifted bank values: 289 of 905 banked plans in 87 captured sets); 45: both of the 2026-11-11 night's 44s at once (the small and big PR batches each bumped to 44): one road planned in pieces meets itself at one height (grading.weld_continuations), a side road's mouth ends at the painted edge with a 20 m Hermite ramp (grading.trim_side_mouths), a rural minor road's flat verge is 1 m, and unclassified side roads get the gentle rank side ease (RANK_SIDE_MAX_DIFF 6) (PR #1107); and railway beds from one lattice of node profiles (railprofile.py: the same bed in every tile and grading cell), long smoothing of ground beds and rounded bends, switches brought to the lines they join, a road crossing a track at grade flush with it, a short rail bridge over a road on level ground a level crossing, a road under a rail bridge on lidar lowered at most 1 m (BNE_RAIL_UNDER_LIDAR_DROP) (PR #1106); 43: the plans' elevation has the bridges it holds under mapped decks taken out (grading.DECK_GROUND_*: the Pont de Normandie's 60-150 m ridge under its deck, GitHub #1098); 42: an overpass's abutment lift reads the road under beside the deck, as that road's own plan reads it (grading.ground_under_deck, LIFT_UNDER_BESIDE: an elevation holding the deck over a motorway cut asked 6.7-8.5 m at Albox, GitHub #1086, PR #1090); 41: a short road tunnel grade separation made ground still holds the railway over it at underpass clearance (railways.road_underpasses reads the map's tunnel ranges too: Nashville, PR #1094); 40: no junction raise at a freeway's own deck, nor for a lift only an elevation model holding the deck over the road under asks (grading JR_OWN_CLASS / JR_TRUSTED: Andalusia's roundabouts and slip roads stood 5-8 m over the ground, GitHub #1077); 39: road grading ranks: a built (paved / cobble) road keeps its own ground where a dirt road runs beside it, the dirt road adapting; a side road eases onto the higher road's ground (RANK_SIDE_FADE_M, RANK_HEIGHT_FADE_M) and the blend starts at the painted asphalt edge; a road with no equal-ranked road at a point holds its own carriageway, and a junction pad takes only the highest-ranked branch (GitHub #771, PR #1050); 38: a road under a measured deck needs only real headroom under it, the deck as measured over it (grading UNDER_MEASURED_ON: I-75 dipped 1.5 m under an overpass at Findlay); 37: the ramp envelope only where the geometry breaks (a step of 0.3 m or more where roads meet, a raised road steeper than 12 % and than before), else nothing changes; 36: the roads round a raised junction and a freeway overpass's approaches on ramps no steeper than 6 % (grading.ramp_envelope: steps of 45-58 % at Findlay's diverging diamond), freeway links rise with their junction; 35: an approach's junction rises with it (grading JUNCTION_RAISE_ON: the junction's roads no longer cap its ramp; GitHub #1043, #1045); 34: a ground track takes a distant deck's rise over its own bed, not its height (railways.profile: a mountain line's deck carried down at 2 % stood Andermatt's station 14 m up, GitHub #1051); 33: a small roundabout's ring wider by its fitted radius (roads.ring_width, PR #1048); 32: a measured deck on the ground where clearance needs a lift is stale (grading OBS_STALE_LIFT_M, roads OBS_STALE_M: GitHub #1045), and 31's tunnel end rule taken back (it pushed portals out of approach cuts at Caldecott, Tom Lantos, the Gotthard); 31: a tunnel's short open end run over a drop is tube (roads.portal_cover: Fort Pitt's east portal onto its bridge); 30: FACTS_FORMAT 13 (skew crossings' grade-separation bridges long enough for the road under them, GitHub #1020); 29: FACTS_FORMAT 12 (a long road's copies far from its home agree on its bridges over underpasses, GitHub #1020); 28: a rail bed beside a road that crosses under it (a bridge, SEAM_CROSS_M of height at a
                       # crossing angle) keeps its own level: the approach fill is not taken down to the road under
                       # the deck and the two sides meet the deck; 27: FACTS_FORMAT 11 (an underpass in a cutting bridged by the roads over it, GitHub #1009); PR #1014's one-way carriageways drawn and graded where OpenStreetMap's placement puts their lanes (PR #1014); 26: CA-1's Tom Lantos tunnels: a bridge starts at a tunnel's portal over a short ground gap (roads._portal_decks, FACTS_FORMAT 10), no portal low arch shorter than SECTION_MIN_M before a full tube (roads.portal_cover), and a tunnel's own sections (a low arch at its portal, the full tube) and a part going on from another's end never twin tunnels (roads.twin_tunnels: grading._twin_trimmed cut them, CA-1's Tom Lantos bore lost its tube); 25: underpasses: no open-road trench through the roads over them, a tunnel's portal kept where its own approach road joins it (roads._tunnel_reach) and a road's bridge over one found in any cell it crosses (roads._gradesep_elsewhere; FACTS_FORMAT 9); 24: a segment's tunnel ranges joined only where one source way spans the gap (PR #927); a rail bed's band past its ballast gives way to an approach's carriageway, no claim past an abutment end (PR #920, #909); bridge pieces keep their mapped local levels across merged interchange roads (PR #873, #866); 23: bridge seams without steps: a deck end meets its road, a street off an abutment held level, a single span shared between its approaches, a stream crossed at the road's level, a track beside a road with room for the ground between (grading._pin_cw_ends, _hold_mouth, _grade_match, railroadseam.py, roads.water_clear); 22: overpasses mapped in parts are one span and road ends within 2 m one dip node (#973, #983; still the same release as 21); 21: one bump for the 2026-11-08 PR batch: abandoned railways not graded (#953, #706), dirt roads on the coarse global elevation smoothed over DIRT_SIGMA_COARSE_M (#951, #835), rail viaduct decks' heights capped (#949), worn railway lines cut at motorways (#946, #918); 18: cutting probes located through grading.enu_to_ll_dense (heights moved < 0.1 mm); 17: PR #843 (restored highway and ramp shoulder widths); 16: walkway bridge spans cap the road under them (PR #842) and OSM busways graded (PR #836); 15: continuous subsea tunnel profiles and their approaches (PR #822, #792); 14: past an abutment end the ground falls away under a still-climbing deck (ABUT_UNDER_GRADE)
                       # 13: centimetre-scale dirt wear and bounded edge displacement from random banking
@@ -141,6 +145,10 @@ class PlanCache:
         self._persist_at = time.monotonic()
         self.source_versions = None  # callable for the versions actually known after a complete cell was built
         self.stats = {"read": 0, "written": 0, "waited": 0, "wait_s": 0.0}
+        self._stage_tokens = {}     # cell key -> the owner token of its road stage's claim held here (stage_claim)
+        # fresh: a late retry's own cache (blockworker.late_plan): this run's plans and road stages made short of
+        # something are not read (they are what is being made again); complete ones are
+        self.fresh = False
         self._lock = threading.Lock()
 
     def _path(self, key):
@@ -165,6 +173,8 @@ class PlanCache:
                 got = self._kept(key)
                 if got is not None:
                     src, final = got, True
+                elif self.fresh:
+                    return None
             self._note_final(key, final)
             with np.load(src, allow_pickle=False) as f:
                 meta = json.loads(bytes(f["meta"]).decode("utf-8"))
@@ -467,7 +477,8 @@ class PlanCache:
                 self.stats["waited"] += 1
             h = xproc._holder(self._path(key) + ".lock")
             holder.append(h[2] if h else None)
-        got, mine = xproc.once(self._path(key) + ".lock", lambda: self.load(key), WAIT_S, on_wait=waiting)
+        got, mine = xproc.once(self._path(key) + ".lock", lambda: self.load(key), WAIT_S, on_wait=waiting,
+                               live_s=LIVE_WAIT_S, live_note=f"cell {key}'s plans")
         waited = time.monotonic() - t0
         if got is not None and waited > xproc.POLL_S:
             with self._lock:
@@ -505,6 +516,9 @@ class PlanCache:
         ef = _stage_ef()
         if ef is None:
             return None, False
+        if self.fresh:  # (a late retry: a short stage of the run is not read, nor one kept over it here; a complete
+            got = self.stage_load(key)      # one is read)
+            return (got if got is not None and not got[2] else None), False
         path = self._stage_path(key)
         if not hold:
             got = self.stage_load(key)
@@ -513,37 +527,58 @@ class PlanCache:
         rank, prio = xproc._rank("demand")
         pid = os.getpid()
         t0 = time.monotonic()
-        st = ef.stage_claim(path, rank, prio, pid)
         waited = False
-        while st == ef.STAGE_HELD:
-            if time.monotonic() - t0 > (STAGE_WAIT_S if wait_s is None else wait_s):
-                return None, False
-            if not waited:
-                waited = True
-                with self._lock:
-                    self.stats["stage_waited"] = self.stats.get("stage_waited", 0) + 1
-            xproc.check_cancel()        # (a block / road tile of a place a teleport left)
-            st = ef.stage_wait(path, rank, prio, pid, STAGE_SLICE_MS)
+        # (a result that does not read, damaged or cut short, is asked for once more with repair: checked under the
+        # folder's lock it counts as none, so one process takes the claim and writes it again, the others wait for
+        # that; before, it stayed "ready" for the run and every process made the stage without keeping it)
+        for repair in (False, True):
+            st, token = ef.stage_claim(path, rank, prio, pid, repair)
+            while st == ef.STAGE_HELD:
+                if time.monotonic() - t0 > (STAGE_WAIT_S if wait_s is None else wait_s):
+                    return None, False
+                if not waited:
+                    waited = True
+                    with self._lock:
+                        self.stats["stage_waited"] = self.stats.get("stage_waited", 0) + 1
+                xproc.check_cancel()        # (a block / road tile of a place a teleport left)
+                st, token = ef.stage_wait(path, rank, prio, pid, STAGE_SLICE_MS, repair)
+            if st != ef.STAGE_READY:
+                break
+            got = self.stage_load(key)
+            if got is not None:
+                break
+            with self._lock:
+                self.stats["stage_damaged"] = self.stats.get("stage_damaged", 0) + 1
         if waited:
             with self._lock:
                 self.stats["stage_wait_s"] = self.stats.get("stage_wait_s", 0.0) + time.monotonic() - t0
         if st == ef.STAGE_READY:
-            return self.stage_load(key), False
+            return got, False
         if st == ef.STAGE_MINE and not hold:
-            ef.stage_release(path)
+            ef.stage_release(path, token)
             return None, False
+        if st == ef.STAGE_MINE:
+            with self._lock:            # (the claim's owner token: stage_store and stage_release act only as its owner)
+                self._stage_tokens[tuple(int(v) for v in key)] = token
         return None, st == ef.STAGE_MINE
 
     def stage_release(self, key):
         ef = _stage_ef()
-        if ef is not None:
-            ef.stage_release(self._stage_path(key))
+        with self._lock:
+            token = self._stage_tokens.pop(tuple(int(v) for v in key), 0)
+        if ef is not None and token:
+            ef.stage_release(self._stage_path(key), token)
 
-    def stage_store(self, key, plans, keeps, short):
-        """Cell key's road stage for the run's other processes (short: made short of something, read so). False when
-        it could not be written (they make it themselves)."""
+    def stage_store(self, key, plans, keeps, short, decks=None):
+        """Cell key's road stage for the run's other processes (short: made short of something, read so; decks: the
+        identity of the corrected decks it was made under, grading.deck_patches_id). False when it could not be
+        written, or the claim is no longer this process's (they make it themselves)."""
         ef = _stage_ef()
         if ef is None:
+            return False
+        with self._lock:
+            token = self._stage_tokens.get(tuple(int(v) for v in key), 0)
+        if not token:
             return False
         meta = {"plans": [{"fid": fid, "half": p.half, "abut": list(p.abut), "road_half": p.road_half,
                            "rid": int(p.rid), "rank": int(getattr(p, "rank", -1)),
@@ -551,7 +586,7 @@ class PlanCache:
                            "bank": getattr(p, "bank", None) is not None, "steep": bool(getattr(p, "steep", False)),
                            "widen": getattr(p, "widen", None) is not None}
                           for fid, p in plans],
-                "keeps": [float(hw) for _xy, hw in keeps], "short": bool(short)}
+                "keeps": [float(hw) for _xy, hw in keeps], "short": bool(short), "decks": decks}
         arrays = {}
         try:
             _pack(arrays, "p", [p.xy for _f, p in plans])
@@ -562,7 +597,8 @@ class PlanCache:
             _pack(arrays, "k", [xy for xy, _hw in keeps])
             rows = [(n, a.dtype.str, [int(d) for d in a.shape], np.ascontiguousarray(a).tobytes())
                     for n, a in arrays.items()]
-            ok = bool(ef.stage_put(self._stage_path(key), json.dumps(meta).encode("utf-8"), rows, os.getpid()))
+            ok = bool(ef.stage_put(self._stage_path(key), json.dumps(meta).encode("utf-8"), rows, os.getpid(),
+                                   token))
         except (OSError, ValueError, TypeError):    # (plans of mixed arrays, a full disk: each process makes its own)
             return False
         if ok:
@@ -571,7 +607,8 @@ class PlanCache:
         return ok
 
     def stage_load(self, key):
-        """(plans, keeps, short) of cell key's road stage as a process of this run made it, or None."""
+        """(plans, keeps, short, the identity of the corrected decks it was made under) of cell key's road stage as
+        a process of this run made it, or None."""
         from grading import Plan, set_widen
         ef = _stage_ef()
         if ef is None:
@@ -601,7 +638,7 @@ class PlanCache:
             return None
         with self._lock:
             self.stats["stage_read"] = self.stats.get("stage_read", 0) + 1
-        return plans, keeps, bool(meta.get("short"))
+        return plans, keeps, bool(meta.get("short")), meta.get("decks")
 
 
     # ---- carriageway regions (grading._Planner._cw_region): solved once a run, read by every process ----

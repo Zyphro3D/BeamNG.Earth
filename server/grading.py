@@ -103,6 +103,12 @@ CORRIDOR_MIN_RH = 2.4       # m: a carriageway at least this wide (half): no pat
 CORRIDOR_WREQ = 10.0        # the spline's weight where a correction is asked ...
 CORRIDOR_W0 = 0.01          # ... and elsewhere (pulling back to the plan as made) ...
 CORRIDOR_LAM = 50000.0      # ... against its curvature: eased over ~(LAM / W0) ** 0.25 ~ 47 m
+# A road where it passes under a deck is on another level than a road beside it there (the ramp up to that deck, a
+# road on its embankment): one corridors would raise more than this under a deck keeps its own heights (the Bowker
+# Overpass, Boston: a Storrow Drive ramp under it was raised 3.1 m to the ramp beside it once the deck's abutments rose
+# less for its maxheight signs, its 3.35 m sign left with no headroom, 2026-11-13). BNE_CORRIDOR_UNDER=off: as before.
+CORRIDOR_UNDER_ON = os.environ.get("BNE_CORRIDOR_UNDER", "on") != "off"
+CORRIDOR_UNDER_RAISE_M = 1.0
 CORRIDOR_THROUGH = 1000     # added to a through road's key (not a slip road): two through roads side by side
                             # (a dual carriageway's halves on a hillside, BR-381's) each keep their own height
 DIP_HOLDS = os.environ.get("BNE_DIP_HOLDS", "off") == "on"   # (a dipped road held over every other: _corridor_key)
@@ -514,6 +520,7 @@ DECK_GROUND_REACH_M = 160.0             # m from a deck's centre line no sample 
 # an end (deck_ground_abut_taper); joints between decks (a viaduct in parts) are lowered as before.
 DECK_GROUND_ABUT_M = float(os.environ.get("BNE_DECK_GROUND_ABUT", "10"))
 DECK_GROUND_JOINT_M = 3.0               # m from a deck's end to another deck's line: a joint, not an abutment
+DECK_GROUND_RETRY_S = 20.0             # s a correction made while something it read failed is used before it is made again
 DECK_GROUND_KEPT = 8192                # decks' corrections a planner keeps (_deck_patches; most are None)
 DECK_GROUND_PACKS_KEPT = 256            # cell sets' corrected decks kept (_deck_pack_cells)
 UNDER_DECK_MAX_M = 30.0     # m along the road a deck covers at most either side of the crossing (an oblique one)
@@ -2141,6 +2148,88 @@ def _twin_trimmed(secs):
 _UNSET = object()
 
 
+_MAKING = threading.local()     # .stack: the fault scopes of the kept answers this thread is making now (_marked)
+
+
+def _marked(memo, keyfn):
+    """A planner's method whose answer is kept in its memory under self.<memo>[keyfn(self, ...)]: what the making
+    read short of something (a failed read, the lidar rule: the thread's faults while it ran) is kept with the answer
+    and said again to every later reader of the kept one, as _short_read does for plans. An answer made on fallback
+    data was read again without a word, by another cell's planning in a clean scope: plans kept as complete, or a
+    road stage shared as complete, that were not.
+    The marks are written by whoever puts an entry in the memory, in the same hold of the planner's lock as the entry
+    itself (_Planner._marks_at, from the making's scope on this thread's _MAKING stack), and read in the same hold of
+    the lock as the entry is taken out (_marks_seen: into this call's slot on the thread's _MAKING.seen): the marks
+    said are those of the very entry returned, whatever is put in its place a moment later."""
+    def deco(fn):
+        def run(self, *a, **k):
+            import revisit
+            st = _MAKING.__dict__.setdefault("stack", [])
+            seen = _MAKING.__dict__.setdefault("seen", [])
+            seen.append(None)
+            try:
+                with revisit.scope() as b:
+                    st.append(b)
+                    try:
+                        out = fn(self, *a, **k)
+                    finally:
+                        st.pop()
+            finally:
+                m = seen.pop()
+            if m:
+                if m[0]:
+                    revisit.fault(here=True)
+                if m[1]:
+                    revisit.fault(lidar=True)
+            return out
+        run.__name__, run.__doc__, run.__qualname__ = fn.__name__, fn.__doc__, fn.__qualname__
+        run.marked = (memo, keyfn)
+        return run
+    return deco
+
+
+# The errors of the computation itself that leave a fallback persistable (_caught): kept short on purpose. Each is
+# raised by arithmetic on values already read, never by reading them, and only counts when nothing was read short
+# before it in the making (then the values are the complete data's, and the error the same at every visit).
+_COMPUTED = (
+    ZeroDivisionError,      # a division by a zero length / span of a degenerate part (two equal vertices)
+    FloatingPointError,     # numpy's raised arithmetic errors (np.errstate raise) on such a part
+    OverflowError,          # int() / round() of an infinite or huge value computed from it
+)
+
+
+def _caught(e):
+    """In a handler that goes on with a fallback ("... rather than no grading"): pools.Abandoned goes on up (a job of
+    a place the player left is never planned on). Any other error makes what is built on the fallback short
+    (revisit.fault: not kept for later visits, made again), whatever its type: a malformed survey array raises a
+    ValueError or IndexError deep in a kernel as readily as a failed read raises an OSError, and a fallback kept as
+    complete would stay after the source was repaired. Only the few errors of _COMPUTED, in a making that read
+    nothing short, leave it persistable; those are logged with the cell (WARNING), to be found and fixed: marked
+    short, a place with one would never be kept, which costs speed and never a wrong world."""
+    if type(e).__name__ == "Abandoned":
+        raise e
+    import revisit
+    st = getattr(_MAKING, "stack", None) or revisit._stack()
+    clean = not (st and (st[-1].n or st[-1].lidar))
+    cell = getattr(_MAKING, "cell", None)
+    said = (str(cell), type(e).__name__, str(e)[:80])
+    first = said not in _CAUGHT_SAID        # (each once a process: a failing source raises the same error all along)
+    if first and len(_CAUGHT_SAID) < 512:
+        _CAUGHT_SAID.add(said)
+    if clean and isinstance(e, _COMPUTED):
+        if first:
+            log.warning("grading: cell %s: a fallback after an error of the computation on complete inputs, kept as "
+                        "planned: %s: %s", cell, type(e).__name__, e)
+        return
+    if first:
+        log.warning("grading: cell %s: a fallback after %s: %s: what is planned on it is not kept", cell,
+                    type(e).__name__, e)
+    revisit.fault(here=True)
+
+
+_CAUGHT_SAID = set()
+
+
 class _Planner:
     """The road plans of one planning region (geotiles.PLAN_Z), in its frame, per map cell, made once (worker threads;
     it fetches the road cells it lacks). store: the PlanStore it belongs to (its other regions, its settings)."""
@@ -2221,6 +2310,26 @@ class _Planner:
             self.dgcells.setdefault(key, got[4])
             return self.cells[key]
 
+    def _marks_at(self, memo, key):
+        """With self.lock held, as self.<memo>[key] is put in: its marks, from the scope of the making this thread is
+        in (_marked's, _MAKING): read short of something, on the lidar rule; none when it was made complete (or put in
+        outside any making: nothing to say of it)."""
+        st = getattr(_MAKING, "stack", None)
+        marks = self.__dict__.setdefault("_marks", {})
+        b = st[-1] if st else None
+        if b is not None and (b.n or b.lidar):
+            marks[(memo, key)] = (bool(b.n), bool(b.lidar))
+        else:
+            marks.pop((memo, key), None)
+        self._marks_seen(memo, key)     # (the maker returns the entry it has just put in)
+
+    def _marks_seen(self, memo, key):
+        """With self.lock held, as the entry self.<memo>[key] is taken out to be returned: its marks into the slot of
+        the _marked call this thread is in (the innermost: the method whose memory it is)."""
+        seen = getattr(_MAKING, "seen", None)
+        if seen:
+            seen[-1] = self.__dict__.get("_marks", {}).get((memo, key))
+
     def _short_read(self, keys):
         """Plans (or road stages: stages) of cells keys read: those made short of something make the build reading them
         short too (revisit.fault, in this thread: its own builds alone)."""
@@ -2290,6 +2399,14 @@ class _Planner:
                         stack.pop()
                     if got is not None:
                         got = tuple(got) + (dg,)
+                        with self.lock:
+                            theirs = self.__dict__.get("_stage_decks", {}).pop(key, None)
+                        if theirs is not None and theirs != deck_patches_id(dg):
+                            # (its road stage was another process's, made under other corrected decks than the ones
+                            # kept with these plans: one of the two was short of something; not kept for later visits)
+                            log.info("grading: cell %s's shared road stage was made under other corrected decks than "
+                                     "this process's: its plans are not kept", key)
+                            revisit.fault(here=True)
                 finally:
                     watch.cancel()
             revisit.end(b)
@@ -2404,15 +2521,20 @@ class _Planner:
                     got = self._stage_adopt(key, *shared)
                     if got is not None:
                         return got
-                dg = self._cell_deck_patches(key)
-                stack = self._dg_local.__dict__.setdefault("stack", [])
-                stack.append(self._stack_entry(key, dg))
                 import revisit
-                try:
-                    with revisit.scope() as b:
+                _MAKING.cell = key
+                # (the cell's corrected decks inside the stage's own scope: made short of something (a side probe's
+                # elevation that failed, a neighbour cell missing: _deck_patches says so at every read), the stage
+                # is short too. They were made before the scope: a stage on fallback corrections was kept for the
+                # run's other processes as complete, and one of them could keep plans made from it for later visits)
+                with revisit.scope() as b:
+                    dg = self._cell_deck_patches(key)
+                    stack = self._dg_local.__dict__.setdefault("stack", [])
+                    stack.append(self._stack_entry(key, dg))
+                    try:
                         got = self._make_cell_roads(key)
-                finally:
-                    stack.pop()
+                    finally:
+                        stack.pop()
                 if got is not None:
                     with self.lock:
                         if b.n or b.lidar:
@@ -2424,7 +2546,7 @@ class _Planner:
                             memo.popitem(last=False)
                     if mine:
                         try:
-                            self.shared.stage_store(key, got[1], got[2], bool(b.n or b.lidar))
+                            self.shared.stage_store(key, got[1], got[2], bool(b.n or b.lidar), deck_patches_id(dg))
                         except Exception as e:      # (the others make it themselves)
                             log.debug("grading: road stage of %s not kept for the run: %s: %s", key,
                                       type(e).__name__, e)
@@ -2435,10 +2557,12 @@ class _Planner:
                     self.shared.stage_release(key)
             return got
 
-    def _stage_adopt(self, key, plans, keeps, short):
+    def _stage_adopt(self, key, plans, keeps, short, decks=None):
         """Cell key's road stage as another process of the run made it (plans, keeps; short: made short of something,
-        read so) taken as this process's: (feats, plans, keeps) with the cell's roads as _make_cell_roads fetches them,
-        or None when they cannot be fetched (made here then: its failure handled there)."""
+        read so; decks: the identity of the corrected decks it was made under, checked against this process's own
+        when it plans the cell: _plan_cell) taken as this process's: (feats, plans, keeps) with the cell's roads as
+        _make_cell_roads fetches them, or None when they cannot be fetched (made here then: its failure handled
+        there)."""
         try:
             feats = self.md.cell(key, layers=("roads",), kind="demand").layers.get("roads")
         except Exception as e:
@@ -2447,6 +2571,7 @@ class _Planner:
         got = (feats, plans, keeps)
         with self.lock:
             memo = self.__dict__.setdefault("_road_stages", OrderedDict())
+            self.__dict__.setdefault("_stage_decks", {})[key] = decks
             if short:
                 self.stage_short.add(key)
             else:
@@ -2528,6 +2653,7 @@ class _Planner:
         try:
             feats = self.md.cell(key, layers=("roads",), kind="demand").layers.get("roads")
         except Exception as e:      # no road data: ungraded (asked again after RETRY_S)
+            _caught(e)
             log.debug("grading: roads of %s: %s: %s", key, type(e).__name__, e)
             with self.lock:
                 self.failed[key] = time.monotonic()
@@ -2565,6 +2691,7 @@ class _Planner:
                     e, n, _ = self.frame.geodetic_to_enu(pe[:, 1], pe[:, 0], 0.0)
                     abut = self._abut_ends(key, np.stack([np.asarray(e), np.asarray(n)], axis=1)).reshape(-1, 2)
                 except Exception as e:      # no fills rather than no grading
+                    _caught(e)
                     log.debug("grading: abutments of %s: %s: %s", key, type(e).__name__, e)
             ext = pins = None
             if CHAIN_ON and parts:
@@ -2573,6 +2700,7 @@ class _Planner:
                     ext = self._extensions(parts, ids)
                     pins = self._pins(parts, ids, ext, key)
                 except Exception as e:      # each part smoothed alone rather than no grading
+                    _caught(e)
                     log.debug("grading: road chains of %s: %s: %s", key, type(e).__name__, e)
             pclip = []
             pparts = []                         # (fid, spec, lon/lat ring) of each plan (roadcorners.grade_rows)
@@ -2601,6 +2729,7 @@ class _Planner:
                     couple_neighbours([p for _f, p in plans], pspecs,
                                       lambda xy: field_heights(self.frame, self.elev, xy, r, NEIGHBOUR_TREND_SIGMA_M))
                 except Exception as e:      # each road on its own rather than no grading
+                    _caught(e)
                     log.debug("grading: neighbours of %s: %s: %s", key, type(e).__name__, e)
             pad_nodes = None
             if JUNCTION_SNAP_ON and plans:
@@ -2608,27 +2737,32 @@ class _Planner:
                     snap_junctions([p for _f, p in plans], pspecs)
                     pad_nodes = junction_pads([p for _f, p in plans], pspecs)
                 except Exception as e:      # blended as before rather than no grading
+                    _caught(e)
                     log.debug("grading: junctions of %s: %s: %s", key, type(e).__name__, e)
             if COARSE_EASE_ON and plans:
                 try:
                     self._ease_coarse(key, plans, pspecs)
                 except Exception as e:      # as they were rather than no grading
+                    _caught(e)
                     log.debug("grading: coarse easing of %s: %s: %s", key, type(e).__name__, e)
             if APPROACH_ON and plans:
                 try:
                     self._lift_approaches(key, plans, pspecs)
                 except Exception as e:      # ungraded approaches rather than no grading
+                    _caught(e)
                     log.debug("grading: approaches of %s: %s: %s", key, type(e).__name__, e)
             # (the carriageways' profiles before the dips: a motorway under another road's low deck still dips)
             if CW_ON and plans:
                 try:
                     self._apply_carriageways(plans, pspecs)
                 except Exception as e:      # as they were rather than no grading
+                    _caught(e)
                     log.debug("grading: carriageways of %s: %s: %s", key, type(e).__name__, e)
             if UNDER_ON and plans:
                 try:
                     self._lower_underpasses(key, plans)
                 except Exception as e:      # as the data has it rather than no grading
+                    _caught(e)
                     log.debug("grading: underpasses of %s: %s: %s", key, type(e).__name__, e)
             if JUNCTION_SNAP_ON and plans and (APPROACH_ON or UNDER_ON):
                 # the side roads again, at their roads' heights after the approaches' lifts and the underpasses' dips
@@ -2638,12 +2772,14 @@ class _Planner:
                     snap_junctions([p for _f, p in plans], pspecs)
                     junction_pads([p for _f, p in plans], pspecs, pad_nodes)
                 except Exception as e:
+                    _caught(e)
                     log.debug("grading: junctions after the dips of %s: %s: %s", key, type(e).__name__, e)
             if SEAMS_ON and CW_ON and plans:
                 try:            # the deck's height at each carriageway road's abutment end, whatever the passes did to it
                     if self._pin_cw_ends(plans, pspecs) and JUNCTION_SNAP_ON:
                         snap_junctions([p for _f, p in plans], pspecs)      # (the side roads meet it again)
                 except Exception as e:      # the plans as the passes left them rather than no grading
+                    _caught(e)
                     log.debug("grading: carriageway ends of %s: %s: %s", key, type(e).__name__, e)
             with self.lock:
                 ctx = self.__dict__.setdefault("_ramp_ctx", {}).pop(str(key), None) if APPROACH_ON and plans else None
@@ -2652,6 +2788,7 @@ class _Planner:
                 try:
                     ramp_envelope(plans, pspecs, *ctx)
                 except Exception as e:
+                    _caught(e)
                     log.debug("grading: ramp envelope of %s: %s: %s", key, type(e).__name__, e)
             if GUARD_ON and plans:
                 try:            # the finished plans under the grade ceilings and the window rule (grade_guard)
@@ -2661,26 +2798,31 @@ class _Planner:
                         log.info("grading: grade guard %s: %d edges still over their ceiling, worst %.1f m", key,
                                  int(st[4]), float(st[5]))
                 except Exception as e:      # the plans as the passes left them rather than no grading
+                    _caught(e)
                     log.debug("grading: grade guard of %s: %s: %s", key, type(e).__name__, e)
             if CORRIDOR_ON and plans:
                 try:            # roads side by side at one height (before the welds and snaps that join them again)
-                    share_corridors(plans, pspecs)
+                    share_corridors(plans, pspecs, self._decks_near(key) if CORRIDOR_UNDER_ON else ())
                 except Exception as e:      # each on its own rather than no grading
+                    _caught(e)
                     log.debug("grading: corridors of %s: %s: %s", key, type(e).__name__, e)
             if WELD_ON and plans:
                 try:            # one road planned in pieces meets itself at one height (a dip across a junction)
                     weld_continuations(plans, pspecs)
                 except Exception as e:      # the pieces as planned rather than no grading
+                    _caught(e)
                     log.debug("grading: welded continuations of %s: %s: %s", key, type(e).__name__, e)
             if JUNCTION_SNAP_ON and plans:
                 try:            # the side roads meet the welded main again, at its new height (no step at the mouth)
                     snap_junctions([p for _f, p in plans], pspecs)
                 except Exception as e:      # the welded heights alone rather than no grading
+                    _caught(e)
                     log.debug("grading: junctions after welding of %s: %s: %s", key, type(e).__name__, e)
             if plans:
                 try:            # a pass road's widened hairpins (roads.HAIRPIN_*): its core wider round each
                     hairpin_cores(plans, pspecs, self.frame)
                 except Exception as e:      # the road's own core rather than none
+                    _caught(e)
                     log.debug("grading: hairpins of %s: %s: %s", key, type(e).__name__, e)
             if CORNERS_ON and plans:
                 # the rounded corners of curbless junctions (roadcorners.py): the ground under each graded to its roads'
@@ -2693,6 +2835,7 @@ class _Planner:
                     plans.extend(corner_plans)
                     pclip.extend([True] * len(corner_plans))
                 except Exception as e:      # the roads' own grading rather than none
+                    _caught(e)
                     log.debug("grading: road corners of %s: %s: %s", key, type(e).__name__, e)
             # a long road's piece (planned with CLIP_MARGIN_M of the road either side for its profile) kept only within
             # the cell's own box: every stretch of road in one cell's plans, once (overlapping pieces from neighbouring
@@ -2732,6 +2875,7 @@ class _Planner:
                             plans.append((RAIL_TAG + fid, p))
                             pclip.append(True)
                 except Exception as e:      # no rail grading rather than no grading
+                    _caught(e)
                     log.debug("grading: railways of %s: %s: %s", key, type(e).__name__, e)
             # every plan only within the cell's own box, so each stretch of road is planned by one cell (its dips
             # made with every road around: _lower_underpasses); the tunnels' ends graded as before, a part shorter
@@ -2748,6 +2892,7 @@ class _Planner:
             keeps = []
         return feats, plans, keeps
 
+    @_marked("_chain_memo", lambda self, key, feats=None, specs=None: key)
     def _chain_cands(self, key, feats=None, specs=None):
         """The graded ground parts of cell key's roads, as the continuations at a node in it are looked for (every cell
         that plans a part looks in its nodes' own cells, so its plan is the same in each): [(xy (k, 2) in the frame,
@@ -2756,6 +2901,7 @@ class _Planner:
         memo = self.__dict__.setdefault("_chain_memo", {})
         with self.lock:
             got = memo.get(key)
+            self._marks_seen("_chain_memo", key)
         if got is not None:
             return got
         out = []
@@ -2784,6 +2930,7 @@ class _Planner:
             if len(memo) > 64:
                 memo.clear()
             memo[key] = out
+            self._marks_at("_chain_memo", key)
         return out
 
     def _extensions(self, parts, ids):
@@ -2918,6 +3065,19 @@ class _Planner:
         keys = [self._strong_key(c, last, cell) for c, last in asks]
         with self.lock:
             miss = [n for n, k in enumerate(keys) if k not in memo]
+        if miss:        # (the ones made at once below are one making: each kept with its marks, _strong_keep)
+            import revisit
+            st = _MAKING.__dict__.setdefault("stack", [])
+            with revisit.scope() as b:
+                st.append(b)
+                try:
+                    self._stronger_groups(asks, cell, keys, miss)
+                finally:
+                    st.pop()
+        return [self._stronger_z(c, last, cell) for c, last in asks]
+
+    def _stronger_groups(self, asks, cell, keys, miss):
+        """_stronger_zs' parts planned at once, kept (_strong_keep)."""
         groups, seen = {}, set()
         for n in miss:
             if keys[n] not in seen:
@@ -2936,8 +3096,8 @@ class _Planner:
                 for (n, (part, last, whole)), p in zip(jobs, plans):
                     self._strong_keep(asks[n][0], keys[n], p, last, whole)
             except Exception as e:      # one at a time, each its own failure (_stronger_z)
+                _caught(e)
                 log.debug("grading: pin heights at once: %s: %s", type(e).__name__, e)
-        return [self._stronger_z(c, last, cell) for c, last in asks]
 
     def _strong_args(self, cell, part):
         """plan_roads' coarse / obs / decks for a _stronger_z plan of lon/lat part: the cell being planned's, as its own
@@ -2989,10 +3149,13 @@ class _Planner:
         with self.lock:
             if len(memo) > 4096:
                 memo.clear()
-            memo.setdefault(k, z)
-            if other is not None:
-                memo.setdefault(*other)
+            # (both ends of a part planned whole are this making's: each kept with its marks, _marks_at)
+            for kk, zz in ((k, z),) + ((other,) if other is not None else ()):
+                if kk not in memo:
+                    memo[kk] = zz
+                    self._marks_at("_strong_memo", kk)
 
+    @_marked("_strong_memo", lambda self, cand, at_last, cell=None: self._strong_key(cand, at_last, cell))
     def _stronger_z(self, cand, at_last, cell=None):
         """The planned height of a candidate part (_chain_cands') at its first or last point: its own plan (its chains,
         no pins), within CLIP_MARGIN_M of that point when it is long, for the plans of cell. Kept per part end and cell
@@ -3001,6 +3164,7 @@ class _Planner:
         memo = self.__dict__.setdefault("_strong_memo", {})
         with self.lock:
             if k in memo:
+                self._marks_seen("_strong_memo", k)
                 return memo[k]
         try:
             part, last, whole = self._strong_part(cand, at_last)
@@ -3010,10 +3174,13 @@ class _Planner:
                            **self._strong_args(cell, part))[0]
             self._strong_keep(cand, k, p, last, whole)
         except Exception as e:      # not held rather than no grading
+            _caught(e)
             log.debug("grading: pin height of %s: %s: %s", cand[5], type(e).__name__, e)
             with self.lock:
                 memo[k] = None
+                self._marks_at("_strong_memo", k)
         with self.lock:
+            self._marks_seen("_strong_memo", k)
             return memo.get(k)
 
     def _clip_quad(self, key):
@@ -3081,6 +3248,7 @@ class _Planner:
                 try:
                     return prov.observed(self.frame, xy, spec.width / 2, 0, lidar_ground=True)
                 except Exception as e:  # the DEM's rather than no grading
+                    _caught(e)
                     log.debug("grading: measured approach: %s: %s", type(e).__name__, e)
                     return None
 
@@ -3089,6 +3257,7 @@ class _Planner:
                 try:
                     ready.update((id(xy), (xy, t)) for xy, t in zip(xys, self._touches_bridge_ends(xys)))
                 except Exception as e:      # (each asked on its own then)
+                    _caught(e)
                     log.debug("grading: bridge ends at once: %s: %s", type(e).__name__, e)
             approach_obs.prepare = prepare
             return approach_obs
@@ -3097,6 +3266,7 @@ class _Planner:
             try:
                 return prov.observed(self.frame, xy, spec.width / 2, 0)
             except Exception as e:      # the DEM's rather than no grading
+                _caught(e)
                 log.debug("grading: measured road heights: %s: %s", type(e).__name__, e)
                 return None
         return obs
@@ -3167,6 +3337,7 @@ class _Planner:
         try:
             z = prov.observed(self.frame, bridge, OBS_HALF_M, 1)
         except Exception as e:
+            _caught(e)
             log.debug("grading: measured deck at %s: %s: %s", xy, type(e).__name__, e)
             return None
         if z is None:
@@ -3189,9 +3360,12 @@ class _Planner:
         sb = np.r_[0.0, np.cumsum(dnp.hypot(*np.diff(b, axis=0).T))]
         a = np.linspace(corridor[0], corridor[1], max(2, int(math.ceil((corridor[1] - corridor[0]) / roadsmod.DECK_STEP)) + 1))
         line = np.stack([np.interp(a, sb, b[:, 0]), np.interp(a, sb, b[:, 1])], axis=1)
+        if roadz.PROVIDER is None:      # (no survey: nothing measured, as its handler answered before)
+            return None
         try:
             z = roadz.PROVIDER.observed(self.frame, line, OBS_HALF_M, 1)
         except Exception as e:
+            _caught(e)
             log.debug("grading: measured deck over a road: %s: %s", type(e).__name__, e)
             return None
         if z is None:
@@ -3207,10 +3381,13 @@ class _Planner:
         often mapped as two points, both on the ground); None when nothing is measured."""
         import roadz
         prov = roadz.PROVIDER
+        if prov is None:                # (no survey: nothing measured, as its handler answered before)
+            return None
         try:
             line = roadsmod.densify(np.asarray(bridge, np.float64)[:, :2], roadsmod.DECK_STEP)
             z = prov.observed(self.frame, line, OBS_HALF_M, 1)
         except Exception as e:
+            _caught(e)
             log.debug("grading: measured deck over the ground: %s: %s", type(e).__name__, e)
             return None
         if z is None:
@@ -3514,6 +3691,7 @@ class _Planner:
             r = JUNCTION_STUB_M + JUNCTION_ZONE_M
             got = self._ends_near([pairs[n][0] for n in todo], r, APPROACH_TOUCH_M, r, [pairs[n][1] for n in todo])
         except Exception as ex:     # (each its own then, and its own failure)
+            _caught(ex)
             log.debug("grading: junction ends at once: %s: %s", type(ex).__name__, ex)
             return None
         for n, c in zip(todo, got):
@@ -3550,6 +3728,7 @@ class _Planner:
                                         f64).reshape(-1, 2))
                 cok.append(True)
             except Exception as ex:     # (the points asking it: None)
+                _caught(ex)
                 log.debug("grading: bridge ends of %d/%d/%d: %s: %s", mapcells.ZOOM, x, y, type(ex).__name__, ex)
                 cends.append(np.zeros((0, 2), f64))
                 cok.append(False)
@@ -3562,6 +3741,7 @@ class _Planner:
             float(APPROACH_TOUCH_M), True)
         return [cand[off[i]:off[i + 1]] if st[i] else None for i in range(len(q))]
 
+    @_marked("_junction_memo", lambda self, e, other, cands=_UNSET: self._junction_key(e, other))
     def _junction_lift(self, e, other, cands=_UNSET):
         """(m to raise a road end e at a junction, the roads its ramp keeps clear of) when e is within JUNCTION_ZONE_M of
         the far end of a short approach (JUNCTION_STUB_M) to a raised abutment (_end_lift) and the road is not that
@@ -3571,6 +3751,7 @@ class _Planner:
         memo = self.__dict__.setdefault("_junction_memo", {})
         with self.lock:
             if k in memo:
+                self._marks_seen("_junction_memo", k)
                 return memo[k]
         res = None
         try:
@@ -3617,12 +3798,17 @@ class _Planner:
                                                                                  [:-1, :2], np.asarray(o[0], np.float64)
                                                                                  [1:, :2]).min()) > o[1] + APPROACH_TOUCH_M])
         except Exception as ex:     # no junction raise rather than no grading
+            _caught(ex)
             log.debug("grading: junction lift at %s: %s: %s", k, type(ex).__name__, ex)
             res = None
         with self.lock:
             if len(memo) > 4096:
                 memo.clear()
-            return memo.setdefault(k, res)
+            if k not in memo:
+                memo[k] = res
+                self._marks_at("_junction_memo", k)
+            self._marks_seen("_junction_memo", k)
+            return memo[k]
 
     def _lower_underpasses(self, key, plans):
         """Lower, in place, the plans that cross under a short never-raised overpass (UNDER_*), and the roads joined
@@ -3753,7 +3939,8 @@ class _Planner:
             for c in cr:
                 bi, arc_b, pt = c[0], c[1], np.asarray(c[2], f64)
                 b, L, fixed, rail = spans[bi]
-                sign = _limit_at(limits, pt) if rail and limits else None
+                sign = (_limit_at(limits, pt) if RAIL_SIGNED_ON else None) if rail and limits else None
+                road_sign = None if rail else roadsmod.road_sign_at(limits, pt)
                 mc = RAIL_MIN_CROSS_M if sign is not None else APPROACH_MIN_CROSS_M
                 if L < 2 * mc:
                     continue                    # (a short rail deck: a span only over a road with a height limit)
@@ -3797,6 +3984,8 @@ class _Planner:
                 if sign is not None:            # (a rail deck over a road with a height limit: that, not the guess)
                     clear = depth + sign + RAIL_SIGN_MARGIN_M + ROAD_LIFT
                     signed.add(len(cands))
+                elif road_sign is not None:     # (a road deck over one: the same, roads.signed_road_clear)
+                    clear = float(roadsmod.signed_road_clear(road_sign, depth)) + ROAD_LIFT
                 cands.append((i, float(s[j] + t[j] * (s[j + 1] - s[j])), deck - clear))
                 decks.append((deck, fixed))
                 cand_xs.append((bi, pt))
@@ -3976,6 +4165,7 @@ class _Planner:
                 ela, elo, _ = self.frame.enu_to_geodetic(ep[:, 0], ep[:, 1], 0.0)
                 zp = np.asarray(self.elev(np.asarray(ela, f64), np.asarray(elo, f64)), f64).ravel()
             except Exception as e:
+                _caught(e)
                 log.debug("grading: ground past the ends under decks: %s: %s", type(e).__name__, e)
         out, k0, j0 = [], 0, 0
         for (k, sg, med, raw, a, ext), p, m in zip(spans, pts, past):
@@ -3995,6 +4185,7 @@ class _Planner:
 
     # ---- carriageways (carriageways.py): a motorway's roads and decks as one profile ----
 
+    @_marked("_cw_cells", lambda self, k: str(k))
     def _cw_cell_parts(self, k):
         """Cell k's parts of the motorway and trunk families: [(key, line (n, 2), is_bridge, cls, feature id, level,
         half width)], each once (level: a bridge's OSM layer, 1 without one; 0 on the ground)."""
@@ -4002,6 +4193,7 @@ class _Planner:
         sk = str(k)
         with self.lock:
             got = memo.get(sk)
+            self._marks_seen("_cw_cells", sk)
         if got is not None:
             return got
         c = self._cell_enu(k)
@@ -4026,6 +4218,7 @@ class _Planner:
             if len(memo) > 512:
                 memo.clear()
             memo[sk] = out
+            self._marks_at("_cw_cells", sk)
         return out
 
     def _z_raw(self, p):
@@ -4034,6 +4227,7 @@ class _Planner:
         a, b, _ = self.frame.enu_to_geodetic(p[:, 0], p[:, 1], 0.0)
         return np.asarray(self.elev(np.asarray(a, np.float64), np.asarray(b, np.float64)), np.float64).ravel()
 
+    @_marked("_cw_regions", lambda self, home: str(home))
     def _cw_region(self, home):
         """Cell home's carriageways: the family parts within CW_MARGIN_M of it (from every cell there, each once), their
         chains (carriageways.chains) and those solved together (_cw_solve): {"parts": [...], "chains": [...],
@@ -4043,6 +4237,7 @@ class _Planner:
         hk = str(home)
         with self.lock:
             got = memo.get(hk)
+            self._marks_seen("_cw_regions", hk)
         if got is not None:
             return got
         # (the run's other processes: the first to need a region solves it, the rest read it; each road-tile process
@@ -4061,10 +4256,14 @@ class _Planner:
                     if len(memo) > 64:
                         memo.clear()
                     memo[hk] = got
+                    self._marks_at("_cw_regions", hk)
                 return got
         try:
-            got = self._cw_region_calc(home, hk)
-            if mine and not got.get("failed"):
+            import revisit
+            with revisit.scope() as solved:
+                got = self._cw_region_calc(home, hk)
+            # (solved short of something: this process's alone, not the run's other processes')
+            if mine and not got.get("failed") and not (solved.n or solved.lidar):
                 sh.region_store(tag, hkey, got)
         finally:
             if mine:
@@ -4073,6 +4272,7 @@ class _Planner:
             if len(memo) > 64:
                 memo.clear()
             memo[hk] = got
+            self._marks_at("_cw_regions", hk)
         return got
 
     def _cw_region_calc(self, home, hk):
@@ -4091,6 +4291,7 @@ class _Planner:
         try:
             cell_parts = [self._cw_cell_parts(k) for k in keys]
         except Exception as e:      # (a cell that cannot be read: no carriageways here, the rules as before)
+            _caught(e)
             log.debug("grading: carriageways of %s: %s: %s", hk, type(e).__name__, e)
             return {"parts": [], "prof": {}, "failed": True}
         for cp in cell_parts:
@@ -4447,6 +4648,7 @@ class _Planner:
         try:
             reg = self._cw_region(mapcells.cell_of(float(la[0]), float(lo[0])))
         except Exception as e:      # (the rules as before)
+            _caught(e)
             log.debug("grading: carriageway at %s: %s: %s", np.round(mid, 1), type(e).__name__, e)
             return None
         if reg.get("failed"):
@@ -4678,10 +4880,12 @@ class _Planner:
         try:
             z = np.asarray(self.elev(np.asarray(la), np.asarray(lo)), np.float64).reshape(-1)
         except Exception as e:      # (ground past the end unread: the end's own estimate, as before)
+            _caught(e)
             log.debug("grading: fill past bridge end %s: %s: %s", np.round(p), type(e).__name__, e)
             return -np.inf
         return float(fill_abutment(z, False)[0])
 
+    @_marked("end_cache", lambda self, xy: (round(float(xy[0]) * 2), round(float(xy[1]) * 2)))
     def _end_lift(self, xy):
         """(lift m, other road lines [(xy (k, 2), half width)], the roads leading onto it [(xy, half width)]) when the
         road end xy is a bridge abutment to raise, else None. A pure function of the map around the bridge (its cells,
@@ -4691,14 +4895,20 @@ class _Planner:
             if not hasattr(self, "end_cache"):
                 self.end_cache = {}
             if k in self.end_cache:
+                self._marks_seen("end_cache", k)
                 return self.end_cache[k]
         res = None
         try:
             res = self._end_lift_calc(np.asarray(xy, np.float64))
         except Exception as e:      # no ramp rather than no grading
+            _caught(e)
             log.debug("grading: approach at %s: %s: %s", k, type(e).__name__, e)
         with self.lock:
-            return self.end_cache.setdefault(k, res)
+            if k not in self.end_cache:
+                self.end_cache[k] = res
+                self._marks_at("end_cache", k)
+            self._marks_seen("end_cache", k)
+            return self.end_cache[k]
 
     def _cell_enu(self, k, ground=True):
         """Cell k's road parts in the anchor frame, made once: {"bridges": [line (k, 2)], "ends": (n, 2) bridge end
@@ -4713,10 +4923,12 @@ class _Planner:
             if not hasattr(self, "enu_cache"):
                 self.enu_cache, self.enu_making = OrderedDict(), {}
             while True:
+                hit = key if key in self.enu_cache else (str(k), True)
                 got = self.enu_cache.get(key) or (self.enu_cache.get((str(k), True)) if not ground else None)
                 if got is not None:
-                    self.enu_cache.move_to_end(key if key in self.enu_cache else (str(k), True))
-                    return got
+                    self.enu_cache.move_to_end(hit)
+                    short = self.__dict__.get("enu_short", {}).get(hit)
+                    break
                 ev = self.enu_making.get(key)
                 if ev is None:
                     ev = self.enu_making[key] = threading.Event()
@@ -4728,13 +4940,30 @@ class _Planner:
                     self.lock.acquire()
                 if key not in self.enu_cache and self.enu_making.get(key) is ev:    # (its maker gave up: make it here)
                     break
+        import revisit
+        if got is not None:
+            # (made while something it read failed, or on the lidar rule: who reads the kept copy is short of it too,
+            # as _short_read. It was read again without a word: a deck's correction made again from the kept geometry
+            # of a cell on the rule counted as complete)
+            if short:
+                if short[0]:
+                    revisit.fault(here=True)
+                if short[1]:
+                    revisit.fault(lidar=True)
+            return got
         try:
-            out = self._cell_enu_calc(k, ground)
+            with revisit.scope() as made:
+                out = self._cell_enu_calc(k, ground)
             with self.lock:
                 self.enu_cache[key] = out
                 self.enu_cache.move_to_end(key)
+                marks = self.__dict__.setdefault("enu_short", {})
+                if made.n or made.lidar:
+                    marks[key] = (bool(made.n), bool(made.lidar))
+                else:
+                    marks.pop(key, None)
                 while len(self.enu_cache) > ENU_CACHE_MAX:
-                    self.enu_cache.popitem(last=False)
+                    marks.pop(self.enu_cache.popitem(last=False)[0], None)
             return out
         finally:
             with self.lock:
@@ -4827,8 +5056,9 @@ class _Planner:
                 out_.append(rxy[k0:k0 + len(ring)])
                 k0 += len(ring)
         limits = []
-        if f is not None and len(f) and ground and RAIL_SIGNED_ON:
-            hl = roadsmod.height_limit_lines(f)
+        if f is not None and len(f) and ground and (RAIL_SIGNED_ON or roadsmod.ROAD_SIGNED_ON):
+            # (not a bridge's own limit, with the road signs on: a road under is not cleared by it; off: as before)
+            hl = roadsmod.height_limit_lines(f, on_bridges=not roadsmod.ROAD_SIGNED_ON)
             if hl:
                 allh = np.concatenate([r for r, _h in hl])
                 he, hn, _ = self.frame.geodetic_to_enu(allh[:, 1], allh[:, 0], 0.0)
@@ -4862,6 +5092,7 @@ class _Planner:
         mid = np.asarray(lonlat, np.float64)[len(lonlat) // 2]
         return self._decks_near(mapcells.cell_of(float(mid[1]), float(mid[0])))
 
+    @_marked("_decks_memo", lambda self, key: str(key))
     def _decks_near(self, key):
         """[(line (k, 2), half width)] of the road and rail decks within UNDER_DECK_PAD_M of cell key (deck_capped's),
         each once, made once per cell; [] with UNDER_DECK_ON off."""
@@ -4870,6 +5101,7 @@ class _Planner:
         memo = self.__dict__.setdefault("_decks_memo", {})
         with self.lock:
             got = memo.get(str(key))
+            self._marks_seen("_decks_memo", str(key))
         if got is not None:
             return got
         lon0, lat0, lon1, lat1 = (float(v) for v in key.bounds())
@@ -4883,6 +5115,7 @@ class _Planner:
                 # within UNDER_DECK_PAD_M were ~0.35 s of each Manhattan road tile, 2026-11-03)
                 c = self._cell_enu(k, ground=False)
             except Exception as e:      # (that cell's decks left out rather than no plans; not kept: asked again)
+                _caught(e)
                 log.debug("grading: decks of %s: %s: %s", k, type(e).__name__, e)
                 short = True
                 continue
@@ -4900,6 +5133,10 @@ class _Planner:
         if not short:
             with self.lock:
                 memo[str(key)] = out
+                self._marks_at("_decks_memo", str(key))
+        else:           # (a cell's decks left out: who reads these is short of them)
+            import revisit
+            revisit.fault(here=True)
         return out
 
     # --- bridges in the elevation (DECK_GROUND_*) ------------------------------------------------------------------
@@ -4963,6 +5200,9 @@ class _Planner:
                 continue
             for key, line, half in rows:
                 out.setdefault(key, (line, half))
+        if short:       # (a cell's decks left out, also one that failed a moment ago and is not asked again yet: who
+            import revisit      # reads these, with or without any deck in them, is short of that cell)
+            revisit.fault(here=True)
         return out, short
 
     def _deck_rows_of(self, k):
@@ -4975,6 +5215,7 @@ class _Planner:
         try:
             c = self._cell_enu(k, ground=False)
         except Exception as e:      # (that cell's decks left out; nothing kept)
+            _caught(e)
             log.debug("grading: deck ground of %s: %s: %s", k, type(e).__name__, e)
             with self.lock:
                 self.failed[k] = time.monotonic()
@@ -5019,19 +5260,92 @@ class _Planner:
         short_memo = self.__dict__.setdefault("_dg_short", {})     # key -> (monotonic time, patch): made short
         out, todo = {}, []
         now = time.monotonic()
+        # (the corrections made while something they read failed, or stood on the lidar rule: never among the kept
+        # ones. Each is used, and said to its reader (as _short_read), for DECK_GROUND_RETRY_S at most, then made
+        # again: once its inputs are there it is complete and kept. key -> (monotonic time, patch, lidar only))
+        faulted = self.__dict__.setdefault("_dg_faulted", {})
+        stats = self.__dict__.setdefault("_dg_stats", {"batches": 0, "faulted": 0, "alone": 0, "short": 0})
+        was_short, was_lidar = False, False
         with self.lock:
             for k in decks:
                 if k in memo:
                     memo.move_to_end(k)
                     out[k] = memo[k]
+                elif k in faulted and now - faulted[k][0] < DECK_GROUND_RETRY_S:
+                    out[k] = faulted[k][1]
+                    was_short, was_lidar = was_short or not faulted[k][2], was_lidar or faulted[k][2]
                 elif k in short_memo and now - short_memo[k][0] < RETRY_S:
                     out[k] = short_memo[k][1]
+                    was_short = True
                 else:
                     todo.append(k)
+        import revisit
+        if was_short:
+            revisit.fault(here=True)
+        if was_lidar:
+            revisit.fault(lidar=True)
         if not todo:
             return out
+        with revisit.scope() as made:       # (what making them reads short: its faults reach the reader's scope too)
+            got, elev = self._deck_patches_make(todo, decks, now)
+        stats["batches"] += 1
+        # Which of them are short of something, each by what its own making depends on: the cells whose kept geometry
+        # it was made from (its home cell's and those it lies in: short ones say so by their marks, _cell_enu, whether
+        # this batch made them or read the kept copies) and the batch's elevation read. That read is one call for the
+        # whole batch: when it failed, each correction is made alone to see whose read it was.
+        own = {k: elev for k in todo}
+        if (elev[0] or elev[1]) and len(todo) > 1:
+            stats["faulted"] += 1
+            for k in todo:
+                with revisit.scope():
+                    one, own[k] = self._deck_patches_make([k], decks, now)
+                got[k] = one[k]
+                stats["alone"] += 1
+        marks = {}
+        for k in todo:
+            dn, dl = self._enu_marks(got[k][2])
+            marks[k] = (bool(own[k][0] or dn), bool(own[k][1] or dl))
+        # (a fault of the batch that none of them accounts for, read through something kept without its mark: all of
+        # them are short of it, never none)
+        for kind, seen in ((0, made.n), (1, made.lidar)):
+            if seen and not any(m[kind] for m in marks.values()):
+                marks = {k: ((True, m[1]) if kind == 0 else (m[0], True)) for k, m in marks.items()}
+        with self.lock:
+            for k, (patch, ok, _deps) in got.items():
+                n, lidar = marks[k]
+                if not ok:          # (a neighbour cell missing: made again after RETRY_S, as the cell is asked again)
+                    short_memo[k] = (now, patch)
+                elif n or lidar:
+                    faulted[k] = (now, patch, not n)
+                    stats["short"] += 1
+                else:
+                    memo[k] = patch
+                    faulted.pop(k, None)
+            while len(memo) > DECK_GROUND_KEPT:
+                memo.popitem(last=False)
+            if len(short_memo) > DECK_GROUND_KEPT:
+                short_memo.clear()
+            if len(faulted) > DECK_GROUND_KEPT:
+                faulted.clear()
+        if any(not ok for _p, ok, _d in got.values()):
+            revisit.fault(here=True)        # (a neighbour cell missing: nothing else says so to the reader)
+        out.update({k: patch for k, (patch, _ok, _d) in got.items()})
+        return out
+
+    def _enu_marks(self, cells):
+        """(something failed, the lidar rule) of the kept geometry of cells (_cell_enu's marks)."""
+        with self.lock:
+            marks = self.__dict__.get("enu_short", {})
+            got = [m for c in cells for m in (marks.get((str(c), False)), marks.get((str(c), True))) if m]
+        return any(m[0] for m in got), any(m[1] for m in got)
+
+    def _deck_patches_make(self, todo, decks, now):
+        """({key: (patch or None, whether every cell round it was read, the cells its making read)}, (faults, lidar
+        rule faults) of the elevation read) of the decks todo (_deck_patches)."""
         import fast
+        import revisit
         lines = self._home_copies(todo, decks)
+        deps = []
         # each deck's neighbours (the decks of the cells it lies in: no cells read past them): their footprints are
         # left out of its side samples
         masks, mask_of, mindex, keep, by_cells = [], [], {}, [], {}
@@ -5054,6 +5368,8 @@ class _Planner:
                 got = by_cells[cells] = (idx, bx, short)
             idx, bx, short = got
             keep.append(not short)
+            fla, flo, _ = self.frame.enu_to_geodetic(line[:1, 0], line[:1, 1], 0.0)
+            deps.append(tuple(cells) + tuple(mapcells.cells_of(np.asarray(fla, np.float64), np.asarray(flo, np.float64))))
             r = DECK_GROUND_REACH_M + DECK_GROUND_MASK_M
             lo_, hi_ = line.min(0) - r, line.max(0) + r
             near_ = (bx[:, 2] >= lo_[0]) & (bx[:, 3] >= lo_[1]) & (bx[:, 0] <= hi_[0]) & (bx[:, 1] <= hi_[1])
@@ -5061,9 +5377,12 @@ class _Planner:
         dirs = np.radians(np.asarray(DECK_GROUND_DIRS_DEG, np.float64))
         args = (DECK_GROUND_STEP_M, DECK_GROUND_OFFS_M, DECK_GROUND_FIX_M, dirs, DECK_GROUND_REACH_M)
         pts = fast.deck_ground_probe(lines, *args)
+        elev = (0, 0)
         if len(pts):
             la, lo, _ = self.frame.enu_to_geodetic(pts[:, 0], pts[:, 1], 0.0)
-            z = np.asarray(self.elev_raw(np.asarray(la, np.float64), np.asarray(lo, np.float64)), np.float64).ravel()
+            with revisit.scope() as read:
+                z = np.asarray(self.elev_raw(np.asarray(la, np.float64), np.asarray(lo, np.float64)), np.float64).ravel()
+            elev = (read.n, read.lidar)
         else:
             z = np.zeros(0)
         active, soff, rows = fast.deck_ground_fit(lines, *args, z, masks, mask_of, DECK_GROUND_SLOPE,
@@ -5079,18 +5398,7 @@ class _Planner:
                 a += 1
             else:
                 got[k] = None
-        with self.lock:
-            for k, ok in zip(todo, keep):
-                if ok:
-                    memo[k] = got[k]
-                else:               # (a neighbour cell missing: made again after RETRY_S, as the cell is asked again)
-                    short_memo[k] = (now, got[k])
-            while len(memo) > DECK_GROUND_KEPT:
-                memo.popitem(last=False)
-            if len(short_memo) > DECK_GROUND_KEPT:
-                short_memo.clear()
-        out.update(got)
-        return out
+        return {k: (got[k], ok, d) for k, ok, d in zip(todo, keep, deps)}, elev
 
     def _pack_of(self, act):
         """deck_ground_apply's arrays of corrected decks act [(line, half, rows)]: (lat/lon box (4,), off, xy, half,
@@ -5134,8 +5442,12 @@ class _Planner:
             decks = {k: (ln, h) for k, (ln, h) in decks.items()
                      if ln[:, 0].max() >= x0 and ln[:, 1].max() >= y0 and ln[:, 0].min() <= x1 and ln[:, 1].min() <= y1}
             patches = self._deck_patches(decks)
-        except Exception as e:      # (the elevation as it is there rather than no plans)
+        except Exception as e:      # (the elevation as it is there rather than no plans; what is planned on it short)
+            if type(e).__name__ == "Abandoned":
+                raise
             log.debug("grading: deck ground of cell %s: %s: %s", key, type(e).__name__, e)
+            import revisit
+            revisit.fault(here=True)
             return []
         return [(k, p[0], p[1], p[2]) for k, p in sorted(patches.items()) if p is not None]
 
@@ -5205,6 +5517,7 @@ class _Planner:
                     out[past] = got
             return out
         except Exception as ex:     # (the elevation as it is rather than none)
+            _caught(ex)
             log.debug("grading: deck ground: %s: %s", type(ex).__name__, ex)
             return z
 
@@ -5254,18 +5567,31 @@ class _Planner:
             return None
         mk = tuple(sorted(keys[i] for i in hit))
         memo = self.__dict__.setdefault("_dg_near_packs", OrderedDict())
+        import revisit
         with self.lock:
             got = memo.get(mk)
-            if got is not None and (got[1] is None or time.monotonic() - got[1] < RETRY_S):
+            if got is not None and (got[1] is None or time.monotonic() - got[1] < DECK_GROUND_RETRY_S):
                 memo.move_to_end(mk)
-                return got[0]
-        patches = self._deck_patches({keys[i]: lines[i] for i in hit})
+            else:
+                got = None
+        if got is not None:
+            # (a pack of corrections short of something says so at every read, as they do themselves: it was handed
+            # to the next cell's planning in a clean scope, whose plans were kept, or shared, as complete)
+            if got[2][0]:
+                revisit.fault(here=True)
+            if got[2][1]:
+                revisit.fault(lidar=True)
+            return got[0]
+        with revisit.scope() as b:
+            patches = self._deck_patches({keys[i]: lines[i] for i in hit})
         act = [p for _k, p in sorted(patches.items()) if p is not None]
         pack = self._pack_of(act) if act else None
         dm = self.__dict__.get("_dg_memo", {})
         with self.lock:
-            # (made from a missing cell's neighbours: made again after RETRY_S, as _deck_patches does)
-            memo[mk] = (pack, None if all(k in dm for k in mk) else time.monotonic())
+            # (of corrections short of something, or made from a missing cell's neighbours: made again after
+            # DECK_GROUND_RETRY_S, as _deck_patches makes them again)
+            whole = all(k in dm for k in mk) and not (b.n or b.lidar)
+            memo[mk] = (pack, None if whole else time.monotonic(), (bool(b.n), bool(b.lidar)))
             while len(memo) > DECK_GROUND_PACKS_KEPT:
                 memo.popitem(last=False)
         return pack
@@ -5375,6 +5701,9 @@ class _Planner:
                 keep.append((line, half))
         return (got[0], keep) + tuple(got[2:])
 
+    @_marked("_xsolve_cache", lambda self, bridge: (
+        round(float(bridge[0][0]), 1), round(float(bridge[0][1]), 1), round(float(bridge[-1][0]), 1),
+        round(float(bridge[-1][1]), 1), len(bridge)))
     def _xsolve(self, bridge):
         """crossings.ON: the bridge (line (k, 2), a single span no other bridge part joins) and the roads under it
         solved together (crossings.solve), cached per bridge: {"ends": (2, 2) its end points, "raise": (2,) m each end
@@ -5387,16 +5716,22 @@ class _Planner:
         with self.lock:
             memo = self.__dict__.setdefault("_xsolve_cache", {})
             if k in memo:
+                self._marks_seen("_xsolve_cache", k)
                 return memo[k]
         res = None
         try:
             res = self._xsolve_calc(bridge)
         except Exception as e:      # the rules as before rather than no grading
+            _caught(e)
             log.debug("grading: crossing solve at %s: %s: %s", k, type(e).__name__, e)
         with self.lock:
             if len(memo) > 4096:
                 memo.clear()
-            return memo.setdefault(k, res)
+            if k not in memo:
+                memo[k] = res
+                self._marks_at("_xsolve_cache", k)
+            self._marks_seen("_xsolve_cache", k)
+            return memo[k]
 
     def _xsolve_calc(self, bridge):
         import crossings as xs
@@ -5505,6 +5840,7 @@ class _Planner:
                   [round(t, 1) for _p, t in out["cross"]])
         return out
 
+    @_marked("_gm_cache", lambda self, xy: (round(float(xy[0]) * 2), round(float(xy[1]) * 2)))
     def _grade_match(self, xy):
         """m (signed) the approach at the bridge end xy is raised (> 0) or lowered (< 0) so the single span it ends is no
         steeper than SEAM_DECK_GRADE: half of what the ground at its two ends differs by over that, the lower end up, the
@@ -5514,14 +5850,20 @@ class _Planner:
         with self.lock:
             cache = self.__dict__.setdefault("_gm_cache", {})
             if k in cache:
+                self._marks_seen("_gm_cache", k)
                 return cache[k]
         res = None
         try:
             res = self._grade_match_calc(np.asarray(xy, np.float64))
         except Exception as e:      # no match rather than no grading
+            _caught(e)
             log.debug("grading: grade match at %s: %s: %s", k, type(e).__name__, e)
         with self.lock:
-            return cache.setdefault(k, res)
+            if k not in cache:
+                cache[k] = res
+                self._marks_at("_gm_cache", k)
+            self._marks_seen("_gm_cache", k)
+            return cache[k]
 
     def _grade_match_calc(self, xy):
         la, lo, _ = self.frame.enu_to_geodetic(np.array([xy[0]]), np.array([xy[1]]), 0.0)
@@ -5561,7 +5903,31 @@ class _Planner:
         mine = 0 if dnp.hypot(*(ends[0] - xy)) <= dnp.hypot(*(ends[1] - xy)) else 1
         return half if z[mine] < z[1 - mine] else -half
 
+    @_marked("_end_raw_cache", lambda self, xy: (float(xy[0]), float(xy[1])))
     def _end_lift_raw(self, xy):
+        """_end_lift_raw_calc, kept per point: _end_lift_calc asks it for an abutment and for each abutment near it (its
+        twins), and every one of those is asked again as an abutment of its own (448 calls for 203 points in a Las
+        Vegas 3 x 3 road tile build, 36 % of their time, 2026-11-13; PR #1238). An error is not kept: its cells may be
+        read by the next call. Keyed on the exact point (two ends within a centimetre do not share an answer whichever
+        was made first), its marks kept with it (_marked: it reads the deck-corrected elevation, which can be short
+        without raising), at most 4096 kept."""
+        k = (float(xy[0]), float(xy[1]))
+        with self.lock:
+            memo = self.__dict__.setdefault("_end_raw_cache", {})
+            if k in memo:
+                self._marks_seen("_end_raw_cache", k)
+                return memo[k]
+        res = self._end_lift_raw_calc(xy)
+        with self.lock:
+            if len(memo) > 4096:
+                memo.clear()
+            if k not in memo:
+                memo[k] = res
+                self._marks_at("_end_raw_cache", k)
+            self._marks_seen("_end_raw_cache", k)
+            return memo[k]
+
+    def _end_lift_raw_calc(self, xy):
         la, lo, _ = self.frame.enu_to_geodetic(np.array([xy[0]]), np.array([xy[1]]), 0.0)
         home = mapcells.cell_of(float(la[0]), float(lo[0]))
         hc = self._cell_enu(home, ground=False)
@@ -5618,6 +5984,8 @@ class _Planner:
         # (the tracks near it: crossed under like a road, never an approach or a road beside the ramp)
         rails = [c["rail_ground"][n_] for c in cs for n_ in
                  np.flatnonzero(_boxes_meet(c["rail_ground_box"], lo_b, hi_b)).tolist()]
+        # (the height limits of the roads under it: a road deck honours a maxheight sign, roads.road_sign_at)
+        limits = [x for c in cs for x in c.get("height_limits", ())] if roadsmod.ROAD_SIGNED_ON else []
 
         def z_at(p):
             la_, lo_, _ = self.frame.enu_to_geodetic(p[:, 0], p[:, 1], 0.0)
@@ -5660,7 +6028,8 @@ class _Planner:
             bi = hc["end_of"][int(hit[0])]
             half_b = float((hc.get("bridge_half") or [JR_TRUSTED_HALF_M] * len(hc["bridges"]))[bi])
             lt = [lf for end, lf in bridge_lifts(bridge, bridges, ground, z_at, chain, rails,
-                                                 under_z=self._under_trusted(ground, half_b, z_at))
+                                                 under_z=self._under_trusted(ground, half_b, z_at),
+                                                 limits=limits)
                   if dnp.hypot(*(end - xy)) <= APPROACH_TOUCH_M]
             jr_here = bool(lt) and float(lt[0]) >= JUNCTION_MIN_LIFT
             if not jr_here:
@@ -5709,7 +6078,8 @@ class _Planner:
             bi = hc["end_of"][int(hit[0])]
             hs = hc.get("bridge_half") or ()
             bhalf = float(hs[bi]) if bi < len(hs) and hs[bi] > 0 else 4.0
-        for end, lift in bridge_lifts(bridge, bridges, ground, z_at, chain, rails, half=bhalf):
+        for end, lift in bridge_lifts(bridge, bridges, ground, z_at, chain, rails, half=bhalf,
+                                      limits=limits):
             if dnp.hypot(*(end - xy)) <= APPROACH_TOUCH_M:
                 best = lift
                 break
@@ -5779,6 +6149,7 @@ class _Planner:
             z0 = float(self.frame.geodetic_to_enu(la0, lo0, np.asarray(z_at(p0), np.float64))[2][0])
             return max(0.0, float(reach.max() - z0))
         except Exception as e:      # no fill rather than no grading
+            _caught(e)
             log.debug("grading: water lift: %s: %s", type(e).__name__, e)
             return 0.0
 
@@ -5876,6 +6247,7 @@ class _Planner:
                 except pools.Abandoned:
                     raise
                 except Exception as e:      # (no plans for this tunnel rather than none for the cell)
+                    _caught(e)
                     log.debug("grading: tunnel %s: %s: %s", k, type(e).__name__, e)
                     continue
                 for sub, _spec, xy, z, _lon in sorted(subs, key=lambda q: int(str(q[0]).rsplit("#", 1)[1])):
@@ -5935,13 +6307,6 @@ class _Planner:
                     # portal 1.3-1.9 m down to the floor beside the covered zone, a 2.3 m step: Norway #1137)
                     out.append((fid + TUNNEL_TAG + ("m0" if at_start else "m1"), mp))
         return out
-
-    def _covered_tunnels(self, feats):
-        """[(xy, half width)] of the tunnels' covered sections (not open roads): the grading leaves the ground over
-        them as it is (apply): the approaches' grading reached up to T_MAX past a portal and cut a park bridge's soil
-        down under its arch's vault, the terrain then cut away over it (2026-10-17)."""
-        return [(xy, spec.width / 2 + TUNNEL_KEEP_M) for _f, spec, xy, _z, kind in _twin_trimmed(self._tunnel_sections(feats))
-                if kind]
 
     def _open_tunnels(self, feats):
         """(fid, Plan) of the tunnels' open sections (roads.TUNNEL_OPEN_COVER): the ground graded to the road's floor
@@ -6156,12 +6521,27 @@ class _Planner:
         for key, (xy, hw) in lines:
             with self.lock:
                 got = memo.get(key)
+                was = self.__dict__.get("_marks", {}).get(("_raceway_memo", key))
             if got is None:
-                got = raceway_surface(self.frame, self.elev, xy, hw) or ()
-                with self.lock:
-                    memo[key] = got
-                    while len(memo) > 256:
-                        memo.popitem(last=False)
+                import revisit
+                st = _MAKING.__dict__.setdefault("stack", [])
+                with revisit.scope() as b:
+                    st.append(b)
+                    try:
+                        got = raceway_surface(self.frame, self.elev, xy, hw) or ()
+                        with self.lock:
+                            memo[key] = got
+                            self._marks_at("_raceway_memo", key)
+                            while len(memo) > 256:
+                                memo.popitem(last=False)
+                    finally:
+                        st.pop()
+            elif was:
+                import revisit
+                if was[0]:
+                    revisit.fault(here=True)
+                if was[1]:
+                    revisit.fault(lidar=True)
             if got:
                 zones.append(got)
         return raceway_ground(e, n, base, zones)
@@ -6320,6 +6700,19 @@ def cells_of_points(lat, lon):
     return out
 
 
+def deck_patches_id(dg):
+    """The identity of a cell's corrected decks ([(deck key, line, half width, rows)], _cell_deck_patches): a digest of
+    their keys and arrays, kept with the cell's shared road stage (plancache stage_store)."""
+    import hashlib
+    h = hashlib.sha1()
+    for dk, line, half, rows in dg or ():
+        h.update(repr(dk).encode())
+        h.update(np.ascontiguousarray(line, np.float64).tobytes())
+        h.update(repr(float(half)).encode())
+        h.update(np.ascontiguousarray(rows, np.float64).tobytes())
+    return h.hexdigest()
+
+
 _STAGE_CROWD = [0]              # road stages being made, or cells planned side by side, in this process now
 _STAGE_CROWD_LOCK = threading.Lock()
 
@@ -6363,8 +6756,10 @@ class Grader:
             got = self._mapped.get(key)
             if got is not None:
                 self._mapped.move_to_end(key)
-                return got
         pl = self.store.planner_of_cell(key)
+        if got is not None:
+            pl._short_read((key,))      # (the copy of plans made short of something: read so, as the plans themselves)
+            return got
         plans = pl._cell_plans(key)
         with pl.lock:
             done = key in pl.cells
@@ -6887,7 +7282,8 @@ def ground_under_deck(deck, half, crossings, z_at):
     return np.minimum(out, z[:, mid])
 
 
-def bridge_lifts(line, all_bridges, ground_lines, z_at, chain=None, rail_lines=(), under_z=None, half=None):
+def bridge_lifts(line, all_bridges, ground_lines, z_at, chain=None, rail_lines=(), under_z=None, half=None,
+                 limits=()):
     """[(end xy (2,), lift m)] of a bridge part (line (k, 2) ENU m): at each of its ends that no other bridge part
     continues from (an abutment), how far the ground there must be raised for the deck to clear every road crossing
     under it (roads.DECK_ROAD_CLEAR + APPROACH_MARGIN_M over the road, full height within APPROACH_FLAT_M of the end,
@@ -6896,7 +7292,9 @@ def bridge_lifts(line, all_bridges, ground_lines, z_at, chain=None, rail_lines=(
     never meets a road deck at grade: the deck ended 3 m past one at Vitebsk, GitHub #324). z_at(xy (n, 2)) -> ground
     m; under_z(xy (n, 2)) -> m, when given: the heights of the roads under at their crossings instead of z_at there
     (_Planner._under_trusted). half: the deck's half width, the road under's ground then read beside the deck
-    (ground_under_deck) where under_z is not given; None: on the crossing itself. Pure given z_at and under_z."""
+    (ground_under_deck) where under_z is not given; None: on the crossing itself. limits: the height limits [(xy (k, 2),
+    m)] of the roads (roads.road_sign_at): a road under with one asks its limit under the girders (roads.signed_road_clear)
+    instead. Pure given z_at and under_z."""
     zu_at = z_at if under_z is None else under_z
     line = np.asarray(line, np.float64)[:, :2]
     if len(line) < 2:
@@ -7000,8 +7398,14 @@ def bridge_lifts(line, all_bridges, ground_lines, z_at, chain=None, rail_lines=(
         if not far.any():
             continue
         d, zu_e = d[far], zu[far]
-        need = zu_e + roadsmod.deck_road_clear(roadsmod.deck_depth(roadsmod.geom_span([line] + list(chain or ()))))             + APPROACH_MARGIN_M \
-            - roadsmod.DECK_GRADE * np.maximum(d - APPROACH_FLAT_M, 0.0)
+        depth = roadsmod.deck_depth(roadsmod.geom_span([line] + list(chain or ())))
+        clear = np.full(len(zu_e), roadsmod.deck_road_clear(depth))
+        if limits:
+            for n, (p, r) in enumerate(zip(pts[far], rail[far])):
+                h = None if r else roadsmod.road_sign_at(limits, p)
+                if h is not None:
+                    clear[n] = float(roadsmod.signed_road_clear(h, depth))
+        need = zu_e + clear + APPROACH_MARGIN_M - roadsmod.DECK_GRADE * np.maximum(d - APPROACH_FLAT_M, 0.0)
         lift = float(need.max() - z_at(end[None])[0])
         if lift >= APPROACH_MIN_LIFT:
             out.append((np.asarray(end, np.float64), min(lift, APPROACH_MAX_LIFT)))
@@ -7087,14 +7491,8 @@ def fill_abutment(z, at_end, step=PROFILE_STEP):
 
 def _limit_at(limits, pt):
     """m: the lowest height limit [(xy (k, 2), m)] holding at pt (a limit's polyline passing within LIMIT_NEAR_M), or
-    None."""
-    best = None
-    pt = np.asarray(pt, np.float64)[None, :2]
-    for xy, h in limits:
-        if len(xy) >= 2 and (best is None or h < best) and \
-                float(roadsmod._seg_dist(pt, xy[:-1, :2], xy[1:, :2]).min()) <= LIMIT_NEAR_M:
-            best = h
-    return best
+    None (roads.limit_at)."""
+    return roadsmod.limit_at(limits, pt, LIMIT_NEAR_M)
 
 
 def underpass_offsets(lines, requirements, queries=None):
@@ -7440,7 +7838,7 @@ def _wall_vertices(p):
     return out
 
 
-def share_corridors(plans, specs):
+def share_corridors(plans, specs, decks=()):
     """Roads whose carriageways touch or overlap side by side agree in height there: the difference left between two is
     what their gap holds at CORRIDOR_BANK, none where the pavements overlap. A through road holds over a slip road (a
     dipped one's dip carried onto the ramp beside it; DIP_HOLDS: a dipped road over every other), a higher grade_rank
@@ -7449,7 +7847,9 @@ def share_corridors(plans, specs):
     spline, its ends and its bridge ends held (native/earthfast corridor.rs). Two branches leaving a fork at a few degrees each
     climbed or fell on their own while their pavements still overlapped, and the blend gave the overlap to one: a
     0.4-0.8 m ramp across the lanes within 3 m (GitHub #1043 Wesley Chapel, #1045 Findlay's diverging diamond). plans
-    [(fid, Plan)] in place; specs: their Specs. Returns how many changed."""
+    [(fid, Plan)] in place; specs: their Specs; decks [(line (k, 2), half width)]: a plan the corridors would raise
+    more than CORRIDOR_UNDER_RAISE_M where it passes under one keeps its heights (CORRIDOR_UNDER_ON). Returns how many
+    changed."""
     if not plans:
         return 0
     import fast
@@ -7468,9 +7868,29 @@ def share_corridors(plans, specs):
                                                 float(CORRIDOR_WREQ), float(CORRIDOR_W0), float(CORRIDOR_LAM),
                                                 CORRIDOR_THROUGH)
     idx = np.flatnonzero(changed).tolist()
+    if CORRIDOR_UNDER_ON and decks and idx:
+        idx = [i for i in idx if not _raised_under(ps[i].xy, zn[off[i]:off[i + 1]] - ps[i].z, decks)]
     for i in idx:
         plans[i] = (plans[i][0], _replan(ps[i], ps[i].xy, zn[off[i]:off[i + 1]].copy(), cut=True))
     return len(idx)
+
+
+def _raised_under(xy, dz, decks):
+    """Is a plan (vertices xy (n, 2)) raised by dz (n,) more than CORRIDOR_UNDER_RAISE_M at a vertex inside a deck's
+    footprint (its line, half width)? Pure."""
+    xy = np.asarray(xy, np.float64)[:, :2]
+    up = np.asarray(dz, np.float64) > CORRIDOR_UNDER_RAISE_M
+    if not up.any():
+        return False
+    pts = xy[up]
+    lo, hi = pts.min(0), pts.max(0)
+    for line, half in decks:
+        b = np.asarray(line, np.float64)[:, :2]
+        if len(b) < 2 or half <= 0 or (b.max(0) < lo - half).any() or (b.min(0) > hi + half).any():
+            continue
+        if float(roadsmod._seg_dist(pts, b[:-1], b[1:]).min()) <= float(half):
+            return True
+    return False
 
 
 def weld_continuations(plans, specs=None):

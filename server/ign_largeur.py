@@ -87,7 +87,7 @@ def join(feats, rows):
         return 0
     import fast
     try:
-        fast.require(296, "ign_join")
+        fast.require(302, "ign_join")
     except fast.NativeMissing as e:     # (an older kernel, e.g. a Linux build not remade: the map's widths then)
         if not getattr(join, "_said", False):
             join._said = True

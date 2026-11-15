@@ -138,6 +138,20 @@ class _State:
             for c in self.chunks.values():
                 c.clear()
 
+    def late_reset(self):
+        """A late process drops its whole planning state (late_job): the plan store with every planner's memory (cells'
+        plans, road stages, kept geometry, deck corrections, packs, plan sets, tunnel networks), the chain stores made
+        on its plans, the anchors' and the geotile frames' graders with their mapped copies. The next job starts
+        from the disk alone."""
+        with self.lock:
+            self.__dict__.pop("plan_store", None)
+            self.__dict__.get("chain_stores", {}).clear()
+            self.graders.clear()
+            self.chunks.clear()
+            self.late_resets = self.__dict__.get("late_resets", 0) + 1
+        with _geo_lock:
+            _geo_graders.clear()
+
     def anchor(self, aid, lat, lon):
         """(Grader or None, ChunkCache) of an anchor; only the last few anchors are kept."""
         with self.lock:
@@ -157,7 +171,7 @@ class _State:
                     grader.tunnel_raw = lambda la, lo: ground(None, la, lo,
                         self.dem.sample(la, lo, gradingmod.PROFILE_ZOOM))
                     grader.dem = self.dem          # (its urgent lane: _plan_missing)
-                    grader.shared = plancache.for_grader(self.cache_dir, grader, self.widths, grader.wet)
+                    grader.shared = _plan_cache(self.cache_dir, grader, self.widths)
                 self.graders[aid] = grader
                 self.chunks[aid] = heightmap.ChunkCache()    # no cached unpinned state after a failed setup
                 # (never the anchor just set up: a late job of an older anchor, after two newer ones, evicted its own
@@ -358,6 +372,38 @@ def init(cache_dir, offline, roads, grading, road_widths, surface, warm_q, log_l
 
 
 LATE_RUN = "-late"
+_LATE = [False]             # this is a process of the late pool (init_late)
+_LATE_JOB = [0]             # a late job is running in it (late_job; one job at a time in a pool's process)
+
+
+def _plan_cache(cache_dir, grader, widths):
+    """The grader's plan cache (plancache.for_grader); a late process's passes over its run's plans and road stages
+    made short of something (PlanCache.fresh: they are what it makes again; complete ones are read)."""
+    pc = plancache.for_grader(cache_dir, grader, widths, grader.wet)
+    if pc is not None and _LATE[0] and hasattr(pc, "fresh"):
+        pc.fresh = True
+    return pc
+
+
+def late_job(kept, fn, *a, **kw):
+    """fn(*a, **kw) as a late process's job: in a fault scope of its own, and unless nothing was read short and
+    kept() says its result is in the revisit cache, the process's whole planning state is dropped after it
+    (_State.late_reset). A first try that read something short left it in the planners' memory (short plans and road
+    stages, kept geometry on the lidar rule, deck corrections, mapped copies), and every later try of the cell or
+    geotile read it again, also after the cell's plans had been made complete and kept: memory is never read again
+    from the disk. Nothing is invalidated piece by piece: a state that saw a fault is not used again."""
+    import revisit
+    clean = False
+    _LATE_JOB[0] += 1
+    try:
+        with revisit.scope() as b:
+            out = fn(*a, **kw)
+            clean = not (b.n or b.lidar) and bool(kept())
+            return out
+    finally:
+        _LATE_JOB[0] -= 1
+        if not clean:
+            _s.late_reset()
 
 
 def init_late(*initargs):
@@ -366,6 +412,7 @@ def init_late(*initargs):
     none of the session's rule decisions nor what was planned short on them (its run's plan files, cell facts and
     carriageway regions); what they make complete is kept in the revisit cache, as any process's."""
     late_env()
+    _LATE[0] = True
     import revisit          # (why a late build was not kept, logged: blockworker._geo_content's "not kept" line)
     revisit.SITES = True
     init(*initargs)
@@ -386,9 +433,16 @@ def late_plan(z, x, y):
     g, _ = _s.anchor(LATE_AID, la, lo)
     if g is None or getattr(g, "store", None) is None or g.shared is None or g.shared.persist is None:
         return None
-    with roadz.precache_gaps_wait():
-        g.store.planner_of_cell(k)._cell_plans(k)
-    return revisit.has(_s.cache_dir, "plans", g.shared._revisit_key(k))
+    rk = g.shared._revisit_key(k)
+    if revisit.has(_s.cache_dir, "plans", rk):
+        return True
+
+    def plan():
+        with roadz.precache_gaps_wait():
+            g.store.planner_of_cell(k)._cell_plans(k)
+    # (a job of its own planning state: dropped whole after a try that read anything short, late_job)
+    late_job(lambda: revisit.has(_s.cache_dir, "plans", rk), plan)
+    return revisit.has(_s.cache_dir, "plans", rk)
 
 
 def late_env():
@@ -1134,10 +1188,11 @@ def _roads_tile_cached(aid, lat, lon, zoom, tx, ty, out_dir, vfs_dir, sidewalks,
         de = designs.cache_parts(True, geodesy.EnuFrame(lat, lon), designs.tile_reach(roadsmod_tile_bbox(tx, ty)))
     k = revisit.key("roads", round(float(lat), 7), round(float(lon), 7), zoom, tx, ty, bool(sidewalks), float(lift),
                     bool(buildings), bool(left_hand), bool(mph), None if q is None else float(q), bool(gas_stations),
-                    _s.md.versions() if _s.md is not None else None, float(buried), lamp_region, country,
+                    _md_versions(bool(buildings)), float(buried), lamp_region, country,
                     pole_profile, threedmr.FEATURE_VERSION, threedmr.local_signature(os.path.dirname(out_dir)),
                     *_radar_key(), bool(towns_on), roadwear.wear_key(wear, lat),
                     *_surf_tags(geodesy.EnuFrame(lat, lon), *roadsmod_tile_bbox(tx, ty)),
+                    _nyc_key(geodesy.EnuFrame(lat, lon), roadsmod_tile_bbox(tx, ty)) if buildings else None,
                     bool(de_junctions), *de)     # (the German junction parts last)
     wh = _where_enu(lat, lon, *roadsmod_tile_bbox(tx, ty),
                     sidewalks=bool(sidewalks), lift=float(lift), buildings=bool(buildings),
@@ -1155,8 +1210,35 @@ def _roads_tile_cached(aid, lat, lon, zoom, tx, ty, out_dir, vfs_dir, sidewalks,
                                                for sid, rs in extra.get("pads", [])]), wh)
 
 
-def _md_versions():
-    return _s.md.versions() if _s.md is not None else None
+def _md_versions(buildings=False):
+    """The map data's versions (revisit keys); buildings: with the OSM building years' and colours' identities too (the
+    tiles that draw buildings: osmyears.identity, osmcolours.identity, MapData.versions(buildings=True))."""
+    md = _s.md
+    if md is None:
+        return None
+    if not buildings:
+        return md.versions()
+    import osmcolours
+    import osmyears
+    return dict(md.versions(), osmyears=osmyears.identity(md), osmcolours=osmcolours.identity(md))
+
+
+def _nyc_key(frame, box, cache_dir=None):
+    """New York's shard datasets' identities (nycmassing's setbacks, nyctanks' tanks) for the key of a tile that draws
+    buildings over ENU box (x0, y0, x1, y1) in frame: None far from the five boroughs (nycshards.identity_near: the key
+    as before), else the builds this process froze ("none" before one is pinned, "off" when off). cache_dir: where
+    their manifests are pinned (default the map data's: the Fetches' own)."""
+    cd = cache_dir or getattr(_s.md, "cache_dir", None) if _s is not None else cache_dir
+    if not cd:
+        return None
+    import nycshards
+    x0, y0, x1, y1 = (float(v) for v in tuple(box)[:4])
+    la, lo, _ = frame.enu_to_geodetic(np.array([x0, x1, x0, x1], np.float64), np.array([y0, y0, y1, y1], np.float64),
+                                      0.0)
+    # (cache_dir given: the main process's guess of a worker's key, earthd.Server.geo_content_key: never deciding the
+    # build there, nor waiting for a manifest)
+    return nycshards.identity_near(cd, float(np.min(la)), float(np.min(lo)), float(np.max(la)), float(np.max(lo)),
+                                   peek=cache_dir is not None)
 
 
 def _ground_rules():
@@ -1216,7 +1298,8 @@ def _revisit_tile(kind, k, aid, tx, ty, out_dir, vfs_dir, name, build, extra_of,
         return result_of(f"{vfs_dir}/{name}", extra or {})
     with revisit.scope() as f0:         # (this build's faults alone: revisit.scope)
         res = build()
-    if res is not None and revisit.ON and f0.complete:     # (complete: nothing it read failed or was missing)
+    keep, until = f0.kept_until()      # (keep: nothing it read failed or was missing; until: an answer it read expires)
+    if res is not None and revisit.ON and keep:
         try:
             with open(os.path.join(out_dir, name), encoding="utf-8") as f:
                 text = f.read()
@@ -1226,7 +1309,7 @@ def _revisit_tile(kind, k, aid, tx, ty, out_dir, vfs_dir, name, build, extra_of,
                     continue
                 with open(os.path.join(out_dir, n), "rb") as f:
                     blobs[revisit.swap(n, mine)] = f.read()
-            revisit.store(_s.cache_dir, kind, k, blobs, extra_of(res), where=where)
+            revisit.store(_s.cache_dir, kind, k, blobs, extra_of(res), where=where, until=until)
         except Exception as e:          # (not kept rather than no tile)
             log.debug("revisit: %s tile %d_%d not kept: %s: %s", kind, tx, ty, type(e).__name__, e)
     return res
@@ -1468,7 +1551,9 @@ def _tile_parts(mark, frame, tile, zoom, g, buildings, left_hand, mph, gas_stati
         import buildings as buildingsmod
         import nyctanks
         # (New York's measured rooftop tanks, asked for on a thread while the buildings are put together)
-        _tanks = nyctanks.Fetch(frame, box[0], box[1], box[2], box[3], cache_dir) if props is not None else None
+        # (its manifest pinned where the tile's key reads it: the map data's folder, blockworker._nyc_key)
+        _tanks = nyctanks.Fetch(frame, box[0], box[1], box[2], box[3],
+                                getattr(_s.md, "cache_dir", None) or cache_dir) if props is not None else None
         # stock towers, containers, billboards and barns; a replaced barn's id is left out of the buildings
         try:
             import worldprops
@@ -1908,7 +1993,7 @@ def _frame_grader(frame):
     gr.tunnel_raw = lambda la, lo: ground(None, la, lo, _s.dem.sample(la, lo, gradingmod.PROFILE_ZOOM))
     gr.dem = _s.dem
     if getattr(_s.plan_store, "shared", None) is None:
-        gr.shared = plancache.for_grader(_s.cache_dir, gr, _s.widths, gr.wet)
+        gr.shared = _plan_cache(_s.cache_dir, gr, _s.widths)
     with _geo_lock:
         got = _geo_graders.setdefault(k, gr)
         while len(_geo_graders) > GEO_FRAMES_KEPT:
@@ -2037,7 +2122,7 @@ def _geo_lat(key):
 
 
 def _geo_content_key(key, zoom, buildings, left_hand, mph, gas_stations, buried, lamp_region, country, md=None, pole_profile=None,
-                     models_dir=None, de_junctions=False, towns_on=False, wear=None, rules=None):
+                     models_dir=None, de_junctions=False, towns_on=False, wear=None, rules=None, cache_dir=None):
     """The revisit key of a geotile's content (md: the map data's versions, when not this worker's: the server's own
     check, earthd.Server.geo_prebuilt; models_dir: the folder of the 3dmr.eu models' cache, whose local models are
     built in: threedmr.local_signature; de_junctions: the German junction signs, near Germany with the border data
@@ -2052,11 +2137,13 @@ def _geo_content_key(key, zoom, buildings, left_hand, mph, gas_stations, buried,
         import designs
         de = designs.cache_parts(True, tile.frame, designs.tile_reach(tile.box, GEO_SKIN_MARGIN_M))
     return revisit.key("roadsg", str(key), int(zoom), bool(buildings), bool(left_hand), bool(mph), bool(gas_stations),
-                       _md_versions() if md is None else md, float(buried), lamp_region, country, GEO_SKIN_MARGIN_M,
+                       _md_versions(bool(buildings)) if md is None else md, float(buried), lamp_region, country,
+                       GEO_SKIN_MARGIN_M,
                        pole_profile, threedmr.FEATURE_VERSION, threedmr.local_signature(models_dir), *_radar_key(),
                        bool(towns_on), roadwear.wear_key(wear, _geo_lat(key)), *_surf_tags(tile.frame, *tile.box[:4]),
                        # (the ground rules: rules, the server's own when it asks, earthd.Server.geo_content_key)
                        ("rules", _ground_rules() if rules is None else rules),
+                       _nyc_key(tile.frame, tile.box, cache_dir) if buildings else None,
                        bool(de_junctions), *de)     # (the German junction parts last)
 
 
@@ -2071,7 +2158,13 @@ def prebuild_geo(gx, gy, zoom, scratch, buildings, left_hand, mph, gas_stations,
     tile_key = geotiles.geobox(gx, gy).key
     k = _geo_content_key(tile_key, zoom, buildings, left_hand, mph, gas_stations, buried, lamp_region, country,
                          pole_profile=pole_profile, models_dir=os.path.dirname(scratch), de_junctions=de_junctions, towns_on=towns_on, wear=wear)
-    if not revisit.has(_s.cache_dir, "roadsg", k):
+    if _LATE[0] and not _LATE_JOB[0] and not revisit.has(_s.cache_dir, "roadsg", k):
+        # (the late pool's: a job of its own planning state, as late_plan; its geotile builds read the process's
+        # planners, whose memory kept a first try's short plans after the cells had been made complete and kept)
+        late_job(lambda: revisit.has(_s.cache_dir, "roadsg", k), prebuild_geo, gx, gy, zoom, scratch, buildings,
+                 left_hand, mph, gas_stations, buried, lamp_region, country, scratch_vfs, pole_profile, wait_gaps,
+                 de_junctions, towns_on, wear)
+    elif not revisit.has(_s.cache_dir, "roadsg", k):
         os.makedirs(scratch, exist_ok=True)
         try:
             if wait_gaps:       # (the fast mode's own road processes, the game paused: no live tile waits on them)
@@ -2173,9 +2266,10 @@ def _geo_content(gx, gy, zoom, out_dir, vfs_dir, buildings, left_hand, mph, gas_
     info = dict(info or {}, fuel_tried=[list(t) for t in getattr(P, "fuel_tried", ())])     # (the station finder)
     mark("write")
     _geo_stats["content_built"] += 1
-    if revisit.ON and not f0.complete and revisit.SITES:
+    keep, until = f0.kept_until()      # (keep: nothing it read failed or was missing; until: an answer it read expires)
+    if revisit.ON and not keep and revisit.SITES:
         log.info("revisit: road geotile %s not kept: %s", tile.key, f0.why_not())
-    if revisit.ON and f0.complete:     # (complete: nothing it read failed or was missing)
+    if revisit.ON and keep:
         try:
             blobs = {}
             for what, name in names.items():
@@ -2203,7 +2297,7 @@ def _geo_content(gx, gy, zoom, out_dir, vfs_dir, buildings, left_hand, mph, gas_
             revisit.store(_s.cache_dir, "roadsg", k, blobs,
                           {"n": int(n), "info": info,
                            "pads": [[sid, [[np.asarray(la).tolist(), np.asarray(lo).tolist()] for la, lo in rs]]
-                                    for sid, rs in P.fuel_pads]}, where=wh)
+                                    for sid, rs in P.fuel_pads]}, where=wh, until=until)
         except Exception as ex:          # (not kept rather than no tile)
             log.debug("revisit: geotile %s not kept: %s: %s", tile.key, type(ex).__name__, ex)
     return path, n, info, P.fuel_pads
@@ -3015,7 +3109,7 @@ def far_buildings_tile(aid, lat, lon, zoom, tx, ty, out_dir, vfs_dir, lamp_regio
     import revisit
     frame = geodesy.EnuFrame(lat, lon)
     k = revisit.key("bldfar", round(float(lat), 7), round(float(lon), 7), zoom, tx, ty,
-                    _s.md.versions() if _s.md is not None else None, lamp_region, bool(left_hand))
+                    _md_versions(True), lamp_region, bool(left_hand), _nyc_key(frame, roadsmod_tile_bbox(tx, ty)))
     return _revisit_tile("bldfar", k, aid, tx, ty, out_dir, vfs_dir, f"bldfar_{aid}_{tx}_{ty}.json",
                          lambda: buildingsmod.far_tile(frame, tx, ty, _s.md,
                                                        lambda la, lo: ground(frame, la, lo, _s.dem.sample(la, lo, zoom)),
@@ -3033,7 +3127,7 @@ def skyline_tile(aid, lat, lon, zoom, ux, uy, out_dir, vfs_dir, lamp_region=None
     import revisit
     frame = geodesy.EnuFrame(lat, lon)
     k = revisit.key("bldsky", round(float(lat), 7), round(float(lon), 7), zoom, ux, uy,
-                    _s.md.versions() if _s.md is not None else None, lamp_region)
+                    _md_versions(True), lamp_region)
     u = buildingsmod.SKY_UNIT
     sx0, sy0, _, _ = roadsmod_tile_bbox(ux * u, uy * u)
     _, _, sx1, sy1 = roadsmod_tile_bbox(ux * u + u - 1, uy * u + u - 1)
@@ -3077,14 +3171,15 @@ def far_bridge_tile(aid, lat, lon, zoom, tx, ty, out_dir, vfs_dir):
 # cached without an anchor in its key (revisit kinds "bldfar" / "bldsky" / "brfar", the key's first part "g"); the mod
 # keeps it across rebases and places it rigidly at its pivot (render-only: no skin, no exact variant).
 
-FAR_GEO = {"bldfar": "bf", "bldsky": "bs", "brfar": "bb", "bldpack": "bp"}   # kind -> files' prefix (<prefix>_<key>[_<sub>])
+FAR_GEO = {"bldfar": "bf", "bldsky": "bs", "brfar": "bb", "bldpack": "bp", "bldhz": "bh"}   # kind -> files' prefix (<prefix>_<key>[_<sub>])
 FAR_LAMP_ROUND = 1          # decimals of the lamps' coordinates
 
 
 def far_geo_zoom(kind):
     """The geotile zoom of a far kind."""
     import geotiles
-    return {"bldfar": geotiles.FAR_Z, "bldsky": geotiles.SKY_Z, "brfar": geotiles.BRIDGE_Z, "bldpack": geotiles.SKY_Z}[kind]
+    return {"bldfar": geotiles.FAR_Z, "bldsky": geotiles.SKY_Z, "brfar": geotiles.BRIDGE_Z, "bldpack": geotiles.SKY_Z,
+            "bldhz": 12}[kind]
 
 
 def far_geo_names(kind, key):
@@ -3094,8 +3189,8 @@ def far_geo_names(kind, key):
     return {"json": f"{pre}_{key}.json", "shape": f"{pre}_{key}.cdae"}
 
 
-def far_geo_piece(key, sub):
-    return f"{FAR_GEO['brfar']}_{key}_{sub}.cdae"
+def far_geo_piece(key, sub, kind="brfar"):
+    return f"{FAR_GEO[kind]}_{key}_{sub}.cdae"
 
 
 def _lamps_by_geotile(frame, lamps):
@@ -3176,7 +3271,9 @@ def _far_geo_build(kind, tile, gzoom, out_dir, vfs_dir, lamp_region):
         if not _far_cells_ready((kind, tile.key), *buildingsmod.far_needs(frame, tile, None)):
             return None
         items, lamps, _box = buildingsmod.far_items(frame, tile, None, _s.md, raw, lamp_region, _urban_fn(), _s.widths)
-        mesh = buildingsmod.build(items, lite=True)
+        # (meshes under the 16-bit indices, one shape; a pack's in buildings.PACK_STYLE)
+        mesh = (buildingsmod.pack_meshes(items) if kind == "bldpack" else buildingsmod.build_parts(items, lite=True)) \
+            or None
         n = len(items)
     elif kind == "bldsky":
         keys = roadsmod.cells_of_tile(frame, tile, None, margin=0.0)
@@ -3189,6 +3286,30 @@ def _far_geo_build(kind, tile, gzoom, out_dir, vfs_dir, lamp_region):
         n = len(picked) if mesh is not None else 0
         if mesh is None:
             lamps = []
+    elif kind == "bldhz":               # the horizon ring: the tall buildings' index, a piece per skyline square (bldhz)
+        import bldhz
+        pieces, n = {}, 0
+        hz_zoom = min(int(gzoom), bldhz.DEM_ZOOM)
+
+        def hz_ground(la, lo):          # (a coarser DEM: the buildings' feet 5-120 km off, no fine tiles fetched there)
+            return ground(None, la, lo, _s.dem.sample(la, lo, hz_zoom))
+        sq = bldhz.squares(tile, hz_ground, _s.md)
+        if sq is None:                  # (its index tile not had now: asked again later)
+            return None
+        for sub, picked in sq.items():
+            m = buildingsmod._sky_mesh(picked) if picked else None
+            if not m:
+                continue
+            fname = far_geo_piece(tile.key, sub, "bldhz")
+            buildingsmod.write(os.path.join(out_dir, fname), m)
+            e = {"shape": f"{vfs_dir}/{fname}", "pos": [x0, y0, 0.0]}
+            e.update(_shape_info(os.path.join(out_dir, fname), e["pos"], "bldhz"))
+            pieces[sub] = e
+            shapes[sub] = fname
+            n += len(picked)
+        if pieces:
+            data["parts"] = pieces
+        return data, shapes, n
     else:                               # brfar: the slabs in a piece per road geotile under it
         keys = roadsmod.cells_of_tile(frame, tile, None, margin=0.0)
         if not _far_cells_ready((kind, tile.key), keys, ("roads",)):
@@ -3224,6 +3345,14 @@ def _far_geo_build(kind, tile, gzoom, out_dir, vfs_dir, lamp_region):
     return data, shapes, n
 
 
+def _bldhz_key(gx, gy):
+    """A horizon tile's inputs for its revisit key: the index's format and its source's identity (bldhz sig: the data
+    site's frozen build, or the local tile's SHA-1)."""
+    import bldhz
+    src = bldhz.source(_s.md)
+    return (f"hz={bldhz.FORMAT}",) + (tuple(src.sig(gx, gy)) if src is not None else ("none",))
+
+
 def traffic_geo(gx, gy, gzoom, out_dir, vfs_dir, left_hand=False, mph=True, far=False):
     """Visual traffic routes, independent of the AI graph and of the far buildings (distanttraffic.py)."""
     import distanttraffic
@@ -3244,12 +3373,17 @@ def far_geo(kind, gx, gy, gzoom, out_dir, vfs_dir, lamp_region=None):
     <prefix>_<key>.json (+ its shapes); returns (vfs path of the JSON, count, frame (lat, lon), pivot, {what: shape
     file name}) or None when its cells are not at hand yet."""
     import json
+    import buildings as buildingsmod
     import geotiles
     import revisit
     z = far_geo_zoom(kind)
     tile = geotiles.geobox(gx, gy, z)
     names = far_geo_names(kind, tile.key)
-    k = revisit.key(kind, "g", tile.key, int(gzoom), _md_versions(), lamp_region)
+    style = buildingsmod.PACK_STYLE if kind == "bldpack" else "lite"
+    k = revisit.key(kind, "g", tile.key, int(gzoom), _md_versions(kind != "brfar"), lamp_region,
+                    _nyc_key(tile.frame, tile.box) if kind in ("bldfar", "bldpack") else None,
+                    *((f"style={style}",) if style != "lite" else ()),     # (the lite packs' keys as before)
+                    *(_bldhz_key(gx, gy) if kind == "bldhz" else ()))
     frame_ll = (float(tile.frame.lat0), float(tile.frame.lon0))
     got = revisit.load(_s.cache_dir, kind, k)
     if got is not None:

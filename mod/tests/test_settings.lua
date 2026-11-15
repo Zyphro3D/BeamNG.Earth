@@ -248,6 +248,29 @@ settings.set('viewDistanceKm', 200)
 T.check(scenetree.theLevelInfo.visibleDistance == 100000 and post == 2, 'horizon after fixed: the level\'s 100 km back once')
 settings.set('viewDistanceMode', 'fixed')
 T.check(scenetree.theLevelInfo.visibleDistance == 200000 and post == 3, 'fixed again: 200 km')
+do  -- the 3D map open: no fixed distance (its view reaches as far as its eye), the fixed one back when it closes
+  local post0, active = post, true
+  beamngEarth_map3d = { isActive = function() return active end }
+  settings.set('viewDistanceKm', 1)
+  T.check(settings.fixedViewM() == nil, 'map open: no fixed view distance')
+  settings.reapplyView()
+  T.check(scenetree.theLevelInfo.visibleDistance == 100000, 'map open: the level\'s distance, not 1 km')
+  active = false
+  T.check(settings.fixedViewM() == 1000, 'map closed: 1 km')
+  scenetree.theLevelInfo.visibleDistance = 900000     -- (a globe view raised it meanwhile)
+  settings.reapplyView()
+  T.check(scenetree.theLevelInfo.visibleDistance == 1000, 'map closed: the fixed 1 km back, whatever was set meanwhile')
+  settings.set('viewDistanceKm', 100)                 -- (the default value, fixed)
+  active = true
+  settings.reapplyView()
+  scenetree.theLevelInfo.visibleDistance = 900000     -- (a globe view raised it)
+  active = false
+  settings.reapplyView()
+  T.check(scenetree.theLevelInfo.visibleDistance == 100000, 'map closed: a fixed 100 km (the default value) back too')
+  beamngEarth_map3d = nil
+  settings.set('viewDistanceKm', 200)
+  post = post0                                        -- (the checks below count postApply calls from here)
+end
 settings.uiReset()
 T.check(scenetree.theLevelInfo.visibleDistance == 100000 and post == 4, 'reset (horizon): back to 100 km (applied, it had changed)')
 settings.onClientPostStartMission()
@@ -425,6 +448,15 @@ do
   T.check(#sent == 3 and #sent[3] == 0, 'nothing missing any more: an empty list cancels the last one')
   settings.mapTiles(list)
   T.check(#sent == 3, 'and only once')
+  -- a sat tile with only its stand-in there (server maptiles.PROV_DIR): shown from its own path, still asked for
+  T.check(settings.mapTilePath('satp', 3, 2, 1) == '/temp/beamngEarth/maptiles/prov/3/2/1.jpg', 'stand-in path')
+  have[settings.mapTilePath('satp', 6, 1, 1)] = true
+  ready = settings.mapTiles({ { 6, 1, 1 }, { 6, 2, 1 } })
+  T.check(#ready == 1 and ready[1] == 'satp/6/1/1', 'a stand-in comes back as satp')
+  T.check(#sent == 4 and #sent[4] == 2 and sent[4][1][2] == 1, 'the tile with a stand-in is still asked for')
+  have[settings.mapTilePath('sat', 6, 1, 1)] = true
+  ready = settings.mapTiles({ { 6, 1, 1 } })
+  T.check(#ready == 1 and ready[1] == 'sat/6/1/1', 'the real tile once it is there')
   beamngEarth_core, FS = core0, fs0
 end
 

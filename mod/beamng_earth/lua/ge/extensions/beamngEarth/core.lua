@@ -422,7 +422,7 @@ local function applyHorizon()
     horizon.applySky()
     -- (a fixed view distance in the settings: theirs stays; the horizon's radius moving set it back before)
     local stg = rawget(_G, 'beamngEarth_settings')
-    local fixed = stg and stg.get and stg.get('viewDistanceMode') == 'fixed'
+    local fixed = stg and stg.fixedViewM and stg.fixedViewM() ~= nil      -- (none with the 3D map open)
     -- (horizon.extraVisible: the 3D map's globe, the far side of the earth in view)
     local v = not fixed and horizon.visibleTarget(farRadius, st.visibleDistance or VISIBLE_DISTANCE,
                                                   math.max(VISIBLE_DISTANCE, horizon.extraVisible or 0))
@@ -1176,6 +1176,7 @@ local function onMessage(msg)
       swapGen = 1,                     -- (a generation swap's commit barrier: 'swap_begin', roads.swapCommit)
       farGeo = roads.FAR_GEO,          -- (and the far buildings, skyline and far bridges: roads.lua)
       farPack = roads.FAR_PACK,        -- (and the far buildings past the road geotiles' as a pack a square: roads.lua)
+      farHz = roads.FAR_HZ,            -- (and the horizon ring's tall buildings past the skyline: roads.lua 'H')
       turbineGeo = require('beamngEarth/turbinestream').PROTOCOL,
       globalFar = farfield.GLOBAL_FAR,    -- (and the far field from level 3 up as global tiles: farfield.lua)
       trafficVisuals = M._trafficvisuals.PROTO,
@@ -1560,6 +1561,11 @@ local function onMessage(msg)
     roads.onFarTile(msg, st.anchorId, 'P')
   elseif t == 'bldpack_drop' then
     roads.onFarDrop(msg, 'P')
+  elseif t == 'bldhz_tile' then
+    -- the horizon ring's tall buildings past the skyline (server bldhz.py), a piece per skyline square: roads.lua
+    roads.onFarTile(msg, st.anchorId, 'H')
+  elseif t == 'bldhz_drop' then
+    roads.onFarDrop(msg, 'H')
   elseif t == 'where_result' then
     statusbar.onResult(msg)
   elseif t == 'map_labels_result' then       -- the 3D map's labels (map3d.lua; server maplabels.py)
@@ -1579,8 +1585,9 @@ local function onMessage(msg)
       elseif not st.anchor then defaultStart() end
     end
   elseif t == 'route_result' then
+    -- (legs and steps too: gps.lua reads them for the API's gpsRoute().legs / .steps; GitHub #1259)
     if msg.id then routeResults[msg.id] = { points = msg.points or {}, dist = msg.dist, dur = msg.dur, error = msg.error,
-      elev = msg.elev } end
+      elev = msg.elev, legs = msg.legs, steps = msg.steps } end
   elseif t == 'route_download' then
     -- the planned route's corridor prefetch (server routeahead.py): total/done tile+cell count, shown on the map
     gps.onRouteDownload(msg)
@@ -2730,7 +2737,24 @@ local function engineTickMs()
   return tonumber(tickMetrics.Ticking) or 0
 end
 
+-- The 3D map opened or closed: the settings' fixed view distance off or on again (settings.fixedViewM), the horizon's
+-- distance set at once (a few booleans a frame). (A field, not a local: this chunk is at LuaJIT's 200-local limit.)
+function M.checkMapView()
+  local m3 = rawget(_G, 'beamngEarth_map3d')
+  local on = (m3 and m3.isActive and m3.isActive()) and true or false
+  if on == st.mapViewOn then return end
+  local first = st.mapViewOn == nil
+  st.mapViewOn = on
+  if first then return end          -- (the first frame: only noted, nothing changed)
+  local stg = rawget(_G, 'beamngEarth_settings')
+  if stg and stg.reapplyView then stg.reapplyView() end
+  -- (horizon mode: its distance set again at once; st.visibleDistance otherwise says the level's was changed by it)
+  if horizonOn then st.visibleDistance = nil end
+  applyHorizon()
+end
+
 local function onUpdate(dtReal, dtSim)
+  M.checkMapView()
   dtReal = dtReal or 0
   local frameMs0 = frameTimer and frameTimer:stopAndReset() or dtReal * 1000
   net.setIdle(not st.inOurLevel and not st.active)
@@ -3045,7 +3069,12 @@ local function onPreRender(dtReal, dtSim)
       and M._pacer.active(now / 1000)
     if on then
       local wait = M._pacer.step(now - M._paceLast)
-      if wait > 0 then pcall(M._pacer.sleep, wait); now = M._paceClock() end
+      if wait > 0 then
+        pcall(M._pacer.sleep, wait)
+        local t = M._paceClock()
+        M._pacer.slept(wait, t - now)     -- (a coarse system timer: every sleep overshoots; pacing then stops)
+        now = t
+      end
     else
       M._pacer.reset()
     end
@@ -3421,7 +3450,7 @@ function M.status()
     terrainLatency = st.terrainLatency, horizon = horizonOn, farRadius = farRadius,
     visibleDistance = st.visibleDistance or VISIBLE_DISTANCE, banner = banner.current().id, guard = st.guard.mode,
     sessions = roads.allHeldSessions(), tileSession = farfield.session(), sea = sea.status(), trees = trees.status(), ambience = ambience.status(),
-    trafficAdaptive = navgraph.trafficStatus() })
+    trafficAdaptive = navgraph.trafficStatus(), pacer = M._pacer.stats() })
 end
 
 -- The connection state line (the settings page shows it): the banner's { id, level, text } (text
