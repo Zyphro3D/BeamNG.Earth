@@ -102,8 +102,9 @@ function M.segments(g)
       local speed, half, walk = tonumber(e[6]) or 13, tonumber(e[8]) or 3.5, tonumber(e[13]) or 0
       if knows then
         if walk > 0 then
-          -- the walker in the middle of the drawn sidewalk (walkers.lua puts it SIDE_GAP past the road's edge)
-          half = math.max(0.5, half + walk / 2 - M.SIDE_GAP)
+          -- the walker in the middle of the drawn sidewalk, `walk` m off the centre line (walkers.lua puts it SIDE_GAP
+          -- past the road's edge, the half width or its lanes' reach: no lanes, the half width alone)
+          half, lanes = math.max(0.5, walk - M.SIDE_GAP), ''
         else
           speed = M.NO_WALK_SPEED       -- (no sidewalk drawn: no walkers; the road still cuts the others' sidewalks)
         end

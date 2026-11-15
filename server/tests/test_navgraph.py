@@ -1022,12 +1022,12 @@ class PostedLimitTest(unittest.TestCase):
 
 
 class SidewalkWidthTest(unittest.TestCase):
-    """edge[12] (the France fork's pedestrians, citylife.lua): the width of the sidewalk the road tiles draw, or 0."""
+    """edge[12] (the France fork's pedestrians, citylife.lua): the drawn sidewalk's middle off the centre line, or 0."""
 
     def test_drawn_sidewalk_or_none(self):
         import navgraph as ng
-        walked = SimpleNamespace(street=None, sides=(1, -1), kind="paved", walk=1.8)
-        self.assertEqual(ng._sidewalk_width(walked), 1.8)
-        self.assertEqual(ng._sidewalk_width(SimpleNamespace(street=None, sides=(), kind="paved", walk=1.8)), 0.0)
+        walked = SimpleNamespace(street=None, sides=(1, -1), kind="paved", walk=1.8, width=9.0)
+        self.assertEqual(ng._sidewalk_width(walked), 5.4)
+        self.assertEqual(ng._sidewalk_width(SimpleNamespace(street=None, sides=(), kind="paved", walk=1.8, width=9.0)), 0.0)
         self.assertEqual(ng._sidewalk_width(None), 0.0)
         self.assertEqual(ng._sidewalk_width(SimpleNamespace()), 0.0)

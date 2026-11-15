@@ -353,11 +353,15 @@ def _open_floor(parts, points):
 
 
 def _sidewalk_width(spec):
-    """The width (m) of the sidewalk the road tiles draw along a road (roads.has_sidewalks, spec.walk), or 0.0: the
-    graph's edge[12] (the France fork, 2026-11-15: the pedestrians walk only where a sidewalk is drawn; on every road
-    under 60 km/h they walked the verges of country roads)."""
+    """How far (m) from a road's centre line the middle of the sidewalk the road tiles draw lies (roads.has_sidewalks:
+    the carriageway's half width spec.width / 2 plus half the sidewalk, spec.walk / 2), or 0.0 for none: the graph's
+    edge[12] (the France fork, 2026-11-15: the pedestrians walk only where a sidewalk is drawn, in its middle; on every
+    road under 60 km/h they walked the verges of country roads, and by the AI's lanes' half width a street's walkers
+    walked on its parking lane)."""
     try:
-        return round(float(spec.walk), 2) if spec is not None and roads.has_sidewalks(spec) and spec.walk else 0.0
+        if spec is None or not roads.has_sidewalks(spec) or not spec.walk:
+            return 0.0
+        return round(float(spec.width) / 2 + float(spec.walk) / 2, 2)
     except (AttributeError, TypeError, ValueError):
         return 0.0
 
@@ -365,7 +369,7 @@ def _sidewalk_width(spec):
 def build(frame, feats_list, elev, centre, urban_fn=None, window=WINDOW_M, decks=None, tunnels=None, widths=None, left_hand=False,
           mph=True, signals=None, country=None, priority=None, de_on=False, de_routes=(), open_tunnels=None):
     """{"nodes": {name: [x, y, z, radius]}, "edges": [[in, out, oneway, lanes_out, lanes_in, speed m/s,
-    drivability, radius, (optional portal radius, posted speed, rough-road flag, rumble candidate, sidewalk width)]], `lines` for tunnel-only minimap
+    drivability, radius, (optional portal radius, posted speed, rough-road flag, rumble candidate, sidewalk middle's offset)]], `lines` for tunnel-only minimap
     stretches as [x1, y1, x2, y2, drivability, posted speed m/s]
     (the last field was added in 1.9 for add-ons that read legal limits). open_tunnels: fid -> [(xy, z)] of dry
     mapped-tunnel sections the renderer builds as ordinary open roads; these do not need the tube AI opt-in.
@@ -386,7 +390,7 @@ def build(frame, feats_list, elev, centre, urban_fn=None, window=WINDOW_M, decks
     posted = {}                 # id(edge) -> its posted limit where the AI's target is not it (posted_field)
     rough_edges = set()          # id(edge) -> OSM smoothness class says traffic should not overspeed
     rumble_edges = set()         # id(edge) -> likely ATLM/rural rumble strip corridor
-    walk_edges = {}              # id(edge) -> the drawn sidewalk's width (roads.has_sidewalks; the France fork's pedestrians)
+    walk_edges = {}              # id(edge) -> the drawn sidewalk's middle off the centre line (_sidewalk_width; the France fork)
     carriage, carriage_ll = [], []     # sampled ground carriageways, with heights batched below
     signal_parts, signal_walks, signal_depths = [], {}, {}
     copies = roads.copies_of(feats_list)

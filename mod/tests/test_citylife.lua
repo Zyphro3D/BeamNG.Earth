@@ -78,8 +78,8 @@ local withWalk, without
 for _, sg in pairs(C.segments(g3)) do
   if sg[3] == 'b' or sg[2] == 'b' then withWalk = sg else without = sg end
 end
-T.check(withWalk and withWalk[5] == 13.9 and math.abs(withWalk[6] - (4 + 1 - C.SIDE_GAP)) < 1e-9,
-  'a drawn sidewalk: walkers in its middle')
+T.check(withWalk and withWalk[5] == 13.9 and math.abs(withWalk[6] - (2.0 - C.SIDE_GAP > 0.5 and 2.0 - C.SIDE_GAP or 0.5)) < 1e-9
+  and withWalk[4] == '', 'a drawn sidewalk: walkers in its middle (edge[13] its offset)')
 T.check(without and without[5] == C.NO_WALK_SPEED, 'no sidewalk drawn: no walkers there')
 local W3 = walkers.new({ seed = 3 })
 walkers.sync(W3, C.segments(g3), 0, 0)
