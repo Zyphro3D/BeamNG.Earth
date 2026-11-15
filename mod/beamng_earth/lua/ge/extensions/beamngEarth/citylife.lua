@@ -17,8 +17,11 @@ M.DIR = '/levels/beamng_earth/art/shapes/beamngEarth/people/'
 M.MATERIALS = M.DIR .. 'people.materials.json'
 M.GROUP = 'beamngEarth_walkers'
 M.COUNTS = { off = 0, few = 80, normal = 200, many = 400 }
+M.SIDE_GAP = 1.7          -- m: walkers.lua's SIDE_GAP (its walkers' line past the road's edge)
+M.NO_WALK_SPEED = 99      -- m/s: a road walkers.lua gives no sidewalk (over its MAX_SPEED)
 M.CARS_S = 0.25           -- s between the reads of the vehicles (the walkers wait for moving ones at the kerb)
-M.SYNC_YIELD = 1          -- coroutine.yield at each pause walkers.sync asks for (a few roads a frame)
+M.SYNC_MS = 2.0           -- ms of sidewalk building a frame (walkers.sync's pauses yield only past it: one yield per
+                          -- pause took over a thousand frames for a town's 500 roads, the first try in game)
 
 local W, V = nil, nil     -- walkers.lua's state and its view
 local syncCo = nil
@@ -29,6 +32,7 @@ local lastCount = nil
 local lastAnchor = nil
 local mapDirty = true      -- the game's road map reloaded since the last read
 local mapSerial = 0
+local sliceAt = 0          -- (the time this frame's slice of the sync started)
 
 -- Pure: walkers.lua's segments ({[id] = {id, a, b, lanes, speed, half, drive, x, y, z, ...}}) of a road graph
 -- ({nodes = {name = {x, y, z, r}}, edges = {{in, out, oneway, lanes_out, lanes_in, speed, drivability, radius ...}}}).
@@ -40,9 +44,13 @@ function M.segments(g)
   local nodes, edges = g.nodes, g.edges
   local at = {}           -- node -> list of edge indices
   local function key(e)
-    return string.format('%.1f|%.1f|%d|%d|%d', tonumber(e[6]) or 0, tonumber(e[8]) or 0, tonumber(e[4]) or 0,
-      tonumber(e[5]) or 0, tonumber(e[3]) or 0)
+    return string.format('%.1f|%.1f|%d|%d|%d|%.1f', tonumber(e[6]) or 0, tonumber(e[8]) or 0, tonumber(e[4]) or 0,
+      tonumber(e[5]) or 0, tonumber(e[3]) or 0, tonumber(e[13]) or 0)
   end
+  -- (a graph that says where sidewalks are drawn, edge[13] (navgraph.py edge[12]): walkers only there; an older one
+  -- without it: every road under walkers' 60 km/h, as EarthNG)
+  local knows = false
+  for _, e in ipairs(edges) do if e[13] ~= nil then knows = true; break end end
   for i, e in ipairs(edges) do
     if nodes[e[1]] and nodes[e[2]] and e[1] ~= e[2] then
       at[e[1]] = at[e[1]] or {}
@@ -91,8 +99,16 @@ function M.segments(g)
       local lanes = string.rep('+', math.max(0, fwd)) .. string.rep('-', math.max(0, back))
       if lanes == '' then lanes = '+-' end
       id = id + 1
-      local s = { id, names[1], names[#names], lanes, tonumber(e[6]) or 13, tonumber(e[8]) or 3.5,
-        tonumber(e[7]) or 1 }
+      local speed, half, walk = tonumber(e[6]) or 13, tonumber(e[8]) or 3.5, tonumber(e[13]) or 0
+      if knows then
+        if walk > 0 then
+          -- the walker in the middle of the drawn sidewalk (walkers.lua puts it SIDE_GAP past the road's edge)
+          half = math.max(0.5, half + walk / 2 - M.SIDE_GAP)
+        else
+          speed = M.NO_WALK_SPEED       -- (no sidewalk drawn: no walkers; the road still cuts the others' sidewalks)
+        end
+      end
+      local s = { id, names[1], names[#names], lanes, speed, half, tonumber(e[7]) or 1 }
       for _, name in ipairs(names) do
         local p = nodes[name]
         s[#s + 1], s[#s + 2], s[#s + 3] = tonumber(p[1]) or 0, tonumber(p[2]) or 0, tonumber(p[3]) or 0
@@ -123,7 +139,7 @@ function M.graphOfMap(mapNodes)
         local fwd, back = select(2, lanes:gsub('%+', '')), select(2, lanes:gsub('%-', ''))
         if fwd + back == 0 then fwd, back = 1, e.oneWay and 0 or 1 end
         g.edges[#g.edges + 1] = { a, b, e.oneWay and 1 or 0, fwd, back, tonumber(e.speedLimit) or 13,
-          tonumber(e.drivability) or 1, tonumber(e.inRadius) or n.radius or 3 }
+          tonumber(e.drivability) or 1, tonumber(e.inRadius) or n.radius or 3, nil, nil, nil, nil, e.walk }
       end
     end
   end
@@ -230,13 +246,16 @@ function M.update(dtReal, anchorId, setting, paused)
     local segs = M.segments(M.graphOfMap(m and m.nodes))
     if next(segs) then
       syncCo = coroutine.create(function()
-        walkers.sync(W, segs, fx, fy, M.SYNC_YIELD and coroutine.yield or nil)
+        walkers.sync(W, segs, fx, fy, function()
+          if (os.clock() - sliceAt) * 1000 >= M.SYNC_MS then coroutine.yield() end
+        end)
       end)
     else
       mapDirty = true           -- (no roads yet: the map comes with the level's first graph)
     end
   end
   if syncCo then
+    sliceAt = os.clock()
     local ok, err = coroutine.resume(syncCo)
     if not ok then log('W', 'beamngEarth', 'pedestrians: sync: ' .. tostring(err)); syncCo = nil end
     if syncCo and coroutine.status(syncCo) == 'dead' then syncCo = nil end
@@ -248,5 +267,7 @@ end
 
 -- (tests, the console) asked, walking, room
 function M.counts() if not W then return 0, 0, 0 end return walkers.counts(W) end
+-- (probes) whether the sidewalks are being built, and how many metres of them there are
+function M.debug() return { syncing = syncCo ~= nil, dirty = mapDirty, pieces = W and #W.list or 0, length = W and W.length or 0 } end
 
 return M

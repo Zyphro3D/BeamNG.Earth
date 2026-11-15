@@ -352,10 +352,20 @@ def _open_floor(parts, points):
     return bool(points) and any(all(_deck_z({None: [part]}, None, *p) is not None for p in points) for part in parts)
 
 
+def _sidewalk_width(spec):
+    """The width (m) of the sidewalk the road tiles draw along a road (roads.has_sidewalks, spec.walk), or 0.0: the
+    graph's edge[12] (the France fork, 2026-11-15: the pedestrians walk only where a sidewalk is drawn; on every road
+    under 60 km/h they walked the verges of country roads)."""
+    try:
+        return round(float(spec.walk), 2) if spec is not None and roads.has_sidewalks(spec) and spec.walk else 0.0
+    except (AttributeError, TypeError, ValueError):
+        return 0.0
+
+
 def build(frame, feats_list, elev, centre, urban_fn=None, window=WINDOW_M, decks=None, tunnels=None, widths=None, left_hand=False,
           mph=True, signals=None, country=None, priority=None, de_on=False, de_routes=(), open_tunnels=None):
     """{"nodes": {name: [x, y, z, radius]}, "edges": [[in, out, oneway, lanes_out, lanes_in, speed m/s,
-    drivability, radius, (optional portal radius, posted speed, rough-road flag, rumble candidate)]], `lines` for tunnel-only minimap
+    drivability, radius, (optional portal radius, posted speed, rough-road flag, rumble candidate, sidewalk width)]], `lines` for tunnel-only minimap
     stretches as [x1, y1, x2, y2, drivability, posted speed m/s]
     (the last field was added in 1.9 for add-ons that read legal limits). open_tunnels: fid -> [(xy, z)] of dry
     mapped-tunnel sections the renderer builds as ordinary open roads; these do not need the tube AI opt-in.
@@ -376,6 +386,7 @@ def build(frame, feats_list, elev, centre, urban_fn=None, window=WINDOW_M, decks
     posted = {}                 # id(edge) -> its posted limit where the AI's target is not it (posted_field)
     rough_edges = set()          # id(edge) -> OSM smoothness class says traffic should not overspeed
     rumble_edges = set()         # id(edge) -> likely ATLM/rural rumble strip corridor
+    walk_edges = {}              # id(edge) -> the drawn sidewalk's width (roads.has_sidewalks; the France fork's pedestrians)
     carriage, carriage_ll = [], []     # sampled ground carriageways, with heights batched below
     signal_parts, signal_walks, signal_depths = [], {}, {}
     copies = roads.copies_of(feats_list)
@@ -414,6 +425,8 @@ def build(frame, feats_list, elev, centre, urban_fn=None, window=WINDOW_M, decks
         speed = rules.get("max_speed_kmh")
         ow = rules.get("oneway")
         for i, spec in enumerate(specs):
+            # (the France fork: the sidewalk the road tiles draw, for the pedestrians: citylife.lua, edge[12])
+            sidewalked = _sidewalk_width(spec)
             fid = str(feats.ids[i])
             if spec is None or fid in seen:
                 continue
@@ -632,6 +645,8 @@ def build(frame, feats_list, elev, centre, urban_fn=None, window=WINDOW_M, decks
                     rumble_edges.add(id(edges[-1]))
                 if in_tunnel:
                     tube_edges.add(id(edges[-1]))
+                elif sidewalked:
+                    walk_edges[id(edges[-1])] = sidewalked
     # The static props use 3D solved roads/decks. A 2D graph clearance line would falsely block every level below
     # a viaduct, suppressing the switchable head while leaving the static signal behind.
     if carriage_ll:
@@ -736,6 +751,13 @@ def build(frame, feats_list, elev, centre, urban_fn=None, window=WINDOW_M, decks
                 e.append(bool(rough))      # (false, not null: no hole before the rumble flag in the mod's array)
             if rumble:
                 e.append(True)
+        walk = walk_edges.get(id(e))
+        if walk:                    # (e[12], after the portal radius, posted limit, rough and rumble flags: padded)
+            while len(e) < 10:
+                e.append(None)
+            while len(e) < 12:
+                e.append(False)
+            e.append(walk)
     lines = [ln for ln in lines if max(abs(ln[0] - cx), abs(ln[1] - cy), abs(ln[2] - cx), abs(ln[3] - cy)) <= window]
     return {"nodes": nodes, "edges": uniq, "signals": signals, "lines": lines,
             "trafficProfile": _traffic_profile(frame, density_lines, cx, cy), "mph": bool(mph)}

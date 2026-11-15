@@ -280,7 +280,8 @@ function M.toNodes(g, b, edgeM, leftHand, yieldEvery, halo, fastHalo)
         local edge = { drivability = e[7], oneWay = e[3] == 1, lanes = M.lanes(e[4], e[5], leftHand),
           speedLimit = e[6], inNode = a, outNode = bb, inPos = A.pos, outPos = B.pos,
           inRadius = e[8], outRadius = e[9] or e[8],      -- (e[9]: a road narrowing to a tunnel's portal)
-          posted = e[10], rough = e[11] == true, rumble = e[12] == true } -- (posted/legal speed, OSM rough-road
+          posted = e[10], rough = e[11] == true, rumble = e[12] == true,
+          walk = tonumber(e[13]) } -- (the drawn sidewalk's width: the France fork's pedestrians, citylife.lua) (posted/legal speed, OSM rough-road
           -- metadata, the country/road rumble heuristic)
         A.links[bb] = edge
         B.links[a] = edge

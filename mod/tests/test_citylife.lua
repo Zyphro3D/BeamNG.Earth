@@ -71,4 +71,23 @@ T.check(one and one[2] == 'c' and one[3] == 1 and one[4] == 2 and one[5] == 0, '
 T.check(gm.nodes.b[1] == 40 and gm.nodes.b[4] == 4, 'node position and radius')
 T.check(#C.graphOfMap(nil).edges == 0, 'no map: no roads')
 
+-- a graph that says where sidewalks are drawn (edge[13]): walkers only there
+local g3 = { nodes = { a = { 0, 0, 0 }, b = { 60, 0, 0 }, c = { 0, 60, 0 } },
+  edges = { { 'a', 'b', 0, 1, 1, 13.9, 1, 4, nil, nil, nil, nil, 2.0 }, { 'a', 'c', 0, 1, 1, 13.9, 1, 4, nil, nil, nil, nil, 0 } } }
+local withWalk, without
+for _, sg in pairs(C.segments(g3)) do
+  if sg[3] == 'b' or sg[2] == 'b' then withWalk = sg else without = sg end
+end
+T.check(withWalk and withWalk[5] == 13.9 and math.abs(withWalk[6] - (4 + 1 - C.SIDE_GAP)) < 1e-9,
+  'a drawn sidewalk: walkers in its middle')
+T.check(without and without[5] == C.NO_WALK_SPEED, 'no sidewalk drawn: no walkers there')
+local W3 = walkers.new({ seed = 3 })
+walkers.sync(W3, C.segments(g3), 0, 0)
+local onC = false
+for _, piece in ipairs(W3.list) do if piece.rec.src[3] == 'c' or piece.rec.src[2] == 'c' then onC = true end end
+T.check(#W3.list > 0 and not onC, 'sidewalk pieces only along the road with one')
+local e = { inNode = 'a', outNode = 'b', lanes = '-+', speedLimit = 13.9, drivability = 1, inRadius = 4, walk = 1.5 }
+local gw = C.graphOfMap({ a = { pos = { x = 0, y = 0, z = 0 }, links = { b = e } }, b = { pos = { x = 30, y = 0, z = 0 }, links = { a = e } } })
+T.check(gw.edges[1][13] == 1.5, 'the map edge carries its sidewalk width')
+
 T.done('test_citylife')

@@ -1019,3 +1019,15 @@ class PostedLimitTest(unittest.TestCase):
         self.assertEqual(ng.posted_field(24.6, 18.0, True), 24.6)     # (a bend: the limit)
         self.assertEqual(ng.posted_field(24.6, 18.0, False), -24.6)   # (the class's default: negative)
         self.assertIsNone(ng.posted_field(None, 10.0, True))
+
+
+class SidewalkWidthTest(unittest.TestCase):
+    """edge[12] (the France fork's pedestrians, citylife.lua): the width of the sidewalk the road tiles draw, or 0."""
+
+    def test_drawn_sidewalk_or_none(self):
+        import navgraph as ng
+        walked = SimpleNamespace(street=None, sides=(1, -1), kind="paved", walk=1.8)
+        self.assertEqual(ng._sidewalk_width(walked), 1.8)
+        self.assertEqual(ng._sidewalk_width(SimpleNamespace(street=None, sides=(), kind="paved", walk=1.8)), 0.0)
+        self.assertEqual(ng._sidewalk_width(None), 0.0)
+        self.assertEqual(ng._sidewalk_width(SimpleNamespace()), 0.0)
