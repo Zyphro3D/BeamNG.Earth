@@ -1361,7 +1361,7 @@ class GeoFilesTest(unittest.TestCase):
         self.touch(s, *names)
         # (a batch window well over the event loop's timer lateness: Windows wakes ~16 ms late, past the tests' 10 ms,
         # and split the four graces into two listings on a CI runner)
-        p = patch_all(earthd, "GEO_LIST_BATCH_S", 0.3)
+        p = mock.patch.object(earthd, "GEO_LIST_BATCH_S", 0.3)
         p.start()
         self.addCleanup(p.stop)
         calls = []
