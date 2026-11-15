@@ -28,6 +28,14 @@ only, nothing redistributed. Licence notes marked *(verify)* must be re-checked 
   were silhouette references only; no photo pixels or other authors' models are
   redistributed. The new kit uses country profiles, not named-village exceptions.
 
+## Pedestrians (bundled, the France fork)
+
+- **EarthNG** by Alezx311, [github.com/Alezx311/earthng](https://github.com/Alezx311/earthng), MIT License,
+  Copyright (c) 2026 Alezx311. `mod/beamng_earth/lua/ge/extensions/beamngEarth/walkers.lua` is EarthNG's
+  `walkers.lua` (at bd9a054), and the pedestrian pose shapes in `levels/beamng_earth/art/shapes/beamngEarth/people/`
+  were generated with EarthNG's `earthng/people_art.py` (its own art, no third-party models; materials renamed
+  `bne_ped_*`). `citylife.lua` feeds it BeamNG.Earth's road graph.
+
 ## French asphalt (bundled, opt-in: BNE_FR_ASPHALT=on)
 
 The carriageways' asphalt of France's paved roads drawn as meshes (`mod/.../art/shapes/beamngEarth/fr_asphalt/`, built

@@ -586,7 +586,9 @@
   "Server page": "Page du serveur",
   "Original BeamNG.Earth": "BeamNG.Earth d'origine",
   "Report on Discord": "Signaler sur Discord",
-  "\"Report on Discord\" opens the Zyphro Discord: post what happened there, with screenshot.jpg and issue.md from the folder (\"Open folder\"). Or post it yourself on GitHub: \"Open GitHub issue page\" fills in the text; drag screenshot.jpg into it. If the page opens empty, paste issue.md's text into it.": "« Signaler sur Discord » ouvre le Discord Zyphro : racontez-y ce qui s'est passé, avec screenshot.jpg et issue.md du dossier (« Ouvrir le dossier »). Ou publiez-le vous-même sur GitHub : « Ouvrir la page de signalement GitHub » remplit le texte ; glissez-y screenshot.jpg. Si la page s'ouvre vide, collez-y le texte d'issue.md."
+  "\"Report on Discord\" opens the Zyphro Discord: post what happened there, with screenshot.jpg and issue.md from the folder (\"Open folder\"). Or post it yourself on GitHub: \"Open GitHub issue page\" fills in the text; drag screenshot.jpg into it. If the page opens empty, paste issue.md's text into it.": "« Signaler sur Discord » ouvre le Discord Zyphro : racontez-y ce qui s'est passé, avec screenshot.jpg et issue.md du dossier (« Ouvrir le dossier »). Ou publiez-le vous-même sur GitHub : « Ouvrir la page de signalement GitHub » remplit le texte ; glissez-y screenshot.jpg. Si la page s'ouvre vide, collez-y le texte d'issue.md.",
+  "Pedestrians": "Piétons",
+  "People walking on the sidewalks of streets up to 60 km/h; they wait at the kerb for cars. Drawn on your computer only (no physics, nothing sent to a multiplayer server), so cars pass through them. Off is lightest. From EarthNG by Alezx311.": "Des passants sur les trottoirs des rues jusqu'à 60 km/h ; ils attendent au bord du trottoir qu'une voiture passe. Dessinés sur votre ordinateur seulement (sans physique, rien n'est envoyé à un serveur multijoueur) : les voitures les traversent. Désactivé est le plus léger. Repris d'EarthNG, par Alezx311."
  },
  "subs": [
   [

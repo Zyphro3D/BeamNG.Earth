@@ -1,0 +1,130 @@
+{
+  "bne_ped_shirt": {
+    "name": "bne_ped_shirt",
+    "mapTo": "bne_ped_shirt",
+    "class": "Material",
+    "version": 1.5,
+    "Stages": [
+      {
+        "baseColorFactor": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "roughnessFactor": 0.85,
+        "instanceDiffuse": true,
+        "colorPaletteMap": "/vehicles/common/nullcolormaskR.color.png"
+      },
+      {},
+      {},
+      {}
+    ]
+  },
+  "bne_ped_pants": {
+    "name": "bne_ped_pants",
+    "mapTo": "bne_ped_pants",
+    "class": "Material",
+    "version": 1.5,
+    "Stages": [
+      {
+        "baseColorFactor": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "roughnessFactor": 0.85,
+        "instanceDiffuse": true,
+        "colorPaletteMap": "/vehicles/common/nullcolormaskG.color.png"
+      },
+      {},
+      {},
+      {}
+    ]
+  },
+  "bne_ped_skin": {
+    "name": "bne_ped_skin",
+    "mapTo": "bne_ped_skin",
+    "class": "Material",
+    "version": 1.5,
+    "Stages": [
+      {
+        "baseColorFactor": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "roughnessFactor": 0.7,
+        "instanceDiffuse": true,
+        "colorPaletteMap": "/vehicles/common/nullcolormaskB.color.png"
+      },
+      {},
+      {},
+      {}
+    ]
+  },
+  "bne_ped_hair": {
+    "name": "bne_ped_hair",
+    "mapTo": "bne_ped_hair",
+    "class": "Material",
+    "version": 1.5,
+    "Stages": [
+      {
+        "baseColorFactor": [
+          0.06,
+          0.045,
+          0.03,
+          1
+        ],
+        "roughnessFactor": 0.8
+      },
+      {},
+      {},
+      {}
+    ]
+  },
+  "bne_ped_shoes": {
+    "name": "bne_ped_shoes",
+    "mapTo": "bne_ped_shoes",
+    "class": "Material",
+    "version": 1.5,
+    "Stages": [
+      {
+        "baseColorFactor": [
+          0.05,
+          0.05,
+          0.05,
+          1
+        ],
+        "roughnessFactor": 0.7
+      },
+      {},
+      {},
+      {}
+    ]
+  },
+  "bne_ped_blood": {
+    "name": "bne_ped_blood",
+    "mapTo": "bne_ped_blood",
+    "class": "Material",
+    "version": 1.5,
+    "Stages": [
+      {
+        "baseColorMap": "/levels/e2r_world/art/people/blood.color.png",
+        "opacityMap": "/levels/e2r_world/art/people/blood_o.data.png",
+        "roughnessFactor": 0.38,
+        "metallicFactor": 0,
+        "vertColor": false
+      },
+      {},
+      {},
+      {}
+    ],
+    "alphaTest": true,
+    "alphaRef": 64,
+    "doubleSided": true,
+    "castShadows": false
+  }
+}

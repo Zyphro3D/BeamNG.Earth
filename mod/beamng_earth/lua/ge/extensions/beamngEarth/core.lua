@@ -3034,6 +3034,11 @@ local function onUpdate(dtReal, dtSim)
       if not ok then M._trafficvisuals.reset(); log('E', 'beamngEarth', 'distant traffic: ' .. tostring(err)) end
     end
     t = mark('trafficvisuals', t)
+    do                              -- (pedestrians, EarthNG's walkers: citylife.lua; the France fork)
+      local ok, err = pcall(M._citylife.update, dtReal, navgraph.currentGraph(), settings.get('pedestrians'), st.paused)
+      if not ok then pcall(M._citylife.reset); log('E', 'beamngEarth', 'pedestrians: ' .. tostring(err)) end
+    end
+    t = mark('citylife', t)
     updateSky(dtReal)
     updateGuard()
     t = mark('sky', t)
@@ -3222,6 +3227,7 @@ local function onClientEndMission()
   parking.reset()
   navgraph.reset()
   M._trafficvisuals.reset()
+  pcall(M._citylife.reset)
   local sessionId, nextRequestId, mapPort = st.sessionId, st.nextRequestId, st.mapPort
   resetState()
   st.sessionId, st.nextRequestId, st.mapPort = sessionId, nextRequestId, mapPort   -- the connection's (hello)
@@ -3254,6 +3260,7 @@ M.onFilesChanged = onFilesChanged
 
 local function onExtensionUnloaded()
   M._trafficvisuals.reset()
+  pcall(M._citylife.reset)
   hudapps.unhookCityZone()
   hudapps.unhookMinimapNorth()
   require('beamngEarth/minimaproads').unhook()
@@ -3312,6 +3319,7 @@ teleportTo = function(lat, lon, name, kind)
     parking.onTeleport()
     navgraph.onTeleport()
     M._trafficvisuals.onTeleport()
+    pcall(M._citylife.reset)
     do local ok, err = pcall(farcars.onTeleport) if not ok then log('W', 'beamngEarth', 'far cars: ' .. tostring(err)) end end
     pcall(mpsession.onTeleport)      -- (BeamMP: the camera is ours to put at the target, commitTeleport)
     if kind ~= 'tool' then
@@ -3810,6 +3818,7 @@ M.onExtensionLoaded = onExtensionLoaded
 M.onExtensionUnloaded = onExtensionUnloaded
 
 M._trafficvisuals = require('beamngEarth/trafficvisuals')
+M._citylife = require('beamngEarth/citylife')      -- (the France fork: pedestrians)
 M._addons = require('beamngEarth/addons')       -- the Add-ons page's game side (a field: the 200-local limit)
 
 -- Another copy of the mod mounted under this code (a BeamMP server's copy replacing the player's when they join, theirs
