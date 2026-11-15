@@ -1,7 +1,8 @@
 -- From EarthNG (github.com/Alezx311/earthng, mod/lua/ge/extensions/e2r/walkers.lua at bd9a054), by Alezx311, MIT
 -- License (credited in CREDITS.md). Brought in by the France fork (the user, 2026-11-15: "pedestrians, light and
 -- multiplayer-friendly"): unchanged but for the shapes' folder and this note; the roads come from BeamNG.Earth's
--- own road graph (citylife.lua builds the segment list this module reads) and nothing here is sent to BeamMP.
+-- own road graph (citylife.lua builds the segment list this module reads) and nothing here is sent to BeamMP. One
+-- change: a segment may carry s.off = {[1] = m, [-1] = m or false}, its sidewalks' measured offsets (sidewalks()).
 --
 -- Pedestrians: walkers on the sidewalks of the navgraph of the loaded tiles (S.nav), as flow.lua
 -- drives cars on its lanes. A walker is a plain table; it is drawn as POSES static shapes
@@ -281,8 +282,10 @@ local function sidewalks(rec, s, grid)
   local off = roadEdge(s) + SIDE_GAP
   rec.pieces = {}
   for _, side in ipairs({1, -1}) do
-    local line, cum = offsetLine(pts, off * side)
-    local len = cum[#cum]
+    -- (the France fork: s.off[side], the measured middle of that side's sidewalk; false: no sidewalk there; citylife.lua)
+    local so = s.off and s.off[side]
+    local line, cum = offsetLine(pts, (so or off) * side)
+    local len = so == false and 0 or cum[#cum]
     local n = math.max(1, math.ceil(len / SAMPLE))
     local from, last, hint
     for i = 0, n do

@@ -115,4 +115,27 @@ end
 T.check(sane, 'every car on the grid')
 T.check(C.flowCountOf('off') == 0 and C.flowCountOf('light') < C.flowCountOf('dense'), 'the traffic counts by setting')
 
+-- the kerbs measured on the road as drawn: a street along +x, its right (walkers' side 1) is -y
+local street = { 1, 'a', 'b', '', 13.9, 2, 1, 0, 0, 0, 40, 0, 0, 80, 0, 0 }
+local function height(x, y, z)
+  if y <= -3.5 then return 0.14 end         -- a kerb 3.5 m right of the line
+  if y >= 6 then return 0.03 end            -- a low step 6 m left: no kerb
+  return 0
+end
+local sides = C.measureSides(street, height)
+T.check(sides and math.abs(sides[1] - (3.5 + C.WALK_IN)) < 0.26, 'the right kerb found, the walker past it (' .. tostring(sides and sides[1]) .. ')')
+T.check(sides and sides[-1] == false, 'no kerb on the left: no walkers there')
+T.check(C.measureSides(street, function() return nil end) == nil, 'nothing read: unmeasured')
+-- walkers.lua honours them: pieces on the right side only, at the measured offset
+local Wm = walkers.new({ seed = 9 })
+local s2 = { 1, 'a', 'b', '', 13.9, 2, 1, 0, 0, 0, 40, 0, 0, 80, 0, 0 }
+s2.off = { [1] = 4.3, [-1] = false }
+walkers.sync(Wm, { [1] = s2 }, 40, 0)
+local okSide, n = true, 0
+for _, piece in ipairs(Wm.list) do
+  n = n + 1
+  if piece.side ~= 1 or math.abs(piece.line[2] + 4.3) > 0.01 then okSide = false end
+end
+T.check(n > 0 and okSide, 'pieces only on the measured side, at its offset (' .. n .. ')')
+
 T.done('test_citylife')

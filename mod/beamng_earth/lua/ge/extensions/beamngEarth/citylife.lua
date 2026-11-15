@@ -25,6 +25,13 @@ M.FLOW_GROUP = 'beamngEarth_flow'
 M.FLOW_COUNTS = { off = 0, light = 100, normal = 200, dense = 400 }
 M.SIDE_GAP = 1.7          -- m: walkers.lua's SIDE_GAP (its walkers' line past the road's edge)
 M.NO_WALK_SPEED = 99      -- m/s: a road walkers.lua gives no sidewalk (over its MAX_SPEED)
+M.WALK_MAX_SPEED = 16.7   -- m/s: walkers.lua's MAX_SPEED (faster roads have no sidewalk: not measured)
+M.KERB_MIN = 0.07          -- m: a step up this high from the road is a kerb (the drawn ones are 12-15 cm)
+M.KERB_STEP = 0.25         -- m between the height reads across a street ...
+M.KERB_MAX = 12            -- ... out to this far from its centre line
+M.WALK_IN = 0.8            -- m past the kerb a walker walks
+M.KERB_AT = { 0.25, 0.5, 0.75 }   -- where along a street its kerbs are looked for (two of three must agree)
+M.REMEASURE_S = { 15, 45 } -- s after a sync the kerbs are measured again (the road tiles come after the graph)
 M.CARS_S = 0.25           -- s between the reads of the vehicles (the walkers wait for moving ones at the kerb)
 M.SYNC_MS = 2.0           -- ms of sidewalk building a frame (walkers.sync's pauses yield only past it: one yield per
                           -- pause took over a thousand frames for a town's 500 roads, the first try in game)
@@ -42,6 +49,8 @@ local lastAnchor = nil
 local mapDirty = true      -- the game's road map reloaded since the last read
 local mapSerial = 0
 local sliceAt = 0          -- (the time this frame's slice of the sync started)
+local remeasure, remeasureAt, lastSig = nil, nil, nil
+local startSync
 
 -- Pure: walkers.lua's segments ({[id] = {id, a, b, lanes, speed, half, drive, x, y, z, ...}}) of a road graph
 -- ({nodes = {name = {x, y, z, r}}, edges = {{in, out, oneway, lanes_out, lanes_in, speed, drivability, radius ...}}}).
@@ -156,6 +165,65 @@ function M.graphOfMap(mapNodes)
   return g
 end
 
+-- Pure (height(x, y, z) -> the surface's height or nil): each side's sidewalk middle of segment s (walkers.lua's
+-- side 1 is the right of its line, -1 the left), measured on the road as drawn: the first step up of KERB_MIN or more
+-- going out from the centre line, at KERB_AT of its length; a side where two of the three agree within a metre gets
+-- that kerb + WALK_IN, else false (no kerb: a street drawn wider than the graph says, flush ground, a square).
+-- {[1] = m or false, [-1] = m or false}, or nil when nothing could be read. (The France fork, 2026-11-15: by the
+-- graph's widths alone the walkers of Toulouse's rue de Metz walked on the carriageway, 2 m short of the kerb.)
+function M.measureSides(s, height)
+  local pts = {}
+  for k = 8, #s - 2, 3 do pts[#pts + 1] = { s[k], s[k + 1], s[k + 2] } end
+  if #pts < 2 then return nil end
+  local cum = { 0 }
+  for i = 2, #pts do
+    cum[i] = cum[i - 1] + math.sqrt((pts[i][1] - pts[i - 1][1]) ^ 2 + (pts[i][2] - pts[i - 1][2]) ^ 2)
+  end
+  local L = cum[#pts]
+  if L < 4 then return nil end
+  local found = { [1] = {}, [-1] = {} }
+  local read = false
+  for _, f in ipairs(M.KERB_AT) do
+    local d = f * L
+    local i = 2
+    while i < #pts and cum[i] < d do i = i + 1 end
+    local a, b = pts[i - 1], pts[i]
+    local seg = cum[i] - cum[i - 1]
+    local t = seg > 1e-6 and (d - cum[i - 1]) / seg or 0
+    local x, y, z = a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t
+    local dx, dy = (b[1] - a[1]) / math.max(seg, 1e-6), (b[2] - a[2]) / math.max(seg, 1e-6)
+    local rx, ry = dy, -dx                      -- (the right: walkers.lua's offsetLine)
+    local h0 = height(x, y, z)
+    if h0 then
+      read = true
+      for _, side in ipairs({ 1, -1 }) do
+        local k = 1
+        while k * M.KERB_STEP <= M.KERB_MAX do
+          local o = k * M.KERB_STEP
+          local h = height(x + side * rx * o, y + side * ry * o, z)
+          if h and h - h0 >= M.KERB_MIN then
+            table.insert(found[side], o)
+            break
+          end
+          k = k + 1
+        end
+      end
+    end
+  end
+  if not read then return nil end
+  local out = {}
+  for _, side in ipairs({ 1, -1 }) do
+    local list = found[side]
+    table.sort(list)
+    local pick = false
+    for i = 1, #list - 1 do
+      if list[i + 1] - list[i] <= 1.0 then pick = list[i + 1] + M.WALK_IN; break end
+    end
+    out[side] = pick
+  end
+  return out
+end
+
 -- Pure: the walkers asked for a setting value.
 function M.countOf(value) return M.COUNTS[value] or M.COUNTS.normal end
 
@@ -250,11 +318,42 @@ end
 
 function M.reset()
   flowClear()
+  remeasure, remeasureAt, lastSig = nil, nil, nil
   if W then pcall(walkers.clear, W, V) end
   W, V, syncCo, lastCount = nil, nil, nil, nil
   mapDirty = true
   local g = scenetree and scenetree.findObject and scenetree.findObject(M.GROUP)
   if g then pcall(function() g:delete() end) end
+end
+
+local function slice()
+  if (os.clock() - sliceAt) * 1000 >= M.SYNC_MS then coroutine.yield() end
+end
+
+-- The sidewalks' kerbs measured (a few roads a frame), then walkers.lua's sync; a second pass whose kerbs came out the
+-- same as the last (sig) keeps the walkers as they are.
+function startSync(segs, fx, fy, onlyIfChanged)  -- (local: declared above)
+  return coroutine.create(function()
+    local sig = {}
+    for id, sg in pairs(segs) do
+      if sg[5] <= M.WALK_MAX_SPEED then
+        local got = M.measureSides(sg, ground)
+        if got then
+          sg.off = got
+          sig[#sig + 1] = id .. ':' .. tostring(got[1]) .. ',' .. tostring(got[-1])
+        else
+          sg.off = { [1] = false, [-1] = false }    -- (nothing drawn there yet: no walkers until it is measured)
+          sig[#sig + 1] = id .. ':-'
+        end
+      end
+      slice()
+    end
+    table.sort(sig)
+    local key = table.concat(sig, ';')
+    if onlyIfChanged and key == lastSig then return end
+    lastSig = key
+    walkers.sync(W, segs, fx, fy, slice)
+  end)
 end
 
 -- The game's road map was reloaded (core.lua onNavgraphReloaded): read it again.
@@ -310,11 +409,9 @@ function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
       end
       if W then
         local segs = M.segments(g)
-        syncCo = coroutine.create(function()
-          walkers.sync(W, segs, fx, fy, function()
-            if (os.clock() - sliceAt) * 1000 >= M.SYNC_MS then coroutine.yield() end
-          end)
-        end)
+        remeasure = 1
+        remeasureAt = clock + M.REMEASURE_S[1]
+        syncCo = startSync(segs, fx, fy)
       end
     end
   end
@@ -323,6 +420,15 @@ function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
     local ok, err = coroutine.resume(syncCo)
     if not ok then log('W', 'beamngEarth', 'pedestrians: sync: ' .. tostring(err)); syncCo = nil end
     if syncCo and coroutine.status(syncCo) == 'dead' then syncCo = nil end
+  end
+  -- the kerbs again once the road tiles are in (REMEASURE_S after a sync): the walkers move only if they changed
+  if W and not syncCo and not mapDirty and remeasure and clock >= remeasureAt then
+    local m = map and map.getMap and map.getMap()
+    local segs = M.segments(M.graphOfMap(m and m.nodes))
+    remeasure = remeasure + 1
+    remeasureAt = M.REMEASURE_S[remeasure] and (clock + M.REMEASURE_S[remeasure] - M.REMEASURE_S[remeasure - 1]) or nil
+    if not remeasureAt then remeasure = nil end
+    if next(segs) then syncCo = startSync(segs, fx, fy, true) end
   end
   if paused then return end
   local cars = readCars()
