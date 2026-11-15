@@ -191,16 +191,28 @@ local function removeLink(F, link)
   end
 end
 
+local turn
+-- (the France fork) the links a car on link may take at its end: not its own road back, and no U-turn onto another
+-- one (an arm's exit straight back into its entry); none but those: then the U-turns
+local U_TURN = math.rad(135)
+local function nextOptions(F, link)
+  local n = F.nodes[link.to]
+  local options = {}
+  if not n then return options end
+  for _, out in ipairs(n.out) do
+    if out.sid ~= link.sid and turn(link, out) < U_TURN then options[#options + 1] = out end
+  end
+  if #options == 0 then
+    for _, out in ipairs(n.out) do if out.sid ~= link.sid then options[#options + 1] = out end end
+  end
+  return options
+end
+
 local function pickNext(F, link)
   local n = F.nodes[link.to]
   if not n then return end
-  local total, options = 0, {}
-  for _, out in ipairs(n.out) do
-    if out.sid ~= link.sid then
-      options[#options + 1] = out
-      total = total + out.weight
-    end
-  end
+  local total, options = 0, nextOptions(F, link)
+  for _, out in ipairs(options) do total = total + out.weight end
   if #options == 0 then
     -- a dead end turns round on its own road; the end of the graph has no way on
     for _, out in ipairs(n.out) do if out.sid == link.sid and n.segs == 1 and #n.inn == 1 then return out end end
@@ -216,25 +228,43 @@ end
 
 local function gated(F, link)
   local n = F.nodes[link.to]
-  return n and n.segs >= 3
+  if not (n and n.segs >= 3) then return false end
+  -- (the France fork: a junction where no two links in can head for the same link out lets everyone through: an arm
+  -- splitting into a roundabout's entry and exit, its traffic in and out apart. Gated, the exit's cars waited for the
+  -- entry's and their queue stood back into the ring, Seilh 2026-11-15)
+  if n.conflictAt ~= F.version then
+    local seen, conflict = {}, false
+    for _, inn in ipairs(n.inn) do
+      for _, out in ipairs(nextOptions(F, inn)) do
+        if seen[out] and seen[out] ~= inn then conflict = true end
+        seen[out] = inn
+      end
+    end
+    n.conflict, n.conflictAt = conflict, F.version
+  end
+  return n.conflict
 end
 
 -- a junction's main road: the strongest in-links when at most two roads (both ways of one
 -- street) have that weight; otherwise all roads are equal and every car stops
 local function mainRoad(F, n)
   if n.mainAt == F.version then return n.main end
-  -- (the France fork: a roundabout's ring has the way, the cars on it going on and those coming in giving way. The ring
-  -- of a graph split at every arm has one one-way link in and a one-way link out at each arm; by the links' weights a
-  -- bigger arm had the way and the ring stood still, a heap of cars at Seilh's roundabout, 2026-11-15)
-  local ringIn, ringOut = nil, false
+  -- (the France fork: a roundabout's ring has the way, the cars on it going on and those coming in giving way. Of the
+  -- one-way links in, the ring's is the one going on straightest into a one-way link out (an arm's entry, one-way too
+  -- where the arm splits, turns into the ring). By the links' weights a bigger arm had the way and the ring stood still,
+  -- a heap of cars at Seilh's roundabout, 2026-11-15)
+  local ringIn, ringTurn = nil, math.rad(60)
   for _, link in ipairs(n.inn) do
     if link.oneWay then
-      if ringIn then ringIn = false; break end
-      ringIn = link
+      for _, out in ipairs(n.out) do
+        if out.oneWay and out.sid ~= link.sid then
+          local t = turn(link, out)
+          if t < ringTurn then ringIn, ringTurn = link, t end
+        end
+      end
     end
   end
-  for _, link in ipairs(n.out) do if link.oneWay and ringIn and link.sid ~= ringIn.sid then ringOut = true end end
-  if ringIn and ringOut and #n.inn >= 2 then
+  if ringIn and #n.inn >= 2 then
     n.main, n.mainAt = {[ringIn.sid] = true}, F.version
     return n.main
   end
@@ -251,7 +281,7 @@ local function mainRoad(F, n)
 end
 
 -- heading change from the end of link to the start of next, radians
-local function turn(link, next)
+function turn(link, next)  -- (local: declared before nextOptions, the France fork)
   local p, q = link.pts, next.pts
   local j = #p - 5
   local a = math.atan2(p[j + 4] - p[j + 1], p[j + 3] - p[j])

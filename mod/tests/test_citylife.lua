@@ -159,4 +159,31 @@ flow.setTarget(FR, 40)
 for k = 1, 12000 do flow.step(FR, 0.05, 0, 0, {}, k * 0.05, nil) end
 T.check((FR.stats.gaveUp or 0) == 0 and FR.count >= 35, 'a roundabout flows (' .. tostring(FR.stats.gaveUp) .. ' given up)')
 
+-- the same roundabout with its arms split into a one-way entry and exit where they meet the ring (as the graph has
+-- them): the ring still has the way
+local rf = { nodes = {}, edges = {} }
+for k = 0, 3 do
+  local a = k * math.pi / 2
+  rf.nodes['r' .. k] = { 20 * math.cos(a), 20 * math.sin(a), 0, 4 }
+  rf.nodes['x' .. k] = { 20 * math.cos(a + 0.35), 20 * math.sin(a + 0.35), 0, 4 }   -- (the exit, past the entry)
+  rf.nodes['m' .. k] = { 20 * math.cos(a + math.pi / 4), 20 * math.sin(a + math.pi / 4), 0, 4 }
+  rf.nodes['j' .. k] = { 45 * math.cos(a + 0.2), 45 * math.sin(a + 0.2), 0, 4 }
+  rf.nodes['e' .. k] = { 170 * math.cos(a), 170 * math.sin(a), 0, 4 }
+end
+for k = 0, 3 do
+  local nx = (k + 1) % 4
+  rf.edges[#rf.edges + 1] = { 'r' .. k, 'x' .. k, 1, 1, 0, 8, 1, 4 }
+  rf.edges[#rf.edges + 1] = { 'x' .. k, 'm' .. k, 1, 1, 0, 8, 1, 4 }
+  rf.edges[#rf.edges + 1] = { 'm' .. k, 'r' .. nx, 1, 1, 0, 8, 1, 4 }
+  rf.edges[#rf.edges + 1] = { 'j' .. k, 'r' .. k, 1, 1, 0, 8, 1, 3 }       -- the entry, one way
+  rf.edges[#rf.edges + 1] = { 'x' .. k, 'j' .. k, 1, 1, 0, 8, 1, 3 }       -- the exit, one way
+  rf.edges[#rf.edges + 1] = { 'e' .. k, 'j' .. k, 0, 1, 1, 13.9, 1, 4 }
+end
+local FF = flow.new({ leftHand = false, seed = 4, paints = flow.SHARE, bodies = flow.BODY_SHARE })
+flow.sync(FF, C.segments(rf, false), 0, 0, {}, {})
+flow.setTarget(FF, 40)
+for k = 1, 12000 do flow.step(FF, 0.05, 0, 0, {}, k * 0.05, nil) end
+T.check((FF.stats.gaveUp or 0) <= 2, 'a roundabout with one-way entries flows (' .. tostring(FF.stats.gaveUp) .. ' given up)')
+T.check(C.flowRoom(FF) > 0 and C.flowRoom(FF) < 1000, 'room by lane length (' .. C.flowRoom(FF) .. ')')
+
 T.done('test_citylife')

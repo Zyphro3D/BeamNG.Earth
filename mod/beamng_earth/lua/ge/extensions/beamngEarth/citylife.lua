@@ -23,6 +23,7 @@ M.FLOW_DIR = '/levels/beamng_earth/art/shapes/beamngEarth/flow/'
 M.FLOW_MATERIALS = M.FLOW_DIR .. 'flow.materials.json'
 M.FLOW_GROUP = 'beamngEarth_flow'
 M.FLOW_COUNTS = { off = 0, light = 100, normal = 200, dense = 400 }
+M.FLOW_LANE_M = 80         -- m of lane per car at most (400 cars on a suburb's few roads were one jam, Seilh 2026-11-15)
 M.SIDE_GAP = 1.7          -- m: walkers.lua's SIDE_GAP (its walkers' line past the road's edge)
 M.NO_WALK_SPEED = 99      -- m/s: a road walkers.lua gives no sidewalk (over its MAX_SPEED)
 M.WALK_MAX_SPEED = 16.7   -- m/s: walkers.lua's MAX_SPEED (faster roads have no sidewalk: not measured)
@@ -39,6 +40,7 @@ M.SYNC_MS = 2.0           -- ms of sidewalk building a frame (walkers.sync's pau
 local W, V = nil, nil     -- walkers.lua's state and its view
 local F, FV = nil, nil    -- flow.lua's state and its view
 local flowCount, flowLeft = nil, nil
+local flowRoom = math.huge    -- the cars the roads round have room for (M.flowRoom)
 local syncCo = nil
 local cars, carsAt = {}, -math.huge
 local obstacles = {}       -- (flow.step's list, reused)
@@ -258,6 +260,13 @@ local function flowShapes()
   return list
 end
 
+-- Pure: how many cars flow.lua's roads have room for: their lanes' length over FLOW_LANE_M.
+function M.flowRoom(F)
+  local m = 0
+  for _, link in pairs(F.links or {}) do m = m + (link.len or 0) * (link.lanes or 1) end
+  return math.floor(m / M.FLOW_LANE_M)
+end
+
 -- Pure: the cars asked for a setting value.
 function M.flowCountOf(value) return M.FLOW_COUNTS[value] or M.FLOW_COUNTS.normal end
 
@@ -393,7 +402,7 @@ function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
     FV = flow.view(F, flowShapes(), flowGroup())
     mapDirty = true
   end
-  if F and wantCars ~= flowCount then flow.setTarget(F, wantCars); flowCount = wantCars end
+  if F and wantCars ~= flowCount then flow.setTarget(F, math.min(wantCars, flowRoom)); flowCount = wantCars end
   -- the road map: read again when it changed; the traffic syncs at once, the sidewalks over a few frames
   if mapDirty and not syncCo then
     mapDirty = false
@@ -406,6 +415,8 @@ function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
       if F then
         local ok, err = pcall(flow.sync, F, M.segments(g, false), fx, fy, {}, {})
         if not ok then log('W', 'beamngEarth', 'traffic: sync: ' .. tostring(err)) end
+        flowRoom = M.flowRoom(F)
+        flow.setTarget(F, math.min(wantCars, flowRoom))
       end
       if W then
         local segs = M.segments(g)
