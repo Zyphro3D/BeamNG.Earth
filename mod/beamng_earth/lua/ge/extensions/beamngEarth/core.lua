@@ -3034,9 +3034,10 @@ local function onUpdate(dtReal, dtSim)
       if not ok then M._trafficvisuals.reset(); log('E', 'beamngEarth', 'distant traffic: ' .. tostring(err)) end
     end
     t = mark('trafficvisuals', t)
-    do                              -- (pedestrians, EarthNG's walkers: citylife.lua; the France fork)
-      local ok, err = pcall(M._citylife.update, dtReal, st.anchorId, settings.get('pedestrians'), st.paused)
-      if not ok then pcall(M._citylife.reset); log('E', 'beamngEarth', 'pedestrians: ' .. tostring(err)) end
+    do                              -- (pedestrians and traffic, EarthNG's walkers and flow: citylife.lua; the France fork)
+      local ok, err = pcall(M._citylife.update, dtReal, st.anchorId, settings.get('pedestrians'), st.paused,
+        settings.get('cityTraffic'), navgraph.rules and navgraph.rules.rightHandDrive)
+      if not ok then pcall(M._citylife.reset); log('E', 'beamngEarth', 'city life: ' .. tostring(err)) end
     end
     t = mark('citylife', t)
     updateSky(dtReal)

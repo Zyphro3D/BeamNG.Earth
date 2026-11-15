@@ -1,4 +1,4 @@
--- City life: pedestrians on the sidewalks (the France fork; the user, 2026-11-15: "pedestrians, traffic ... light and
+-- City life: pedestrians on the sidewalks and traffic on the roads (the France fork; the user, 2026-11-15: "pedestrians, traffic ... light and
 -- multiplayer-friendly"). The walkers are EarthNG's (walkers.lua, MIT, Alezx311): static pose shapes drawn on each
 -- player's own computer, no physics, nothing sent to BeamMP, so a server carries no extra vehicles and every player
 -- sees their own crowd. Cars pass through them (no collision); a walker waits at the kerb while a car comes.
@@ -12,11 +12,17 @@
 
 local M = {}
 local walkers = require('beamngEarth/walkers')
+local flow = require('beamngEarth/flow')
 
 M.DIR = '/levels/beamng_earth/art/shapes/beamngEarth/people/'
 M.MATERIALS = M.DIR .. 'people.materials.json'
 M.GROUP = 'beamngEarth_walkers'
 M.COUNTS = { off = 0, few = 80, normal = 200, many = 400 }
+-- the traffic (EarthNG's flow.lua: cars without physics, drawn here only; ~2.7 ms of the frame for 400, its docs)
+M.FLOW_DIR = '/levels/beamng_earth/art/shapes/beamngEarth/flow/'
+M.FLOW_MATERIALS = M.FLOW_DIR .. 'flow.materials.json'
+M.FLOW_GROUP = 'beamngEarth_flow'
+M.FLOW_COUNTS = { off = 0, light = 100, normal = 200, dense = 400 }
 M.SIDE_GAP = 1.7          -- m: walkers.lua's SIDE_GAP (its walkers' line past the road's edge)
 M.NO_WALK_SPEED = 99      -- m/s: a road walkers.lua gives no sidewalk (over its MAX_SPEED)
 M.CARS_S = 0.25           -- s between the reads of the vehicles (the walkers wait for moving ones at the kerb)
@@ -24,8 +30,11 @@ M.SYNC_MS = 2.0           -- ms of sidewalk building a frame (walkers.sync's pau
                           -- pause took over a thousand frames for a town's 500 roads, the first try in game)
 
 local W, V = nil, nil     -- walkers.lua's state and its view
+local F, FV = nil, nil    -- flow.lua's state and its view
+local flowCount, flowLeft = nil, nil
 local syncCo = nil
 local cars, carsAt = {}, -math.huge
+local obstacles = {}       -- (flow.step's list, reused)
 local clock = 0
 local at = nil            -- (a vec3 reused for the ground reads)
 local lastCount = nil
@@ -38,7 +47,7 @@ local sliceAt = 0          -- (the time this frame's slice of the sync started)
 -- ({nodes = {name = {x, y, z, r}}, edges = {{in, out, oneway, lanes_out, lanes_in, speed, drivability, radius ...}}}).
 -- Edges are chained through a node with exactly two edges that agree on speed, width and lanes (a road going on),
 -- so a sidewalk runs the street's length instead of stopping at every graph node.
-function M.segments(g)
+function M.segments(g, forWalkers)
   local out = {}
   if type(g) ~= 'table' or type(g.nodes) ~= 'table' or type(g.edges) ~= 'table' then return out end
   local nodes, edges = g.nodes, g.edges
@@ -100,7 +109,7 @@ function M.segments(g)
       if lanes == '' then lanes = '+-' end
       id = id + 1
       local speed, half, walk = tonumber(e[6]) or 13, tonumber(e[8]) or 3.5, tonumber(e[13]) or 0
-      if knows then
+      if knows and forWalkers ~= false then
         if walk > 0 then
           -- the walker in the middle of the drawn sidewalk, `walk` m off the centre line (walkers.lua puts it SIDE_GAP
           -- past the road's edge, the half width or its lanes' reach: no lanes, the half width alone)
@@ -161,6 +170,36 @@ local function group()
   return g
 end
 
+local function flowGroup()
+  local g = scenetree.findObject(M.FLOW_GROUP)
+  if g then return g end
+  pcall(loadJsonMaterialsFile, M.FLOW_MATERIALS)
+  g = createObject('SimGroup')
+  g.canSave = false
+  g:registerObject(M.FLOW_GROUP)
+  if scenetree.MissionGroup then scenetree.MissionGroup:addObject(g) end
+  return g
+end
+
+local function flowShapes()
+  local list = {}
+  for b, body in ipairs(flow.BODIES) do
+    list[b] = {}
+    for k, paint in ipairs(flow.PAINTS) do list[b][k] = M.FLOW_DIR .. 'car_' .. body .. '_' .. paint .. '.dae' end
+  end
+  return list
+end
+
+-- Pure: the cars asked for a setting value.
+function M.flowCountOf(value) return M.FLOW_COUNTS[value] or M.FLOW_COUNTS.normal end
+
+local function flowClear()
+  if F then pcall(flow.clear, F) end
+  F, FV, flowCount = nil, nil, nil
+  local g = scenetree and scenetree.findObject and scenetree.findObject(M.FLOW_GROUP)
+  if g then pcall(function() g:delete() end) end
+end
+
 local function shapes()
   local list = {}
   for k = 0, walkers.POSES - 1 do list[k + 1] = M.DIR .. 'ped_walk' .. k .. '.dae' end
@@ -210,6 +249,7 @@ local function focus()
 end
 
 function M.reset()
+  flowClear()
   if W then pcall(walkers.clear, W, V) end
   W, V, syncCo, lastCount = nil, nil, nil, nil
   mapDirty = true
@@ -222,37 +262,60 @@ function M.onMapReloaded() mapDirty, mapSerial = true, mapSerial + 1 end
 
 -- Every frame (core.lua, our level): the count from the setting, the road map synced when it changed, the walkers
 -- moved and drawn. anchorId: the world origin (a new one: the walkers start again); paused: the game paused.
-function M.update(dtReal, anchorId, setting, paused)
-  local want = M.countOf(setting)
-  if want == 0 then
-    if W then M.reset() end
+function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
+  local want, wantCars = M.countOf(setting), M.flowCountOf(trafficSetting)
+  if want == 0 and wantCars == 0 then
+    if W or F then M.reset() end
     return
   end
   clock = clock + (dtReal or 0)
   local fx, fy = focus()
   if not fx then return end
-  -- (a new anchor, a rebase or a teleport: the world's coordinates moved, the walkers start again in the new frame)
-  if W and anchorId ~= lastAnchor then M.reset() end
+  -- (a new anchor, a rebase or a teleport: the world's coordinates moved, everyone starts again in the new frame)
+  if (W or F) and anchorId ~= lastAnchor then M.reset() end
   lastAnchor = anchorId
-  if not W then
+  -- pedestrians
+  if want == 0 and W then
+    pcall(walkers.clear, W, V)
+    W, V, lastCount = nil, nil, nil
+    local g = scenetree.findObject(M.GROUP)
+    if g then pcall(function() g:delete() end) end
+  elseif want > 0 and not W then
     W = walkers.new({ seed = 4242 })
     V = walkers.view(W, shapes(), group())
     mapDirty = true
   end
-  if want ~= lastCount then walkers.setTarget(W, want); lastCount = want end
-  -- the road map: read again when it changed, synced over a few frames
+  if W and want ~= lastCount then walkers.setTarget(W, want); lastCount = want end
+  -- traffic (a new side of the road: started again)
+  if F and (wantCars == 0 or flowLeft ~= (leftHand == true)) then flowClear() end
+  if wantCars > 0 and not F then
+    flowLeft = leftHand == true
+    F = flow.new({ leftHand = flowLeft, seed = 777, paints = flow.SHARE, bodies = flow.BODY_SHARE })
+    FV = flow.view(F, flowShapes(), flowGroup())
+    mapDirty = true
+  end
+  if F and wantCars ~= flowCount then flow.setTarget(F, wantCars); flowCount = wantCars end
+  -- the road map: read again when it changed; the traffic syncs at once, the sidewalks over a few frames
   if mapDirty and not syncCo then
     mapDirty = false
     local m = map and map.getMap and map.getMap()
-    local segs = M.segments(M.graphOfMap(m and m.nodes))
-    if next(segs) then
-      syncCo = coroutine.create(function()
-        walkers.sync(W, segs, fx, fy, function()
-          if (os.clock() - sliceAt) * 1000 >= M.SYNC_MS then coroutine.yield() end
-        end)
-      end)
-    else
+    local g = M.graphOfMap(m and m.nodes)
+    local any = next(g.edges) ~= nil
+    if not any then
       mapDirty = true           -- (no roads yet: the map comes with the level's first graph)
+    else
+      if F then
+        local ok, err = pcall(flow.sync, F, M.segments(g, false), fx, fy, {}, {})
+        if not ok then log('W', 'beamngEarth', 'traffic: sync: ' .. tostring(err)) end
+      end
+      if W then
+        local segs = M.segments(g)
+        syncCo = coroutine.create(function()
+          walkers.sync(W, segs, fx, fy, function()
+            if (os.clock() - sliceAt) * 1000 >= M.SYNC_MS then coroutine.yield() end
+          end)
+        end)
+      end
     end
   end
   if syncCo then
@@ -262,13 +325,35 @@ function M.update(dtReal, anchorId, setting, paused)
     if syncCo and coroutine.status(syncCo) == 'dead' then syncCo = nil end
   end
   if paused then return end
-  walkers.step(W, dtReal, fx, fy, readCars(), nil)
-  walkers.draw(W, V, fx, fy, ground)
+  local cars = readCars()
+  if F then
+    -- the obstacles: the vehicles with physics and the walkers crossing a road
+    local obs = obstacles
+    for k = 1, #cars do obs[k] = cars[k] end
+    local n = #cars
+    if W then
+      for k = 1, W.onRoadN or 0 do
+        local w = W.onRoad[k]
+        n = n + 1
+        local o = obs[n] or {}
+        o.x, o.y, o.vx, o.vy = w.x, w.y, 0, 0
+        obs[n] = o
+      end
+    end
+    for k = n + 1, #obs do obs[k] = nil end
+    flow.step(F, dtReal, fx, fy, obs, clock, nil)
+    flow.draw(F, FV, fx, fy)
+  end
+  if W then
+    walkers.step(W, dtReal, fx, fy, cars, F and F.cars or nil)
+    walkers.draw(W, V, fx, fy, ground)
+  end
 end
 
 -- (tests, the console) asked, walking, room
 function M.counts() if not W then return 0, 0, 0 end return walkers.counts(W) end
 -- (probes) whether the sidewalks are being built, and how many metres of them there are
-function M.debug() return { syncing = syncCo ~= nil, dirty = mapDirty, pieces = W and #W.list or 0, length = W and W.length or 0 } end
+function M.debug() return { syncing = syncCo ~= nil, dirty = mapDirty, pieces = W and #W.list or 0, length = W and W.length or 0,
+  cars = F and F.count or 0, links = F and F.linkList and #F.linkList or 0 } end
 
 return M

@@ -55,6 +55,8 @@ M.SCHEMA = {
   roadDetail = { kind = 'enum', default = 'full', values = { 'off', 'basic', 'full' }, label = 'Road surface detail' },
   -- (the France fork: EarthNG's pedestrians, citylife.lua; drawn on this computer only, never sent to BeamMP)
   pedestrians = { kind = 'enum', default = 'normal', values = { 'off', 'few', 'normal', 'many' }, label = 'Pedestrians' },
+  -- (the France fork: EarthNG's traffic without physics, citylife.lua; drawn on this computer only, never sent to BeamMP)
+  cityTraffic = { kind = 'enum', default = 'normal', values = { 'off', 'light', 'normal', 'dense' }, label = 'City traffic' },
   distantTraffic = { kind = 'bool', default = false, label = 'Distant traffic lights' },    -- (off by default: its fps cost, PR #641)
   distantTrafficWithoutTraffic = { kind = 'bool', default = false, label = 'Distant lights without traffic' },
   distantTrafficQuality = { kind = 'enum', default = 'high', values = { 'low', 'medium', 'high' },
@@ -181,7 +183,7 @@ M.SCHEMA = {
   devNoticeSeen = { kind = 'string', default = '', maxLen = 40, label = 'Development build notice seen (version)' },
 }
 M.ORDER = { 'quality', 'terrainDetail', 'lodPx', 'groundPhoto', 'groundGrid', 'trees', 'treeDistance', 'buildingDistance', 'objectDetail',
-  'grassDistance', 'nightLights', 'roadDetail', 'pedestrians', 'distantTraffic', 'distantTrafficWithoutTraffic', 'distantTrafficQuality', 'rebaseDistance',
+  'grassDistance', 'nightLights', 'roadDetail', 'pedestrians', 'cityTraffic', 'distantTraffic', 'distantTrafficWithoutTraffic', 'distantTrafficQuality', 'rebaseDistance',
   'viewDistanceMode', 'viewDistanceKm', 'hazeStrength', 'skyMode', 'clouds',
   'weatherMode', 'realGravity', 'lowFuelPrompt', 'groundCover', 'groundCoverDensity', 'rocks', 'roads', 'highwaySigns', 'directionSigns', 'roadSigns', 'germanJunctionSigns', 'rumbleStrips', 'softDrag', 'townSigns', 'adaptiveTraffic', 'models3dmr',
   'dashboardSatellite',
@@ -200,25 +202,25 @@ M.HIDDEN = { welcomeSeen = true, updateDismissed = true, devNoticeSeen = true, q
 -- the first run (M.detectQuality).
 M.PRESET_KEYS = { 'trees', 'treeDistance', 'groundCover', 'groundCoverDensity', 'grassDistance', 'rocks', 'nightLights', 'distantTrafficQuality',
   'viewDistanceMode', 'viewDistanceKm', 'terrainDetail', 'buildingDistance', 'groundPhoto', 'objectDetail', 'roadDetail',
-  'groundGrid', 'pedestrians' }
+  'groundGrid', 'pedestrians', 'cityTraffic' }
 M.PRESETS = {
-  low = { pedestrians = 'off', trees = 'low', treeDistance = 'near', groundCover = false, groundCoverDensity = 'low', grassDistance = 'near',
+  low = { pedestrians = 'off', cityTraffic = 'off', trees = 'low', treeDistance = 'near', groundCover = false, groundCoverDensity = 'low', grassDistance = 'near',
     rocks = true, nightLights = 'few', viewDistanceMode = 'fixed', viewDistanceKm = 40, terrainDetail = 'low',
     buildingDistance = 'near', groundPhoto = '1024', objectDetail = 'game', distantTrafficQuality = 'low', roadDetail = 'off',
     groundGrid = '2' },
-  medium = { pedestrians = 'few', trees = 'medium', treeDistance = 'medium', groundCover = true, groundCoverDensity = 'low',
+  medium = { pedestrians = 'few', cityTraffic = 'light', trees = 'medium', treeDistance = 'medium', groundCover = true, groundCoverDensity = 'low',
     grassDistance = 'normal', rocks = true, nightLights = 'few', viewDistanceMode = 'horizon', viewDistanceKm = 100,
     terrainDetail = 'normal', buildingDistance = 'normal', groundPhoto = '2048', objectDetail = 'game', distantTrafficQuality = 'medium',
     roadDetail = 'basic', groundGrid = '2' },
-  high = { pedestrians = 'normal', trees = 'normal', treeDistance = 'normal', groundCover = true, groundCoverDensity = 'normal',
+  high = { pedestrians = 'normal', cityTraffic = 'normal', trees = 'normal', treeDistance = 'normal', groundCover = true, groundCoverDensity = 'normal',
     grassDistance = 'normal', rocks = true, nightLights = 'normal', viewDistanceMode = 'horizon', viewDistanceKm = 100,
     terrainDetail = 'normal', buildingDistance = 'normal', groundPhoto = '2048', objectDetail = 'game', distantTrafficQuality = 'high',
     roadDetail = 'full', groundGrid = '1' },
-  ultra = { pedestrians = 'many', trees = 'high', treeDistance = 'far', groundCover = true, groundCoverDensity = 'high', grassDistance = 'normal',
+  ultra = { pedestrians = 'many', cityTraffic = 'dense', trees = 'high', treeDistance = 'far', groundCover = true, groundCoverDensity = 'high', grassDistance = 'normal',
     rocks = true, nightLights = 'many', viewDistanceMode = 'horizon', viewDistanceKm = 100, terrainDetail = 'high',
     buildingDistance = 'far', groundPhoto = '2048', objectDetail = 'game', distantTrafficQuality = 'high', roadDetail = 'full',
     groundGrid = '1' },
-  extreme = { pedestrians = 'many', trees = 'extreme', treeDistance = 'max', groundCover = true, groundCoverDensity = 'high',
+  extreme = { pedestrians = 'many', cityTraffic = 'dense', trees = 'extreme', treeDistance = 'max', groundCover = true, groundCoverDensity = 'high',
     grassDistance = 'far', rocks = true, nightLights = 'many', viewDistanceMode = 'horizon', viewDistanceKm = 100,
     terrainDetail = 'extreme', buildingDistance = 'max', groundPhoto = '4096', objectDetail = 'extreme', distantTrafficQuality = 'high',
     roadDetail = 'full', groundGrid = '1' },

@@ -90,4 +90,29 @@ local e = { inNode = 'a', outNode = 'b', lanes = '-+', speedLimit = 13.9, drivab
 local gw = C.graphOfMap({ a = { pos = { x = 0, y = 0, z = 0 }, links = { b = e } }, b = { pos = { x = 30, y = 0, z = 0 }, links = { a = e } } })
 T.check(gw.edges[1][13] == 1.5, 'the map edge carries its sidewalk width')
 
+-- the traffic (flow.lua) on the raw segments: the AI lanes' half widths, every road
+local flow = require('beamngEarth/flow')
+local raw = C.segments(g3, false)
+local okRaw = true
+for _, sg in pairs(raw) do if sg[5] ~= 13.9 or sg[6] ~= 4 then okRaw = false end end
+T.check(okRaw, 'the traffic gets the roads as they are (no sidewalk changes)')
+local grid = { nodes = {}, edges = {} }
+for i = 0, 4 do for j = 0, 4 do grid.nodes['n' .. i .. '_' .. j] = { i * 80, j * 80, 0, 4 } end end
+for i = 0, 4 do for j = 0, 4 do
+  if i < 4 then grid.edges[#grid.edges + 1] = { 'n' .. i .. '_' .. j, 'n' .. (i + 1) .. '_' .. j, 0, 1, 1, 13.9, 1, 4 } end
+  if j < 4 then grid.edges[#grid.edges + 1] = { 'n' .. i .. '_' .. j, 'n' .. i .. '_' .. (j + 1), 0, 1, 1, 13.9, 1, 4 } end
+end end
+local F = flow.new({ leftHand = false, seed = 5, paints = flow.SHARE, bodies = flow.BODY_SHARE })
+flow.sync(F, C.segments(grid, false), 160, 160, {}, {})
+flow.setTarget(F, 30)
+for k = 1, 600 do flow.step(F, 0.05, 160, 160, {}, k * 0.05, nil) end
+T.check(F.count > 0, 'cars on the roads (' .. tostring(F.count) .. ')')
+local sane = true
+for _, car in pairs(F.cars) do
+  local x, y = flow.pose(F, car.link, car.s, car.lane)
+  if not x or x ~= x or x < -50 or x > 370 or y < -50 or y > 370 then sane = false end
+end
+T.check(sane, 'every car on the grid')
+T.check(C.flowCountOf('off') == 0 and C.flowCountOf('light') < C.flowCountOf('dense'), 'the traffic counts by setting')
+
 T.done('test_citylife')
