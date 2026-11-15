@@ -1,7 +1,7 @@
 -- From EarthNG (github.com/Alezx311/earthng, mod/lua/ge/extensions/e2r/flow.lua at bd9a054), by Alezx311, MIT License
 -- (credited in CREDITS.md). Brought in by the France fork (the user, 2026-11-15: "traffic, light and multiplayer-
 -- friendly"): unchanged but for this note and two marked changes (the France fork: a roundabout's ring has the
--- way, mainRoad; the stop line before a junction's widest road, stopGap). Cars without physics drawn on this computer only (citylife.lua feeds it
+-- way, mainRoad; the stop line before a junction's widest road, stopGap; the game's own signals, lightOf). Cars without physics drawn on this computer only (citylife.lua feeds it
 -- the game's road map); EarthNG's handoff to real cars (handoff.lua) is not brought in: they would be synced to BeamMP.
 --
 -- Traffic flow: hundreds of cars without physics on the navgraph of the loaded tiles (S.nav).
@@ -533,6 +533,12 @@ function M.lightOf(F, link)
   local light = link.light
   if not light then return nil end
   if light == true then return 'green' end
+  -- (the France fork: a signal of the game's own, core_trafficSignals' live entry {action = 0 go, 1 alert, 2 stop}: the
+  -- lights BeamNG.Earth puts up and the game's AI obeys, citylife.lua's attachSignals)
+  if light.bne then
+    local a = light.bne.action
+    return a == 2 and 'red' or a == 1 and 'yellow' or 'green'
+  end
   if light.group and F.signalColour then return F.signalColour(light.group, F.lightNow or F.now) end
   return M.colour(light.c.offset, light.axis, F.lightNow or F.now)
 end
@@ -859,10 +865,10 @@ end
 
 local function cross(F, car)
   while car.s >= car.link.len and not car.dead do
-    local link, next = car.link, car.next
-    if not next then removeCar(F, car); return end
+    local link, nxt = car.link, car.next  -- (nxt: the France fork, `next` is the global the file reads)
+    if not nxt then removeCar(F, car); return end
     -- two links into one lane: the one that would land on another car waits at its end
-    local first = next.cars[car.nextLane][1]
+    local first = nxt.cars[car.nextLane][1]
     if first and first.s - (car.s - link.len) < LEN then
       car.s, car.v = link.len - .01, math.min(car.v, first.v)
       return
@@ -870,9 +876,9 @@ local function cross(F, car)
     local list = link.cars[car.lane]
     for i = #list, 1, -1 do if list[i] == car then table.remove(list, i); break end end
     car.s = car.s - link.len
-    car.link, car.lane, car.granted, car.hint, car.turn = next, car.nextLane, nil, nil, nil
-    insertCar(next.cars[car.lane], car)
-    car.next = pickNext(F, next)
+    car.link, car.lane, car.granted, car.hint, car.turn = nxt, car.nextLane, nil, nil, nil
+    insertCar(nxt.cars[car.lane], car)
+    car.next = pickNext(F, nxt)
     car.nextLane = car.next and math.min(car.next.lanes, F.random(1, car.next.lanes))
   end
 end

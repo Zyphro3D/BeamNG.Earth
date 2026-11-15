@@ -23,6 +23,7 @@ M.FLOW_DIR = '/levels/beamng_earth/art/shapes/beamngEarth/flow/'
 M.FLOW_MATERIALS = M.FLOW_DIR .. 'flow.materials.json'
 M.FLOW_GROUP = 'beamngEarth_flow'
 M.FLOW_COUNTS = { off = 0, light = 100, normal = 200, dense = 400 }
+M.SIGNALS_S = 2.0          -- s between two looks at the game's signals for the traffic (attachSignals)
 M.FLOW_LANE_M = 80         -- m of lane per car at most (400 cars on a suburb's few roads were one jam, Seilh 2026-11-15)
 M.SIDE_GAP = 1.7          -- m: walkers.lua's SIDE_GAP (its walkers' line past the road's edge)
 M.NO_WALK_SPEED = 99      -- m/s: a road walkers.lua gives no sidewalk (over its MAX_SPEED)
@@ -41,6 +42,7 @@ local W, V = nil, nil     -- walkers.lua's state and its view
 local F, FV = nil, nil    -- flow.lua's state and its view
 local flowCount, flowLeft = nil, nil
 local flowRoom = math.huge    -- the cars the roads round have room for (M.flowRoom)
+local flowSegs, signalsAt = nil, -math.huge
 local syncCo = nil
 local cars, carsAt = {}, -math.huge
 local obstacles = {}       -- (flow.step's list, reused)
@@ -130,6 +132,7 @@ function M.segments(g, forWalkers)
         end
       end
       local s = { id, names[1], names[#names], lanes, speed, half, tonumber(e[7]) or 1 }
+      s.names = names                 -- (the chain's nodes: the game's signals on its edges, attachSignals)
       for _, name in ipairs(names) do
         local p = nodes[name]
         s[#s + 1], s[#s + 2], s[#s + 3] = tonumber(p[1]) or 0, tonumber(p[2]) or 0, tonumber(p[3]) or 0
@@ -270,6 +273,36 @@ end
 -- Pure: the cars asked for a setting value.
 function M.flowCountOf(value) return M.FLOW_COUNTS[value] or M.FLOW_COUNTS.normal end
 
+-- The game's traffic signals on the traffic's links (core_trafficSignals.getMapNodeSignals: {n1 = {n2 = {entry ...}}},
+-- an entry's action its live state): a link whose chain runs over a signal's edge n1 -> n2 in its own direction stops
+-- at its end for that signal's red (flow.lightOf). Again every SIGNALS_S: the signals are made a frame after the map
+-- (navgraph.lua) and made again with it. Returns how many links got one.
+function M.attachSignals(F, segs, sigs)
+  if not F or type(sigs) ~= 'table' then return 0 end
+  local n = 0
+  for _, link in pairs(F.links) do
+    local seg = segs and segs[tonumber(link.sid) or link.sid]
+    local names = seg and seg.names
+    local found = nil
+    if names then
+      local a, b, st = 1, #names, 1
+      if link.dir < 0 then a, b, st = #names, 1, -1 end
+      for i = a, b - st, st do
+        local row = sigs[names[i]]
+        local list = row and row[names[i + st]]
+        if list and list[1] then found = list[1] end
+      end
+    end
+    if found then
+      if not (type(link.light) == 'table' and link.light.bne == found) then link.light = { bne = found } end
+      n = n + 1
+    elseif type(link.light) == 'table' and link.light.bne then
+      link.light = nil
+    end
+  end
+  return n
+end
+
 local function flowClear()
   if F then pcall(flow.clear, F) end
   F, FV, flowCount = nil, nil, nil
@@ -382,6 +415,11 @@ function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
   -- (a new anchor, a rebase or a teleport: the world's coordinates moved, everyone starts again in the new frame)
   if (W or F) and anchorId ~= lastAnchor then M.reset() end
   lastAnchor = anchorId
+  -- (nothing made before the game has a road map: no shapes loaded for a level without roads, nor in a test's stubs)
+  if not W and not F then
+    local m = map and map.getMap and map.getMap()
+    if not (m and type(m.nodes) == 'table' and next(m.nodes)) then return end
+  end
   -- pedestrians
   if want == 0 and W then
     pcall(walkers.clear, W, V)
@@ -413,7 +451,9 @@ function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
       mapDirty = true           -- (no roads yet: the map comes with the level's first graph)
     else
       if F then
-        local ok, err = pcall(flow.sync, F, M.segments(g, false), fx, fy, {}, {})
+        flowSegs = M.segments(g, false)
+        local ok, err = pcall(flow.sync, F, flowSegs, fx, fy, {}, {})
+        signalsAt = -math.huge
         if not ok then log('W', 'beamngEarth', 'traffic: sync: ' .. tostring(err)) end
         flowRoom = M.flowRoom(F)
         flow.setTarget(F, math.min(wantCars, flowRoom))
@@ -458,6 +498,12 @@ function M.update(dtReal, anchorId, setting, paused, trafficSetting, leftHand)
       end
     end
     for k = n + 1, #obs do obs[k] = nil end
+    if clock - signalsAt >= M.SIGNALS_S then
+      signalsAt = clock
+      local ts = rawget(_G, 'core_trafficSignals')
+      local ok, sigs = pcall(function() return ts and ts.getMapNodeSignals and ts.getMapNodeSignals() end)
+      if ok and sigs then M.attachSignals(F, flowSegs, sigs) end
+    end
     flow.step(F, dtReal, fx, fy, obs, clock, nil)
     flow.draw(F, FV, fx, fy)
   end

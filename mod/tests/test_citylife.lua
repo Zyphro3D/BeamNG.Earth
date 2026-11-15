@@ -186,4 +186,25 @@ for k = 1, 12000 do flow.step(FF, 0.05, 0, 0, {}, k * 0.05, nil) end
 T.check((FF.stats.gaveUp or 0) <= 2, 'a roundabout with one-way entries flows (' .. tostring(FF.stats.gaveUp) .. ' given up)')
 T.check(C.flowRoom(FF) > 0 and C.flowRoom(FF) < 1000, 'room by lane length (' .. C.flowRoom(FF) .. ')')
 
+-- the game's signals on the traffic: a red on the edge into a junction stops its link's cars there
+local sg = { nodes = { a = { 0, 0, 0, 4 }, b = { 60, 0, 0, 4 }, c = { 120, 0, 0, 4 }, n = { 120, 80, 0, 4 }, s = { 120, -80, 0, 4 },
+  d = { 200, 0, 0, 4 } },
+  edges = { { 'a', 'b', 0, 1, 1, 13.9, 1, 4 }, { 'b', 'c', 0, 1, 1, 13.9, 1, 4 }, { 'c', 'd', 0, 1, 1, 13.9, 1, 4 },
+            { 'n', 'c', 0, 1, 1, 13.9, 1, 4 }, { 'c', 's', 0, 1, 1, 13.9, 1, 4 } } }
+local segsS = C.segments(sg, false)
+local FS = flow.new({ leftHand = false, seed = 8, paints = flow.SHARE, bodies = flow.BODY_SHARE })
+flow.sync(FS, segsS, 60, 0, {}, {})
+local red = { action = 2 }
+local got = C.attachSignals(FS, segsS, { b = { c = { red } } })
+local lit, litDir = 0, nil
+for _, link in pairs(FS.links) do if type(link.light) == 'table' and link.light.bne == red then lit = lit + 1; litDir = link.to end end
+T.check(got == 1 and lit == 1 and litDir == 'c', 'the signal on b -> c lights the link into c only')
+T.check(flow.lightOf(FS, (function() for _, l in pairs(FS.links) do if type(l.light) == 'table' then return l end end end)()) == 'red', 'red is red')
+red.action = 0
+T.check(flow.lightOf(FS, (function() for _, l in pairs(FS.links) do if type(l.light) == 'table' then return l end end end)()) == 'green', 'its live state followed')
+C.attachSignals(FS, segsS, {})
+local still = false
+for _, link in pairs(FS.links) do if type(link.light) == 'table' and link.light.bne then still = true end end
+T.check(not still, 'a signal gone: its link unlit')
+
 T.done('test_citylife')
