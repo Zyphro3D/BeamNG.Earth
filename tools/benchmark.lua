@@ -265,12 +265,10 @@ end
 ------------------------------------------------------------------------------------------
 -- camera
 
--- Ground height under (x, y): the static collision (the TerrainBlock; the far tiles do not
--- collide), else nil.
 -- The ground under (x, y): the drawn tiles first (castRay with render geometry: the mesh tiles have
 -- no collision, and the physics block only covers ~1 km around the player - outside it the static
 -- ray found nothing and an aerial camera 600 m back went inside a valley wall, in-game 2026-10-11),
--- then the static collision.
+-- then the static collision if the render ray found nothing.
 -- A hit counts when the surface is flat around it (FLAT_M each way within FLAT_DZ): a bridge's truss cross beams,
 -- arch ribs and hangers over the road are skipped and the ray goes on down to the deck (the street view
 -- comparison's cameras stood on the Queensboro Bridge's top chords, 2026-10-18).
@@ -287,10 +285,11 @@ end
 -- first surface was the tube's roof, the camera in the rock; Tower Bridge's approach over a passage: its deck)
 local function groundAt(x, y, zRef, under)
   local top = zRef + B.RAY_UP
-  local best
+  local first, best
   for _ = 1, 24 do
     local okR, hit = pcall(castRay, vec3(x, y, top), vec3(x, y, zRef - B.RAY_LEN), true, true)
     if not (okR and type(hit) == 'table' and hit.pt and hit.pt.z) then break end
+    first = first or hit.pt.z
     if flatAt(x, y, hit.pt.z) then
       if not under then return hit.pt.z end
       if not best or math.abs(hit.pt.z - zRef) < math.abs(best - zRef) then best = hit.pt.z end
@@ -298,6 +297,7 @@ local function groundAt(x, y, zRef, under)
     top = hit.pt.z - 0.3
   end
   if best then return best end
+  if first then return first end -- a steep surface can have no flat hit at all
   local ok, d = pcall(castRayStatic, vec3(x, y, top), vec3(0, 0, -1), B.RAY_LEN)
   if ok and d and d < B.RAY_LEN then return top - d end
 end

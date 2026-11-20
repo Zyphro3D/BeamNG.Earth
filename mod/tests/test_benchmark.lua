@@ -145,6 +145,19 @@ T.check(cam.pos.x == 10 and cam.pos.y == -12 and cam.fov == 65 and cam.rot.y == 
 T.check(veh.alpha == 0, 'view: the player\'s vehicle is hidden while shooting')
 r = B.view({ e = 5000, n = 0, agl = 30, dir = { x = 1, y = 0, z = 0 } })
 T.check(r.groundFrom == 'player' and cam.pos.z == 1530, 'view: beyond the block, above the player ground')
+function castRay(from)
+  local z = from.x == 5000 and 1700 or 1702
+  if from.z >= z then return { pt = { z = z } } end
+end
+r = B.view({ e = 5000, n = 0, agl = 30, dir = { x = 0, y = 0, z = -1 } })
+T.check(r.groundFrom == 'ray' and r.ground == 1700 and cam.pos.z == 1730, 'vertical view: first drawn hit on uneven ground')
+function castRay(from)
+  local z = from.x == 5000 and from.y == 0 and from.z >= 1700 and 1700 or 1650
+  if from.z >= z then return { pt = { z = z } } end
+end
+r = B.view({ e = 5000, n = 0, agl = 2, dir = { x = 0, y = 1, z = 0 } })
+T.check(r.ground == 1650 and cam.pos.z == 1652, 'view: a lower flat deck still takes priority')
+castRay = nil
 r = B.view({ e = 0, n = -12, alt = 4416.5, dir = { x = 0, y = 1, z = -0.3 }, fov = 65 })
 T.check(cam.pos.z == 4416.5 and r.groundFrom == nil, 'view alt: the given height')
 local lat, lon, h = st.anchor:enuToGeodetic(200, -300, 1600)
