@@ -127,25 +127,28 @@ def measure_place(bw, lat, lon, fids, out):
     if t is not None:
         t.join()
 
-    def final(xy, cap=True):
-        la, lo, _ = frame.enu_to_geodetic(xy[:, 0], xy[:, 1], 0.0)
-        z0 = np.asarray(bw.ground(frame, la, lo, np.asarray(s.dem.sample(la, lo, 15), float)), float)
-        z = np.asarray(g.apply(la, lo, z0.copy(), grading.ROAD_LIFT), float)
-        if cap:                 # (as the terrain block: under the decks; an end's step reads the road's side of it)
-            z = np.asarray(bw.under_decks(frame, every_deck, la, lo, z), float)
-        return np.asarray(frame.geodetic_to_enu(la, lo, z)[2], float)
-
     def elev(la, lo):
         z = bw.ground(frame, la, lo, s.dem.sample(la, lo, 15))
         return g.apply(la, lo, z, grading.ROAD_LIFT)
 
+    def road_cell(key):
+        return s.md.cell(key, layers=("roads",), kind="demand").layers.get("roads")
+
+    # The current terrain block grades the ground and raises the cover over low arches.
+    tunnels = bw.tunnel_profiles(1, frame, elev, g)
+    reach = PLACE_M + 200.0
+    terrain_box = (-reach, -reach, reach, reach)
+
+    def final(xy):
+        la, lo, _ = frame.enu_to_geodetic(xy[:, 0], xy[:, 1], 0.0)
+        z = roads.block_arch_raise(tunnels, road_cell, frame, la, lo, elev(la, lo), terrain_box)
+        return np.asarray(frame.geodetic_to_enu(la, lo, z)[2], float)
+
     bridges = bw._bridges(1, frame, elev)
-    decks, every_deck = {}, []
+    decks = {}
     for tx, ty in roads.tiles_near(0.0, 0.0, PLACE_M):
-        feats = [s.md.cell(k, layers=("roads",), kind="demand").layers.get("roads")
-                 for k in roads.cells_of_tile(frame, tx, ty)]
+        feats = [road_cell(k) for k in roads.cells_of_tile(frame, tx, ty)]
         for fid, spec, xy, z, _ in bridges.parts(feats, roads.tile_bbox(tx, ty)):
-            every_deck.append((np.asarray(xy, float)[:, :2], np.asarray(z, float), float(spec.width)))
             if str(fid) in fids:
                 xy = np.asarray(xy, float)[:, :2]
                 decks.setdefault((str(fid), round(float(xy[0, 0]), 1), round(float(xy[0, 1]), 1)),
@@ -168,7 +171,7 @@ def measure_place(bw, lat, lon, fids, out):
         wla, wlo, _ = frame.enu_to_geodetic(np.array([px[i]]), np.array([py[i]]), 0.0)
         steps = []
         for k in (0, -1):
-            zg = float(final(xy[[k]], cap=False)[0])
+            zg = float(final(xy[[k]])[0])
             d = zg - float(z[k])
             if abs(d) <= END_GROUND_M:
                 ela, elo, _ = frame.enu_to_geodetic(np.array([xy[k, 0]]), np.array([xy[k, 1]]), 0.0)
@@ -277,6 +280,7 @@ def main(argv=None):
     places = cluster(bridges, PLACE_M)
     print(f"{len(bridges)} parties de pont en {len(places)} lieux, {len(motorways)} points d'autoroute", flush=True)
     progress = os.path.join(a.out, "avancement.txt")
+    incomplete = False
 
     def note(msg):
         with open(progress, "a", encoding="utf-8") as fh:
@@ -287,11 +291,13 @@ def main(argv=None):
             for k, (la, lo) in enumerate(motorways):
                 if time.monotonic() - t0 > a.hours * 3600:
                     note("temps écoulé: autoroutes arrêtées")
+                    incomplete = True
                     break
                 try:
                     measure_motorway(bw, la, lo, a.country, out, done)
                 except Exception as ex:
                     note(f"autoroute {la:.5f},{lo:.5f}: {type(ex).__name__}: {ex}")
+                    incomplete = True
                 if k % 50 == 0:
                     note(f"autoroutes {k}/{len(motorways)}")
         report(a.out)
@@ -300,17 +306,23 @@ def main(argv=None):
             for k, (la, lo, items) in enumerate(places):
                 if time.monotonic() - t0 > a.hours * 3600:
                     note("temps écoulé: ponts arrêtés")
+                    incomplete = True
                     break
                 try:
                     measure_place(bw, la, lo, {it[2] for it in items}, out)
                 except Exception as ex:
                     note(f"lieu {la:.5f},{lo:.5f}: {type(ex).__name__}: {ex}")
+                    incomplete = True
                 note(f"ponts: lieu {k + 1}/{len(places)}")
                 if k % 10 == 9:
                     report(a.out)
     report(a.out)
-    note("fini")
+    if not a.no_bridges and places and not os.path.getsize(os.path.join(a.out, "bridges.jsonl")):
+        note("aucun tablier mesuré")
+        incomplete = True
+    note("incomplet" if incomplete else "fini")
+    return int(incomplete)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
