@@ -459,7 +459,8 @@ class DriveBase(unittest.TestCase):
         self.tmp.cleanup()
 
     def fs(self, vfs):
-        return os.path.join(self.user, vfs.lstrip("/"))
+        # A VFS path uses '/', while the directory scan joins names with the native separator.
+        return os.path.normpath(os.path.join(self.user, vfs.lstrip("/")))
 
     def run_drive(self):
         self.assertTrue(REBASE["MIN_DISTANCE"] <= REBASE_M <= REBASE["MAX_DISTANCE"])
