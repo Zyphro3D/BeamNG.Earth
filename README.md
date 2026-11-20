@@ -8,9 +8,8 @@ projects together, taking the best of each, with our own work on top:
 
 - **[BeamNG.Earth](https://github.com/TecnaGamer/BeamNG.Earth)** by TecnaGamer and its contributors (MIT): the base. The
   whole planet at 1:1 scale, real elevation and aerial photos, roads, bridges, tunnels and buildings, multiplayer.
-- **[EarthNG](https://github.com/Alezx311/earthng)** by Alezx311 (MIT): city life. Being ported, in a light version that
-  stays fluid and multiplayer-friendly: pedestrians, traffic and traffic lights drawn on each player's computer, with no
-  extra vehicles sent to the server.
+- **[EarthNG](https://github.com/Alezx311/earthng)** by Alezx311 (MIT): city life. Pedestrians and traffic run locally on
+  each player's computer. Traffic obeys the game's signals, and the simulation adds no vehicles to the BeamMP server.
 - **Our additions** (Zyphro): France at its best and a smoother start. Details below.
 
 What we aim for: **beautiful, playable in multiplayer, fast, and able to run on a small setup.**
@@ -43,7 +42,6 @@ What we aim for: **beautiful, playable in multiplayer, fast, and able to run on 
 - Built on BeamNG.Earth 1.10 and kept up to date with it.
 
 **Coming next**
-- City life from EarthNG (pedestrians, traffic, traffic lights), light and multiplayer-safe.
 - If the whole world stays too slow on small computers: regional editions (France and its neighbours: Spain,
   Portugal, Italy, Switzerland, Germany ...), each with its own server and app.
 
