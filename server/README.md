@@ -425,6 +425,19 @@ file, header `# beamng-earth cache index 1\tcap=<bytes>`), and the data director
   after a generator update the old directory is never read again and ages out through the LRU.
 - Memory: about 200 B per tracked file (a full 20 GB cache of ~30 KB imagery tiles: ~130 MB).
 
+### What can be reused after an anchor change
+
+| Content | Key and reuse |
+|---|---|
+| Vegetation | The `vegg` revisit record uses a global zoom-17 geotile. The mod can keep the tile across a rebase. |
+| Roads | The `roadsg` record keeps anchor-independent content such as buildings, bridge decks, rails and roadside objects. Draped pavement, plazas and sidewalks use a separate `rskin` record for each anchor. Pieces that exceed the placement error tolerance have an exact variant for that anchor. |
+| Distant scenery | Global keys are available for distant buildings, the skyline, bridges and eligible far terrain geometry. The older placement paths still key their results by anchor. Textured far tiles can use anchor-specific keys even when their base geometry is reusable. |
+| Drivable terrain and its ground photo | The physics heightmap, material masks and assembled ground texture are aligned to the block in the current anchor's frame. Raw elevation and aerial source tiles live in the download cache and can be read again for a new anchor. |
+
+Revisit saves only complete builds and includes a code fingerprint. The regional `.bnge` bake packs currently carry road
+plans and facts. Their compatibility is checked against format versions and map data, as described in
+[`bakepack.py`](bakepack.py).
+
 ## Elevation sources
 
 | Use | Zoom | Source |
