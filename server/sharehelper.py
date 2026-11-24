@@ -51,10 +51,12 @@ def _init_worker(cache):
 
 
 def _warm_versions():
-    """The weekly rail / lane builds' versions asked for (the map data's versions() knows them only once asked: a grader
-    made before would key its plans by versions with None in them, not the players')."""
+    """The weekly rail / lane / charging station builds' versions asked for (the map data's versions() knows them only
+    once asked: a grader made before would key its plans by versions with None in them, not the players'; and main()
+    waits while any is None: without the stations' one, added to versions() later, the helper waited forever, seen on a
+    test server 2026-11-24)."""
     md = getattr(_w["bw"]._s, "md", None)
-    for t in (getattr(md, "rail_tags", None), getattr(md, "lane_tags", None)):
+    for t in (getattr(md, "rail_tags", None), getattr(md, "lane_tags", None), getattr(md, "station_tags", None)):
         if t is not None and hasattr(t, "version"):
             try:
                 t.version()

@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 import zlib
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import mapcells  # noqa: E402
@@ -74,3 +75,25 @@ class StoreTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WarmVersionsTest(unittest.TestCase):
+    """Every weekly build in the map data's versions() is asked for before the helper plans: main() waits while one is
+    None (the charging stations' was not asked, and the helper waited forever, 2026-11-24)."""
+
+    def test_every_weekly_build_is_asked(self):
+        asked = []
+
+        class Tags:
+            def __init__(self, name):
+                self.name = name
+
+            def version(self):
+                asked.append(self.name)
+
+        md = type("MD", (), {"rail_tags": Tags("rails"), "lane_tags": Tags("lanes"),
+                             "station_tags": Tags("stations")})()
+        bw = type("BW", (), {"_s": type("S", (), {"md": md})()})()
+        with mock.patch.dict(sharehelper._w, {"bw": bw}):
+            sharehelper._warm_versions()
+        self.assertEqual(sorted(asked), ["lanes", "rails", "stations"])
