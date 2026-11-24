@@ -599,6 +599,41 @@ function G.settings()
   return out
 end
 
+-- ===== Requests from a server panel: files in SHARE_DIR, done and removed at the next TICK_MS ===================
+-- clear-store.request: every item of the shared store goes (the players build them again, and share them again);
+-- reload-packs.request: the bake packs are read again (a pack was added to SHARE_DIR/bake or taken out of it).
+-- The plugin does it itself: a panel deleting the store's files would leave its index wrong.
+G.REQUESTS = { 'clear-store', 'reload-packs' }
+
+-- Empty the shared store. -> how many items went.
+function G.storeClear()
+  local gone = 0
+  for iid in pairs(G.storeIndex()) do
+    G.fs.remove(G.storePath(iid))
+    gone = gone + 1
+  end
+  G.sh.index, G.sh.total = {}, 0
+  return gone
+end
+
+-- The requests waiting (exists(path)), each done and removed (remove(path)). -> log lines.
+function G.handleRequests(exists, remove)
+  local done = {}
+  for _, name in ipairs(G.REQUESTS) do
+    local path = G.SHARE_DIR .. '/' .. name .. '.request'
+    if exists(path) then
+      remove(path)
+      if name == 'clear-store' then
+        done[#done + 1] = string.format('shared store emptied (%d items), as a server panel asked', G.storeClear())
+      else
+        G.sh.packs = nil
+        done[#done + 1] = string.format('bake packs read again (%d), as a server panel asked', #G.packs())
+      end
+    end
+  end
+  return done
+end
+
 -- ===== The state file: SHARE_DIR/state.json, for a server panel ================================================
 -- Written every TICK_MS: the settings in use and the settings file's warnings, every live player's place (latitude,
 -- longitude, heading: what the other players' maps already show), the shared store and the bake packs. Nothing in
@@ -905,8 +940,12 @@ if MP and MP.RegisterEvent then
   -- every TICK_MS: the state file; the settings file changed: time and weather to every player at once (a new fixed
   -- time starts now), the listing, the store's size
   local statePath = G.SHARE_DIR .. '/' .. G.STATE_FILE
-  pcall(G.storeIndex)               -- (the store's size in the state from the start)
+  pcall(G.storeIndex)               -- (the store's size and the packs in the state from the start)
+  pcall(G.packs)
   function BNGE_settings()
+    local okR, done = pcall(G.handleRequests, function(path) return G.fs.size(path) ~= nil end, G.fs.remove)
+    if not okR then print('[BeamNG.Earth] request: ' .. tostring(done))
+    else for _, line in ipairs(done) do print('[BeamNG.Earth] ' .. line) end end
     local changed = loadSettings()
     local okS, state = pcall(G.state, os.time())
     if okS then G.fs.write(statePath, encode(state)) end

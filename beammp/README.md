@@ -76,6 +76,11 @@ with the normal BeamMP launcher.
    the settings in use and the settings file's warnings, each connected player's place on the map (latitude,
    longitude, heading, as the players' own world maps show them), the shared store's size (MB) and the baked packs. The
    players' places are theirs: show them to the server's admins, or publicly only if your players know.
+
+   **Requests, for a server panel:** an empty file `clear-store.request` in that folder empties the shared store, and
+   `reload-packs.request` reads the baked packs again after one was added to `bake/` or taken out. The plugin does it
+   within 2 seconds and removes the file. (Never delete the store's files by hand while the server runs: the plugin
+   keeps an index of them.)
 4. **Open the port** if players come over the internet: forward the server's port, **TCP and UDP**, in your router to
    the server's computer (and allow it in its firewall). Players on the same network need nothing.
 5. **Start the server.** Its log should show `[BeamNG.Earth] plugin loaded`.

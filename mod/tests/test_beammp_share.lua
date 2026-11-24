@@ -186,4 +186,27 @@ G.onShare(1, 'S|' .. J.encode({ t = 'c', id = 'half', i = 0, n = 2, iid = iid(11
 G.shareLeave(1)
 T.check(G.sh.up['1:half'] == nil and G.sh.seen[1] == nil, 'left: its uploads in progress dropped')
 
+-- a server panel's requests: files in SHARE_DIR, done by the plugin and removed
+local exists = function(p) return files[p] ~= nil end
+T.check(#G.handleRequests(exists, G.fs.remove) == 0, 'requests: none waiting, nothing done')
+local stored = 0
+for iid_ in pairs(G.storeIndex()) do if files[G.storePath(iid_)] then stored = stored + 1 end end
+T.check(stored > 0 and G.sh.total > 0, 'requests: the store has items before')
+files['srv/clear-store.request'] = ''
+local done = G.handleRequests(exists, G.fs.remove)
+T.check(#done == 1 and done[1]:find('emptied (' .. stored .. ' items)', 1, true), 'clear-store: ' .. tostring(done[1]))
+local left = 0
+for p in pairs(files) do if p:find('^srv/store/') then left = left + 1 end end
+T.check(left == 0 and G.sh.total == 0 and next(G.storeIndex()) == nil and files['srv/clear-store.request'] == nil,
+  'clear-store: every item file gone, the index and total empty, the request removed')
+local before = #G.packs()
+files['srv/bake/extra.bnge'] = files['srv/bake/nyc.bnge']
+T.check(#G.packs() == before, 'packs: read once (a new file unseen)')
+files['srv/reload-packs.request'] = ''
+done = G.handleRequests(exists, G.fs.remove)
+T.check(#done == 1 and #G.packs() == before + 1 and files['srv/reload-packs.request'] == nil,
+  'reload-packs: the new pack read, the request removed: ' .. tostring(done[1]))
+local st2 = G.state(0)
+T.check(#st2.packs == before + 1, 'state: the packs listed')
+
 T.done('test_beammp_share')
