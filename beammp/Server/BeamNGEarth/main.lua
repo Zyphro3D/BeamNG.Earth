@@ -607,7 +607,8 @@ G.STATE_FILE = 'state.json'
 G.STATE_V = 1
 G.settingsWarnings = {}
 
--- Pure (but for G): the state as a table. now: os.time().
+-- Pure (but for G): the state as a table. now: os.time(). (The store in MB, a float: BeamMP's JSON encoder wraps an
+-- integer over 2^31 - 1, see G.encodeAnnouncement, and a 2048 MB cap in bytes went out as -2147483648.)
 function G.state(now)
   local players = {}
   for pid, p in pairs(G.live()) do
@@ -620,7 +621,7 @@ function G.state(now)
   local packs = {}
   for _, pk in ipairs(G.sh.packs or {}) do packs[#packs + 1] = tostring(pk.path):match('([^/\\]+)$') end
   return { v = G.STATE_V, t = now, uptime = math.floor(G.clock), settings = G.settings(), warnings = G.settingsWarnings,
-    players = players, store = { bytes = G.sh.total, items = items, capBytes = G.SHARE_STORE_MB * 1024 * 1024 },
+    players = players, store = { mb = math.floor(G.sh.total / 104857.6) / 10, items = items, capMb = G.SHARE_STORE_MB },
     packs = packs, stats = G.sh.stats }
 end
 

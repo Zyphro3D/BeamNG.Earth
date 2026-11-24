@@ -74,7 +74,7 @@ with the normal BeamMP launcher.
 
    **State file, for a server panel:** every 2 seconds the plugin writes `Resources/Server/BeamNGEarth/state.json`:
    the settings in use and the settings file's warnings, each connected player's place on the map (latitude,
-   longitude, heading, as the players' own world maps show them), the shared store's size and the baked packs. The
+   longitude, heading, as the players' own world maps show them), the shared store's size (MB) and the baked packs. The
    players' places are theirs: show them to the server's admins, or publicly only if your players know.
 4. **Open the port** if players come over the internet: forward the server's port, **TCP and UDP**, in your router to
    the server's computer (and allow it in its firewall). Players on the same network need nothing.
