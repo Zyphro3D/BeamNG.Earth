@@ -220,4 +220,23 @@ for _, text in ipairs({ 'not json', '[1, 2]', '"rain"', '{"weather": "rain"' }) 
 end
 apply('')
 
+-- the state file (state.json): the settings, the live players' places, the store, the packs
+G.players, G.clock = {}, 100
+G.onPose(7, { v = G.PROTO, aLat = 43.6, aLon = 1.44, lat = 43.61, lon = 1.45, h = 180, joined = true }, 'toulouse')
+G.clock = 130
+G.onPose(7, { v = G.PROTO, aLat = 43.6, aLon = 1.44, lat = 43.62, lon = 1.45, h = 90 }, 'toulouse')
+G.onPose(8, { v = G.PROTO, aLat = 48.8, aLon = 2.35, lat = 48.85, lon = 2.35 }, 'paris')
+G.players[9] = { name = 'gone', aLat = 0, aLon = 0, lat = 0, lon = 0, t = 100, joinedAt = 100 }   -- (stale)
+G.sh.index, G.sh.total, G.sh.packs = { a = { size = 3 }, b = { size = 4 } }, 7, { { path = 'x/bake/tarn.bnge' } }
+G.settingsWarnings = { 'settings.json: unknown setting sound' }
+local st = G.state(1700000000)
+T.check(st.v == 1 and st.t == 1700000000 and st.uptime == 130 and st.settings.weather == 'real', 'state: its head')
+T.check(#st.players == 2 and st.players[1].pid == 7 and st.players[1].lat == 43.62 and st.players[1].h == 90
+  and st.players[1].joined == 30 and st.players[1].name == 'toulouse' and st.players[2].h == nil,
+  'state: the live players, by id, with their place, heading and time on the server')
+T.check(st.store.bytes == 7 and st.store.items == 2 and st.store.capBytes == 2048 * 1024 * 1024
+  and st.packs[1] == 'tarn.bnge' and st.warnings[1]:find('sound', 1, true) and st.stats == G.sh.stats,
+  'state: the store, the packs, the warnings, the share stats')
+G.sh.index, G.sh.total, G.sh.packs, G.settingsWarnings, G.players = nil, 0, nil, {}, {}
+
 T.done('test_beammp_plugin')

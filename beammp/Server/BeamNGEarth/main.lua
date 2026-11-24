@@ -599,6 +599,31 @@ function G.settings()
   return out
 end
 
+-- ===== The state file: SHARE_DIR/state.json, for a server panel ================================================
+-- Written every TICK_MS: the settings in use and the settings file's warnings, every live player's place (latitude,
+-- longitude, heading: what the other players' maps already show), the shared store and the bake packs. Nothing in
+-- it is secret, but the players' places are theirs: a panel shows them to its admins, or publicly only by choice.
+G.STATE_FILE = 'state.json'
+G.STATE_V = 1
+G.settingsWarnings = {}
+
+-- Pure (but for G): the state as a table. now: os.time().
+function G.state(now)
+  local players = {}
+  for pid, p in pairs(G.live()) do
+    players[#players + 1] = { pid = pid, name = p.name, lat = p.lat, lon = p.lon, h = p.h,
+      joined = math.floor(G.clock - (p.joinedAt or G.clock)) }
+  end
+  table.sort(players, function(a, b) return a.pid < b.pid end)
+  local items = 0
+  for _ in pairs(G.sh.index or {}) do items = items + 1 end
+  local packs = {}
+  for _, pk in ipairs(G.sh.packs or {}) do packs[#packs + 1] = tostring(pk.path):match('([^/\\]+)$') end
+  return { v = G.STATE_V, t = now, uptime = math.floor(G.clock), settings = G.settings(), warnings = G.settingsWarnings,
+    players = players, store = { bytes = G.sh.total, items = items, capBytes = G.SHARE_STORE_MB * 1024 * 1024 },
+    packs = packs, stats = G.sh.stats }
+end
+
 -- Pure: the server's name, description, tags, map, port, player cap, resource folder and whether it has a password
 -- (pass: never the password itself) from ServerConfig.toml's text.
 function G.readConfig(text)
@@ -846,6 +871,7 @@ if MP and MP.RegisterEvent then
     local first = settingsText == nil
     settingsText = text
     local warnings, changed = G.applySettings(text, Util.JsonDecode)
+    G.settingsWarnings = warnings
     for _, w in ipairs(warnings) do print('[BeamNG.Earth] ' .. w) end
     if not first and next(changed) then
       local list = {}
@@ -875,10 +901,16 @@ if MP and MP.RegisterEvent then
   end
   applyListing(serverConfig(), false)
 
-  -- the settings file changed: time and weather to every player at once (a new fixed time starts now), the listing
+  -- every TICK_MS: the state file; the settings file changed: time and weather to every player at once (a new fixed
+  -- time starts now), the listing, the store's size
+  local statePath = G.SHARE_DIR .. '/' .. G.STATE_FILE
+  pcall(G.storeIndex)               -- (the store's size in the state from the start)
   function BNGE_settings()
     local changed = loadSettings()
+    local okS, state = pcall(G.state, os.time())
+    if okS then G.fs.write(statePath, encode(state)) end
     if not changed then return end
+    if changed.SHARE_STORE_MB then pcall(G.storeTrim) end
     if changed.TIME or changed.TIME_SPEED then G.started = os.time() end
     if changed.TIME or changed.TIME_SPEED or changed.WEATHER then
       MP.TriggerClientEvent(-1, 'bngeConfig', encode(G.config()))

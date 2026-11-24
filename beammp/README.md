@@ -71,6 +71,11 @@ with the normal BeamMP launcher.
    `G.WEATHER`); `shareStoreMb` and `shareOutKbps` are below in "Players"; `meetM` is how far (metres) a joining
    player may be from the others before being sent to them (0: always). A new fixed time starts when the file
    changes.
+
+   **State file, for a server panel:** every 2 seconds the plugin writes `Resources/Server/BeamNGEarth/state.json`:
+   the settings in use and the settings file's warnings, each connected player's place on the map (latitude,
+   longitude, heading, as the players' own world maps show them), the shared store's size and the baked packs. The
+   players' places are theirs: show them to the server's admins, or publicly only if your players know.
 4. **Open the port** if players come over the internet: forward the server's port, **TCP and UDP**, in your router to
    the server's computer (and allow it in its firewall). Players on the same network need nothing.
 5. **Start the server.** Its log should show `[BeamNG.Earth] plugin loaded`.
