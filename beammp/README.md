@@ -56,6 +56,21 @@ with the normal BeamMP launcher.
    - `G.WEATHER = 'real'` (the live weather where each player is) or `'clear'`, `'cloudy'`, `'rain'`, `'storm'`,
      `'snow'`, `'fog'` for everyone.
    - A player who set Sky or Weather to Manual in BeamNG.Earth's settings keeps their own.
+
+   **Settings file (kept through updates, no restart):** instead of editing `main.lua`, put the settings in
+   `Resources/Server/BeamNGEarth/settings.json`. An update of the plugin replaces `main.lua` but leaves this file, and
+   the server reads it again within 2 seconds when it changes: time and weather go to every player at once. A setting
+   left out keeps `main.lua`'s value; a wrong one is named in the server log and `main.lua`'s value is used.
+
+   ```json
+   { "listed": true, "time": "real", "timeSpeed": 0, "weather": "real",
+     "shareStoreMb": 2048, "shareOutKbps": 1024, "meetM": 3000 }
+   ```
+
+   `listed`, `time`, `timeSpeed` and `weather` are the settings above (`G.LISTED`, `G.TIME`, `G.TIME_SPEED`,
+   `G.WEATHER`); `shareStoreMb` and `shareOutKbps` are below in "Players"; `meetM` is how far (metres) a joining
+   player may be from the others before being sent to them (0: always). A new fixed time starts when the file
+   changes.
 4. **Open the port** if players come over the internet: forward the server's port, **TCP and UDP**, in your router to
    the server's computer (and allow it in its firewall). Players on the same network need nothing.
 5. **Start the server.** Its log should show `[BeamNG.Earth] plugin loaded`.
@@ -91,7 +106,8 @@ docker run -d --name beamng-earth -p 30814:30814/tcp -p 30814:30814/udp -v beamn
 - **Time, weather and listing** for everyone (the settings at the top of `main.lua`): `BNGE_TIME` (`real` or
   `HH:MM`), `BNGE_TIME_SPEED` (0, 1, 60, ...), `BNGE_WEATHER` (`real`, `clear`, `cloudy`, `rain`, `storm`, `snow`,
   `fog`), `BNGE_LISTED` (`false` keeps a public server off the BeamNG.Earth list too). A value it doesn't know stops
-  the start with a message saying which.
+  the start with a message saying which. A settings file (above) goes in `/data/settings.json` and wins over them; it
+  is read again while the server runs.
 
 Build it yourself from the source's root: `docker build -f docker/Dockerfile -t beamng-earth-server .`
 

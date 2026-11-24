@@ -16,6 +16,7 @@
 local G = {}
 
 -- ===== Settings: edit here, then restart the BeamMP server ========================================================
+-- (or, kept through updates and applied without a restart: settings.json next to this file, see G.SETTINGS below)
 -- (shared world building, commented out 2026-10-27 (off since 2026-10-23; the user: not coming back for a while))
 -- -- The TCP port every player's world server listens on to share world building with the players near them (the
 -- -- others connect to it: over the internet, each player forwards this port to their computer; on one network nothing
@@ -521,6 +522,83 @@ function G.config()
   return { time = G.timeConfig(G.TIME, G.TIME_SPEED, G.started), weather = G.WEATHERS[w] and w or nil }
 end
 
+-- ===== The settings file: SHARE_DIR/settings.json ===============================================================
+-- A server panel (or its admin) sets the settings above in a file of their own instead of editing this one, so an
+-- update of main.lua keeps them: { "listed": true, "time": "real" | "HH:MM", "timeSpeed": 0, "weather": "real" | ...,
+-- "shareStoreMb": 2048, "shareOutKbps": 1024, "meetM": 3000 }. A key left out: the value written in this file. A bad
+-- value: a warning in the log and this file's value. Read at start and again every TICK_MS when the file changes:
+-- time and weather go out to every player at once, listing switches BeamMP's Private setting at once.
+G.SETTINGS_FILE = 'settings.json'
+local function num(lo, hi, int)
+  return function(v)
+    v = type(v) == 'number' and v or nil
+    if v and v == v and v >= lo and v <= hi and (not int or v % 1 == 0) then return v end
+    return nil, string.format('a number from %s to %s', tostring(lo), tostring(hi))
+  end
+end
+G.SETTINGS = {      -- key in the file, the setting here, its check (-> the value or nil, what is expected)
+  { 'listed', 'LISTED', function(v)
+      if type(v) == 'boolean' then return v end
+      return nil, 'true or false'
+    end },
+  { 'time', 'TIME', function(v)
+      if v == 'real' or G.timeConfig(v, 0, 0) then return v end
+      return nil, '"real" or "HH:MM"'
+    end },
+  { 'timeSpeed', 'TIME_SPEED', num(0, 3600) },
+  { 'weather', 'WEATHER', function(v)
+      if v == 'real' or G.WEATHERS[v] then return v end
+      return nil, '"real", "clear", "cloudy", "rain", "storm", "snow" or "fog"'
+    end },
+  { 'shareStoreMb', 'SHARE_STORE_MB', num(16, 1048576, true) },
+  { 'shareOutKbps', 'SHARE_OUT_KBPS', num(16, 1048576, true) },
+  { 'meetM', 'MEET_M', num(0, 20000000) },
+}
+G.defaults = nil    -- (this file's values, kept at the first apply: a key removed from the file goes back to them)
+
+-- Pure (but for G's settings): the settings file's text applied over this file's values. -> warnings (texts),
+-- changed { NAME = true } (the settings whose value is now another).
+function G.applySettings(text, decode)
+  if not G.defaults then
+    G.defaults = {}
+    for _, s in ipairs(G.SETTINGS) do G.defaults[s[2]] = G[s[2]] end
+  end
+  local warnings, file = {}, {}
+  if text and text:find('%S') then
+    local ok, d = pcall(decode, text)
+    if ok and type(d) == 'table' and d[1] == nil then file = d      -- (d[1]: a JSON array)
+    else warnings[#warnings + 1] = G.SETTINGS_FILE .. ' is not a JSON object: the settings of main.lua are used' end
+  end
+  local known, changed = {}, {}
+  for _, s in ipairs(G.SETTINGS) do
+    local key, name, check = s[1], s[2], s[3]
+    known[key] = true
+    local value = G.defaults[name]
+    if file[key] ~= nil then
+      local v, expected = check(file[key])
+      if v ~= nil then value = v
+      else
+        warnings[#warnings + 1] = string.format('%s: %s must be %s, not %s: %s kept', G.SETTINGS_FILE, key, expected,
+          tostring(file[key]), tostring(value))
+      end
+    end
+    if G[name] ~= value then changed[name] = true end
+    G[name] = value
+  end
+  local unknown = {}
+  for k in pairs(file) do if not known[k] then unknown[#unknown + 1] = tostring(k) end end
+  table.sort(unknown)
+  for _, k in ipairs(unknown) do warnings[#warnings + 1] = G.SETTINGS_FILE .. ': unknown setting ' .. k end
+  return warnings, changed
+end
+
+-- The settings now (what the server panel shows): { listed, time, timeSpeed, weather, shareStoreMb, ... }.
+function G.settings()
+  local out = {}
+  for _, s in ipairs(G.SETTINGS) do out[s[1]] = G[s[2]] end
+  return out
+end
+
 -- Pure: the server's name, description, tags, map, port, player cap, resource folder and whether it has a password
 -- (pass: never the password itself) from ServerConfig.toml's text.
 function G.readConfig(text)
@@ -759,16 +837,53 @@ if MP and MP.RegisterEvent then
     return info
   end
 
+  -- the settings file (SHARE_DIR/settings.json): at start, then each tick when its text changes
+  local settingsPath = G.SHARE_DIR .. '/' .. G.SETTINGS_FILE
+  local settingsText = nil
+  local function loadSettings()
+    local text = G.fs.read(settingsPath) or ''
+    if text == settingsText then return nil end
+    local first = settingsText == nil
+    settingsText = text
+    local warnings, changed = G.applySettings(text, Util.JsonDecode)
+    for _, w in ipairs(warnings) do print('[BeamNG.Earth] ' .. w) end
+    if not first and next(changed) then
+      local list = {}
+      for name in pairs(changed) do list[#list + 1] = name end
+      table.sort(list)
+      print('[BeamNG.Earth] ' .. G.SETTINGS_FILE .. ' changed: ' .. table.concat(list, ', '))
+    end
+    return changed
+  end
+  loadSettings()
+
   -- a public server with its key goes on our list and off BeamMP's (its Private setting on while it runs: BeamMP's
-  -- heartbeat sends it each time); otherwise direct connect only
-  local startCfg = serverConfig()
-  if G.listable(startCfg) then
-    local okSet = pcall(MP.Set, MP.Settings.Private, true)
-    print('[BeamNG.Earth] public server: on the BeamNG.Earth server list'
-      .. (okSet and ', kept off BeamMP\'s public list' or ' (could not keep it off BeamMP\'s public list)'))
-  else
-    print('[BeamNG.Earth] not on any server list (Private = true or no AuthKey in ServerConfig.toml): players join with '
-      .. 'Direct Connect')
+  -- heartbeat sends it each time); otherwise direct connect only. Again when the settings file changes listed: off
+  -- our list, a public server goes back on BeamMP's.
+  local function applyListing(cfg, again)
+    if G.listable(cfg) then
+      local okSet = pcall(MP.Set, MP.Settings.Private, true)
+      print('[BeamNG.Earth] public server: on the BeamNG.Earth server list'
+        .. (okSet and ', kept off BeamMP\'s public list' or ' (could not keep it off BeamMP\'s public list)'))
+    else
+      if again and cfg.private == false then pcall(MP.Set, MP.Settings.Private, false) end
+      print('[BeamNG.Earth] not on the BeamNG.Earth server list ('
+        .. (G.LISTED == false and 'listed = false' or 'Private = true or no AuthKey in ServerConfig.toml')
+        .. (cfg.private == false and G.LISTED == false and '): on BeamMP\'s public list'
+          or '): players join with Direct Connect'))
+    end
+  end
+  applyListing(serverConfig(), false)
+
+  -- the settings file changed: time and weather to every player at once (a new fixed time starts now), the listing
+  function BNGE_settings()
+    local changed = loadSettings()
+    if not changed then return end
+    if changed.TIME or changed.TIME_SPEED then G.started = os.time() end
+    if changed.TIME or changed.TIME_SPEED or changed.WEATHER then
+      MP.TriggerClientEvent(-1, 'bngeConfig', encode(G.config()))
+    end
+    if changed.LISTED then applyListing(serverConfig(), true) end
   end
 
   -- this server on the BeamNG.Earth list, every ANNOUNCE_MS and at start
@@ -792,6 +907,8 @@ if MP and MP.RegisterEvent then
   MP.RegisterEvent('bngeShare', 'BNGE_share')
   MP.RegisterEvent('BNGE_shareDrain', 'BNGE_shareDrain')
   MP.CreateEventTimer('BNGE_shareDrain', G.SHARE_DRAIN_MS)
+  MP.RegisterEvent('BNGE_settings', 'BNGE_settings')
+  MP.CreateEventTimer('BNGE_settings', G.TICK_MS)
   local cfg = G.config()
   local timeText = 'real'
   if cfg.time then

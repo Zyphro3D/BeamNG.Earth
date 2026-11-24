@@ -1,7 +1,8 @@
 #!/bin/sh
 # The container's start (beammp/README.md, "Docker"): ServerConfig.toml kept in /data (the host bundle's on first start;
 # BeamMP itself applies BEAMMP_* to it and writes them back before the plugin reads it), the plugin's store, bake and
-# spool kept in /data, BNGE_* set the plugin's time, weather and listing. BNGE_ROOT / BNGE_DATA: other folders (tests).
+# spool kept in /data, BNGE_* set the plugin's time, weather and listing (its settings.json in /data wins over them).
+# BNGE_ROOT / BNGE_DATA: other folders (tests).
 set -eu
 root=${BNGE_ROOT:-/beammp}
 data=${BNGE_DATA:-/data}
@@ -27,6 +28,9 @@ for d in store bake spool; do
   rm -rf "${plugin:?}/$d"
   ln -s "$data/$d" "$plugin/$d"
 done
+# the plugin's settings file (settings.json: it wins over main.lua and BNGE_*, read again while the server runs)
+rm -f "$plugin/settings.json"
+ln -s "$data/settings.json" "$plugin/settings.json"
 
 # the plugin's settings near the top of main.lua, each its own line there
 set_g() { sed -i "s|^G\.$1 = .*|G.$1 = $2|" "$plugin/main.lua"; }

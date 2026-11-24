@@ -47,6 +47,10 @@ class EntrypointTest(unittest.TestCase):
             self.assertTrue((self.data / d).is_dir(), d)
             self.assertEqual(os.readlink(self.root / "Resources/Server/BeamNGEarth" / d), str(self.data / d))
         self.assertEqual(self.setting("TIME"), "'real'")     # (no BNGE_*: main.lua as shipped)
+        # the settings file: in /data too (none yet: the link leads nowhere, the plugin then uses main.lua's values)
+        self.assertEqual(os.readlink(self.root / "Resources/Server/BeamNGEarth/settings.json"),
+                         str(self.data / "settings.json"))
+        self.assertFalse((self.data / "settings.json").exists())
 
     def test_a_config_in_data_is_kept_and_a_removed_one_comes_back(self):
         (self.data / "ServerConfig.toml").write_text("mine\n")

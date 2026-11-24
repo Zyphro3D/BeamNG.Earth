@@ -171,4 +171,53 @@ G.WEATHER = 'tornado'
 T.check(G.config().weather == nil, 'an unknown weather: the real one')
 G.TIME, G.TIME_SPEED, G.WEATHER = 'real', 0, 'real'
 
+-- the settings file (settings.json): over main.lua's values, a bad value warned and left, a removed key back to them
+local J = dofile(dir .. '/minijson.lua')
+local function apply(text) return G.applySettings(text, J.decode) end
+local shipped = G.settings()
+T.check(shipped.listed == true and shipped.time == 'real' and shipped.timeSpeed == 0 and shipped.weather == 'real'
+  and shipped.shareStoreMb == 2048 and shipped.shareOutKbps == 1024 and shipped.meetM == 3000,
+  'settings: main.lua\'s values')
+local warnings, changed = apply('')
+T.check(#warnings == 0 and next(changed) == nil, 'settings: no file, nothing changes')
+warnings, changed = apply('{"listed": false, "time": "20:30", "timeSpeed": 60, "weather": "rain", '
+  .. '"shareStoreMb": 512, "shareOutKbps": 256, "meetM": 0}')
+T.check(#warnings == 0, 'settings: a good file, no warning: ' .. table.concat(warnings, ' | '))
+T.check(G.LISTED == false and G.TIME == '20:30' and G.TIME_SPEED == 60 and G.WEATHER == 'rain'
+  and G.SHARE_STORE_MB == 512 and G.SHARE_OUT_KBPS == 256 and G.MEET_M == 0, 'settings: the file\'s values applied')
+T.check(changed.LISTED and changed.TIME and changed.TIME_SPEED and changed.WEATHER and changed.SHARE_STORE_MB
+  and changed.SHARE_OUT_KBPS and changed.MEET_M, 'settings: every one changed')
+local cfgNow = G.config()
+T.check(cfgNow.time and cfgNow.time.hours == 20.5 and cfgNow.time.speed == 60 and cfgNow.weather == 'rain',
+  'settings: the players get the file\'s time and weather')
+T.check(not G.listable({ private = false, authKey = 'aaaa1111-2222-3333-4444-555566667777' }),
+  'settings: listed false keeps a public server off the list')
+warnings, changed = apply('{"listed": false, "time": "20:30", "timeSpeed": 60, "weather": "rain", '
+  .. '"shareStoreMb": 512, "shareOutKbps": 256, "meetM": 0}')
+T.check(#warnings == 0 and next(changed) == nil, 'settings: the same file again, nothing changed')
+warnings, changed = apply('{"weather": "rain"}')
+T.check(G.WEATHER == 'rain' and G.TIME == 'real' and G.LISTED == true and G.SHARE_STORE_MB == 2048 and G.MEET_M == 3000
+  and changed.TIME and changed.LISTED and not changed.WEATHER, 'settings: removed keys go back to main.lua\'s values')
+for _, bad in ipairs({
+  { 'listed', '"yes"' }, { 'time', '"25:00"' }, { 'time', '"noon"' }, { 'time', '20' }, { 'timeSpeed', '-1' },
+  { 'timeSpeed', '"60"' }, { 'timeSpeed', '5000' }, { 'weather', '"hail"' }, { 'weather', '"Rain"' },
+  { 'shareStoreMb', '1.5' }, { 'shareStoreMb', '8' }, { 'shareOutKbps', 'null' }, { 'meetM', '-3' },
+  { 'meetM', '{}' } }) do
+  apply('')
+  warnings = apply('{"' .. bad[1] .. '": ' .. bad[2] .. '}')
+  local s = G.settings()
+  local expectWarn = bad[2] ~= 'null'      -- (null: as if left out)
+  T.check((#warnings == 1) == expectWarn and s[bad[1]] == shipped[bad[1]],
+    'settings: a bad ' .. bad[1] .. ' ' .. bad[2] .. ' warned and left: ' .. table.concat(warnings, ' | '))
+end
+warnings = apply('{"weather": "fog", "sound": 3, "colour": "red"}')
+T.check(G.WEATHER == 'fog' and #warnings == 2 and warnings[1]:find('unknown setting colour', 1, true)
+  and warnings[2]:find('unknown setting sound', 1, true), 'settings: unknown keys warned, the others applied')
+for _, text in ipairs({ 'not json', '[1, 2]', '"rain"', '{"weather": "rain"' }) do
+  warnings = apply(text)
+  T.check(#warnings == 1 and warnings[1]:find('not a JSON object', 1, true) and G.WEATHER == 'real',
+    'settings: not a JSON object, main.lua\'s values: ' .. text)
+end
+apply('')
+
 T.done('test_beammp_plugin')
