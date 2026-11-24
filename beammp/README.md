@@ -138,11 +138,12 @@ Build it yourself from the source's root: `docker build -f docker/Dockerfile -t 
 - Baked packs: `.bnge` files of whole areas put in `Resources/Server/BeamNGEarth/bake/` are served the same way to
   players with the matching BeamNG.Earth version.
 - Share helper (in testing): the server's own machine can build the areas round the players before they get there.
-  Run BeamNG.Earth's world server next to the BeamMP server, from BeamNG.Earth's source (the same version as the
-  players):
-  `python3 server/sharehelper.py --share-dir <this server's folder>/Resources/Server/BeamNGEarth --cache <a folder
-  for its map data> --procs 4` (`--procs`: how many of the machine's cores it uses). It needs internet access and
-  a few GB of disk for each area.
+  On Linux, run the Linux app of the same version as the players (no Python or Rust to install):
+  `./BeamNG.Earth-<version>-x86_64.AppImage --share-helper --share-dir <this server's folder>/Resources/Server/BeamNGEarth
+  --cache <a folder for its map data> --procs 1`, or from BeamNG.Earth's source:
+  `python3 server/sharehelper.py` with the same options (`--procs`: how many of the machine's cores it uses). It
+  needs internet access and a few GB of disk for each area. On a small server, run it in a service with a memory
+  limit (systemd `MemoryMax=`): if it runs short, it is stopped, never the BeamMP server.
 <!-- v1 shared world building: commented out 2026-10-27 (off since 2026-10-23; not coming back for a while).
 - (Turned off for now: each player builds their own world, and the setting below does nothing yet.) Players near
   each other share one world origin and split the work of building the world: each piece of the distant

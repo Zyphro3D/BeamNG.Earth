@@ -288,6 +288,16 @@ def run_server(argv):
     earthd.main()
 
 
+def run_share_helper(argv):
+    """In this process: server/sharehelper.py with argv (the --share-helper mode of the packaged app): a BeamMP server's
+    helper fills its plugin's shared store with the same release's planning, with no Python or Rust to install
+    (beammp/README.md, "Share helper"). Not watched by a parent: a service runs it."""
+    sys.path.insert(0, os.path.join(ROOT, "server"))
+    import sharehelper
+    sys.argv = ["sharehelper"] + argv
+    sharehelper.main()
+
+
 def run_addon(argv):
     """--run-addon FILE ARGS: a companion add-on's Python file run with this app's own Python (addonrun.py: the packaged
     app has no other), ended when the server that started it ends (BNGEARTH_PARENT: watch_parent)."""
@@ -2052,6 +2062,10 @@ def main():
         # session: a Windows test PC's launcher.log was 290 KB of server lines, 2026-11-12)
         ensure_ca_certs()
         run_server(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "--share-helper":   # (its log: the service's journal)
+        ensure_ca_certs()
+        run_share_helper(sys.argv[2:])
         return
     tee_log()
     ensure_ca_certs()
